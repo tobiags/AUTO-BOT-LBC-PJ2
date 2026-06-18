@@ -8,6 +8,7 @@ Règle R05 : délai aléatoire 2–12 min entre messages, quotas progressifs.
 import asyncio
 import logging
 import random
+import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -16,7 +17,7 @@ from sqlalchemy import select, update
 from app import boundaries
 from app.config import get_settings
 from app.db import get_db
-from app.models import CampaignStatus, SmsStatus
+from app.models import CampaignStatus, ListingStatus, SmsStatus
 from app.services.blacklist import is_blacklisted
 from app.tables import Campaign, Listing, SmsLog
 
@@ -54,9 +55,11 @@ async def run_campaign(campaign_id: str) -> dict:
         log.info("Campagne %s — hors fenêtre horaire R01, mise en attente.", campaign_id)
         return {"status": "deferred", "sent": 0, "failed": 0}
 
+    campaign_uuid = uuid.UUID(campaign_id)
+
     # Charger la campagne
     async with get_db() as db:
-        campaign = await db.get(Campaign, campaign_id)
+        campaign = await db.get(Campaign, campaign_uuid)
         if not campaign:
             raise ValueError(f"Campagne introuvable : {campaign_id}")
         if campaign.status not in (CampaignStatus.PENDING, CampaignStatus.RUNNING):
@@ -70,7 +73,7 @@ async def run_campaign(campaign_id: str) -> dict:
         result = await db.execute(
             select(Listing).where(
                 Listing.phone.isnot(None),
-                Listing.status == "NOUVELLE",
+                Listing.status == ListingStatus.NOUVELLE,
             ).limit(200)
         )
         listings = result.scalars().all()
@@ -113,12 +116,12 @@ async def run_campaign(campaign_id: str) -> dict:
                         status=SmsStatus.SENT,
                         project="P2",
                         cost_eur=result.cost,
-                        campaign_id=campaign_id,
+                        campaign_id=campaign_uuid,
                     ))
                     await db.execute(
                         update(Listing)
                         .where(Listing.id == listing.id)
-                        .values(status="SMS_ENVOYÉ")
+                        .values(status=ListingStatus.SMS_ENVOYE)
                     )
             else:
                 failed += 1
@@ -129,7 +132,7 @@ async def run_campaign(campaign_id: str) -> dict:
     async with get_db() as db:
         await db.execute(
             update(Campaign)
-            .where(Campaign.id == campaign_id)
+            .where(Campaign.id == campaign_uuid)
             .values(status=CampaignStatus.COMPLETED, sent=sent, failed=failed)
         )
 
