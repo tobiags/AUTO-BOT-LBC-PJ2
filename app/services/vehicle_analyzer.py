@@ -15,7 +15,6 @@ from uuid import UUID
 
 from sqlalchemy import func, select, update
 
-from app.config import get_settings
 from app.db import get_db
 from app.models import VehicleAnalysisOut
 from app.tables import Listing
@@ -163,8 +162,8 @@ async def _ai_analysis(
     Retourne les clés : reliability_score, ai_summary, known_issues,
                         inspection_tips, negotiation_tip.
     """
-    settings = get_settings()
-    if not settings.anthropic_api_key:
+    import os
+    if not os.environ.get("ANTHROPIC_API_KEY"):
         log.warning("vehicle_analyzer : ANTHROPIC_API_KEY absent — analyse IA ignorée")
         return {}
 
@@ -204,7 +203,7 @@ async def _ai_analysis(
 
     prompt = "\n".join(prompt_parts)
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = AsyncAnthropic()  # lit ANTHROPIC_API_KEY depuis l'environnement
     response = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
