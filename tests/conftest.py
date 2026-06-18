@@ -3,12 +3,39 @@ Fixtures pytest partagées.
 Règle TDD : on mocke UNIQUEMENT boundaries.py — jamais PostgreSQL/Redis.
 Les tests d'intégration tournent sur une vraie DB de test (port 5433).
 """
+import asyncio
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from unittest.mock import AsyncMock, patch
 
 from app.main import app
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus
+
+
+# ── DB SETUP ─────────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="session", autouse=True)
+def create_db_tables():
+    """Crée toutes les tables via create_all (idempotent) avant la session.
+
+    Couvre les tests d'intégration qui appellent les services directement
+    sans passer par l'ASGI lifespan (ex : test_listing_persistence.py).
+    En cas d'échec (DB non disponible), les tests unitaires ne sont pas bloqués.
+    """
+    from app.db import Base, engine
+
+    async def _create():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        # Dispose pour libérer les connexions du loop asyncio.run() avant les tests.
+        # Les tests créent leurs propres connexions dans leurs event loops respectifs.
+        await engine.dispose()
+
+    try:
+        asyncio.run(_create())
+    except Exception:
+        pass  # DB non disponible — les tests unitaires passent quand même
 
 
 # ── APP CLIENT ───────────────────────────────────────────────────────────────
