@@ -92,15 +92,41 @@ class ListingOut(BaseModel):
     id: UUID
     source: ListingSource
     url: str
-    title: str
+    title: str | None = None
     price: int | None = None
     km: int | None = None
     location: str | None = None
     phone: str | None = None
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
+    fuel: str | None = None
+    transmission: str | None = None
+    price_score: float | None = None
+    market_avg_price: int | None = None
+    market_sample_size: int | None = None
     status: ListingStatus
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class VehicleAnalysisOut(BaseModel):
+    listing_id: UUID
+    listing_url: str
+    # Scoring marché (calculé depuis notre DB)
+    price_score: float | None = None          # % sous marché ; positif = sous-évalué
+    market_avg_price: int | None = None
+    market_min_price: int | None = None
+    market_max_price: int | None = None
+    market_sample_size: int = 0
+    confidence: str = "insufficient"          # "high" | "medium" | "low" | "insufficient"
+    # Analyse IA Claude
+    reliability_score: int | None = None      # 0-100
+    ai_summary: str | None = None
+    known_issues: list[str] = []
+    inspection_tips: list[str] = []
+    negotiation_tip: str | None = None
 
 
 class CampaignCreate(BaseModel):

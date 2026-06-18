@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Patchright sessions — répertoire des profils persistants
     sessions_dir: str = "/tmp/lbc_sessions"
 
+    # Anthropic — analyse véhicules (vehicle_analyzer)
+    anthropic_api_key: str = ""
+
     # Fenêtre horaire SMS (règle R01 — heure Paris)
     sms_hour_start: int = 8
     sms_hour_end: int = 20

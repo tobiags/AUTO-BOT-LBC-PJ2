@@ -85,6 +85,12 @@ class RawListing:
     location: str | None = None
     phone: str | None = None
     raw_data: str | None = None
+    # Attributs véhicule — disponibles via API /finder/search
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
+    fuel: str | None = None
+    transmission: str | None = None
 
 
 def _parse_price(text: str) -> int | None:
@@ -132,20 +138,35 @@ def _build_lbc_api_payload(search_params: dict[str, Any], offset: int = 0, limit
     }
 
 
+def _extract_attr(attributes: list[dict], *keys: str) -> str:
+    """Extrait la valeur du premier attribut correspondant à l'une des keys."""
+    for attr in attributes:
+        if attr.get("key") in keys:
+            return str(attr.get("value_label") or attr.get("value") or "")
+    return ""
+
+
+def _parse_year(raw: str) -> int | None:
+    """'2018-01' → 2018 ; '2018' → 2018 ; '' → None."""
+    if not raw:
+        return None
+    try:
+        return int(raw[:4])
+    except (ValueError, TypeError):
+        return None
+
+
 def _parse_api_items(ads: list[dict]) -> list[RawListing]:
-    """Convertit les annonces JSON de /finder/search en RawListing."""
+    """Convertit les annonces JSON de /finder/search en RawListing enrichis."""
     results: list[RawListing] = []
     for ad in ads:
         subject = ad.get("subject", "")
         price_raw = ad.get("price", [])
         price = int(price_raw[0]) if price_raw else None
 
-        # Kilométrage dans attributes [{key, value}]
-        km: int | None = None
-        for attr in ad.get("attributes", []):
-            if attr.get("key") == "mileage":
-                km = _parse_km(str(attr.get("value", "")))
-                break
+        attrs = ad.get("attributes", [])
+
+        km = _parse_km(_extract_attr(attrs, "mileage"))
 
         location_data = ad.get("location", {})
         location = ", ".join(filter(None, [
@@ -161,6 +182,11 @@ def _parse_api_items(ads: list[dict]) -> list[RawListing]:
             km=km,
             location=location,
             raw_data=json.dumps(ad, ensure_ascii=False),
+            make=_extract_attr(attrs, "brand", "u_car_brand") or None,
+            model=_extract_attr(attrs, "model", "u_car_model") or None,
+            year=_parse_year(_extract_attr(attrs, "regdate")),
+            fuel=_extract_attr(attrs, "fuel") or None,
+            transmission=_extract_attr(attrs, "gearbox") or None,
         )
         results.append(enrich_with_phone(listing))
     return results

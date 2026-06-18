@@ -24,6 +24,8 @@ dependencies = [
     "crawl4ai>=0.4.0",
     "scrapling>=0.2.0",
     "patchright>=1.44.0",
+    # AI — analyse véhicules
+    "anthropic>=0.40.0",
     # Monitoring
     "sentry-sdk[fastapi]>=2.7.0",
 ]

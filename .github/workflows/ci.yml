@@ -44,6 +44,7 @@ jobs:
       SECRET_KEY: ci-test-secret-key-not-for-production
       BROWSER_USE_API_KEY: ""
       SESSIONS_DIR: /tmp/lbc_sessions_ci
+      ANTHROPIC_API_KEY: ""
 
     steps:
       - uses: actions/checkout@v4

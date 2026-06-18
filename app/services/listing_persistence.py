@@ -45,6 +45,11 @@ async def persist_listings(listings: list[RawListing]) -> dict:
                     location=listing.location,
                     phone=listing.phone,
                     raw_data=listing.raw_data,
+                    make=listing.make,
+                    model=listing.model,
+                    year=listing.year,
+                    fuel=listing.fuel,
+                    transmission=listing.transmission,
                     status=ListingStatus.NOUVELLE,
                 )
                 .on_conflict_do_nothing(index_elements=["url"])

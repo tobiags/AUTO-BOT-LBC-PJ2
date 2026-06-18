@@ -71,6 +71,17 @@ class Listing(Base):
     location: Mapped[str | None] = mapped_column(String(200))
     phone: Mapped[str | None] = mapped_column(String(30))
     raw_data: Mapped[str | None] = mapped_column(Text)                  # JSON brut
+    # Attributs véhicule — enrichis depuis l'API /finder/search ou scraping détail
+    make: Mapped[str | None] = mapped_column(String(100), index=True)
+    model: Mapped[str | None] = mapped_column(String(100), index=True)
+    year: Mapped[int | None] = mapped_column(Integer, index=True)
+    fuel: Mapped[str | None] = mapped_column(String(50))
+    transmission: Mapped[str | None] = mapped_column(String(50))
+    # Analyse marché — calculée par vehicle_analyzer
+    price_score: Mapped[float | None] = mapped_column(Float)           # % sous marché
+    market_avg_price: Mapped[int | None] = mapped_column(Integer)
+    market_sample_size: Mapped[int | None] = mapped_column(Integer)
+    ai_summary: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         Enum(ListingStatus, name="listing_status"), default=ListingStatus.NOUVELLE
     )
