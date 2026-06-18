@@ -90,6 +90,25 @@ def scrape_listings_task(search_params: dict | None = None):
     }
 
 
+@celery_app.task(name="app.tasks.analyze_batch_task")
+def analyze_batch_task(listing_ids: list[str]):
+    """Analyse un lot d'annonces — lancé par POST /analyzer/run/batch."""
+    import uuid
+    from app.services.vehicle_analyzer import analyze_listing
+
+    results = {"done": 0, "failed": 0}
+    for raw_id in listing_ids:
+        try:
+            _run(analyze_listing(uuid.UUID(raw_id)))
+            results["done"] += 1
+        except Exception as exc:
+            log.warning("analyze_batch_task : échec listing %s — %s", raw_id, exc)
+            results["failed"] += 1
+
+    log.info("analyze_batch_task terminé : %s", results)
+    return results
+
+
 @celery_app.task(name="app.tasks.check_account_pool_task")
 def check_account_pool_task():
     """Vérifie le pool de comptes ACTIFS — warm-up + création si nécessaire."""

@@ -7,7 +7,7 @@ import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import accounts, campaigns, health, listings
+from app.api import accounts, analyzer, campaigns, health, listings
 from app.config import get_settings
 from app.db import Base, engine
 from app.webhooks import call, email, sms
@@ -47,6 +47,7 @@ app.include_router(health.router)
 app.include_router(accounts.router)
 app.include_router(campaigns.router)
 app.include_router(listings.router)
+app.include_router(analyzer.router)
 app.include_router(sms.router)
 app.include_router(email.router)
 app.include_router(call.router)
