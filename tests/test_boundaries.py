@@ -22,7 +22,6 @@ def test_extract_phone_none():
 
 
 def test_extract_phone_ambiguous_does_not_crash():
-    # Texte ambigu mais sans numéro → None sans appel Haiku
     assert extract_phone("Prix : 15 000 euros, année 2021") is None
 
 

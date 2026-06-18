@@ -5,6 +5,7 @@ import asyncio
 import logging
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import get_settings
 
@@ -27,12 +28,12 @@ celery_app.conf.update(
         # WF-04 — scraping quotidien à 06h00
         "scrape-lbc-daily": {
             "task": "app.tasks.scrape_listings_task",
-            "schedule": {"hour": 6, "minute": 0},
+            "schedule": crontab(hour=6, minute=0),
         },
         # Vérification pool comptes — toutes les heures
         "check-account-pool": {
             "task": "app.tasks.check_account_pool_task",
-            "schedule": 3600,
+            "schedule": 3600.0,
         },
     },
 )
@@ -40,7 +41,7 @@ celery_app.conf.update(
 
 def _run(coro):
     """Exécute une coroutine depuis un contexte synchrone Celery."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)

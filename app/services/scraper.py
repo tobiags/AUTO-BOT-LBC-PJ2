@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.models import ListingSource
-from app.services.phone_extractor import extract_phone_with_fallback
+from app.services.phone_extractor import extract_phone
 
 log = logging.getLogger(__name__)
 
@@ -52,15 +52,12 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
     return []
 
 
-async def enrich_with_phone(listing: RawListing) -> RawListing:
-    """
-    Extrait le numéro depuis le titre/description si absent.
-    Utilise extract_phone_with_fallback (regex → Claude Haiku).
-    """
+def enrich_with_phone(listing: RawListing) -> RawListing:
+    """Extrait le numéro depuis le titre si absent (regex)."""
     if listing.phone or not listing.title:
         return listing
 
-    phone = await extract_phone_with_fallback(listing.title)
+    phone = extract_phone(listing.title)
     return RawListing(
         source=listing.source,
         url=listing.url,

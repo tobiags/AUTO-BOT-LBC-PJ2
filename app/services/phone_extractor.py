@@ -1,7 +1,4 @@
-"""
-Extraction de numéro de téléphone depuis le texte d'une annonce.
-Stratégie : regex d'abord, Claude Haiku en fallback si ambiguïté.
-"""
+"""Extraction de numéro de téléphone depuis le texte d'une annonce (regex)."""
 import re
 
 # Formats FR courants : 06XXXXXXXX, +336XXXXXXXX, 06 XX XX XX XX, etc.
@@ -30,20 +27,3 @@ def extract_phone(text: str) -> str | None:
     return None
 
 
-async def extract_phone_with_fallback(text: str) -> str | None:
-    """
-    Essaie le regex d'abord.
-    Si None → appel Claude Haiku (boundaries.extract_phone_llm).
-    Coût Haiku : ~0.001 € / appel — uniquement si regex échoue.
-    """
-    result = extract_phone(text)
-    if result:
-        return result
-
-    # Fallback IA uniquement si le texte semble contenir un numéro
-    # (évite des appels Haiku sur des textes sans numéro du tout)
-    if not any(c.isdigit() for c in text):
-        return None
-
-    from app import boundaries
-    return await boundaries.extract_phone_llm(text)

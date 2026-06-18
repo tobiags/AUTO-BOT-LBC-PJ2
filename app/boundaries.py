@@ -118,8 +118,9 @@ async def poll_sms(order_id: str, max_wait: int = 120) -> str | None:
     import asyncio
     import re
 
-    deadline = asyncio.get_event_loop().time() + max_wait
-    while asyncio.get_event_loop().time() < deadline:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + max_wait
+    while loop.time() < deadline:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 f"{_SMSAPP_BASE}/sms/{order_id}",
@@ -161,27 +162,3 @@ def generate_email(domain: str | None = None) -> str:
     token = secrets.token_hex(4)
     return f"contact.{token}@{domain}"
 
-
-# ── ANTHROPIC (Claude Haiku — fallback extraction numéro) ────────────────────
-
-async def extract_phone_llm(text: str) -> str | None:
-    """
-    Fallback quand le regex échoue à extraire un numéro de téléphone ambigu.
-    Utilise Claude Haiku (~0.001 € / appel). Appelé uniquement si regex = None.
-    """
-    import anthropic
-
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    msg = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=50,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Extrait le numéro de téléphone français de ce texte. "
-                f"Réponds uniquement avec le numéro au format +33XXXXXXXXX ou null.\n\n{text}"
-            ),
-        }],
-    )
-    result = msg.content[0].text.strip()
-    return None if result.lower() == "null" else result

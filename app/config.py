@@ -34,9 +34,6 @@ class Settings(BaseSettings):
     mailgun_webhook_signing_key: str = ""
     operational_domain: str = ""
 
-    # Anthropic
-    anthropic_api_key: str = ""
-
     # Sentry
     sentry_dsn: str = ""
 

@@ -24,8 +24,6 @@ dependencies = [
     "crawl4ai>=0.4.0",
     "scrapling>=0.2.0",
     "patchright>=1.44.0",
-    # AI fallback
-    "anthropic>=0.28.0",
     # Monitoring
     "sentry-sdk[fastapi]>=2.7.0",
 ]

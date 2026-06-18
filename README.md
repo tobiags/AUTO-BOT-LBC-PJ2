@@ -15,7 +15,6 @@ Système d'automatisation SMS + scraping LeBonCoin / La Centrale pour AutoTransf
 | OTP | SmsApp.io (pay-per-delivery) |
 | Proxy 4G | iproxy.online (création comptes LBC uniquement) |
 | Email catch-all | Mailgun + domaine dédié |
-| IA fallback | Claude Haiku (extraction numéro ambiguë) |
 | Monitoring | Sentry |
 
 ## Démarrage local
