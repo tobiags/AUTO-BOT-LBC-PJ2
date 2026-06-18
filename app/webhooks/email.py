@@ -59,7 +59,14 @@ async def receive_email(
         )
         account = result.scalar_one_or_none()
         if account:
-            log.info("Compte trouvé : %s — prêt pour confirmation email", account.id)
-            # TODO (Sprint 2) : déclencher la soumission du code dans Patchright
+            log.info("Compte trouvé : id=%s — dépôt code Redis pour Patchright", account.id)
+            # Dépose le code en Redis. account_creation._poll_email_code_redis() le récupère.
+            import redis.asyncio as _aioredis
+            from app.config import get_settings as _gs
+            _redis = _aioredis.from_url(_gs().redis_url, decode_responses=True)
+            try:
+                await _redis.setex(f"email_code:{recipient}", 600, code)
+            finally:
+                await _redis.aclose()
 
     return {"ok": True, "code": code}

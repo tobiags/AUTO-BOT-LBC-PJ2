@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # Sentry
     sentry_dsn: str = ""
 
+    # browser-use Cloud (Mode B fallback)
+    browser_use_api_key: str = ""
+
+    # Patchright sessions — répertoire des profils persistants
+    sessions_dir: str = "/tmp/lbc_sessions"
+
     # Fenêtre horaire SMS (règle R01 — heure Paris)
     sms_hour_start: int = 8
     sms_hour_end: int = 20

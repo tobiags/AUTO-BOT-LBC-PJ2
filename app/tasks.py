@@ -80,10 +80,16 @@ def scrape_listings_task(search_params: dict | None = None):
 
 @celery_app.task(name="app.tasks.check_account_pool_task")
 def check_account_pool_task():
-    """Vérifie le pool de comptes ACTIFS — déclenche création si < 3 (règle)."""
+    """Vérifie le pool de comptes ACTIFS — warm-up + création si nécessaire."""
     from app.services.account_creation import _check_active_pool_needs_account
+    from app.services.warm_up import evaluate_warmup_batch
+
+    # Évalue d'abord les comptes EN_CHAUFFE avant de mesurer le pool
+    warmup_result = _run(evaluate_warmup_batch())
+    log.info("Warm-up évalué : %s", warmup_result)
+
     needs_account = _run(_check_active_pool_needs_account())
     if needs_account:
         log.info("Pool comptes sous le minimum — déclenchement création Mode A")
         create_account_task.delay(mode="A")
-    return {"triggered": needs_account}
+    return {"warmup": warmup_result, "triggered": needs_account}
