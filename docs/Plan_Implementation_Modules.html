@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan Opérationnel — AutoTransfert SAS</title>
+<style>
+:root {
+  --bg: #fff;
+  --surface: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --accent: #2563eb;
+  --accent-light: #eff6ff;
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+  --green: #16a34a;
+  --orange: #ea580c;
+  --red: #dc2626;
+  --purple: #7c3aed;
+  --teal: #0891b2;
+  --yellow: #ca8a04;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px; }
+.site-header { background: var(--code-bg); color: #fff; padding: 48px 24px 40px; }
+.site-header .eyebrow { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; margin-bottom: 12px; }
+.site-header h1 { font-size: clamp(24px, 4vw, 38px); font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+.site-header h1 span { color: #60a5fa; }
+.site-header .prompt-box { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius); padding: 12px 16px; font-size: 13px; color: #94a3b8; max-width: 760px; margin-bottom: 28px; }
+.stats-row { display: flex; flex-wrap: wrap; gap: 20px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .06em; }
+.stat-value { font-size: 16px; font-weight: 600; color: #f1f5f9; }
+nav { background: #1e293b; padding: 0 24px; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 100; overflow-x: auto; white-space: nowrap; }
+nav a { display: inline-block; color: #94a3b8; text-decoration: none; font-size: 12px; padding: 13px 10px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+nav a:hover { color: #f1f5f9; border-bottom-color: #60a5fa; }
+.content { max-width: 980px; margin: 0 auto; padding: 0 24px 80px; }
+.section { margin-top: 64px; }
+.section-header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 14px; }
+.section-num { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--text-muted); }
+.section-header h2 { font-size: clamp(17px, 2.8vw, 23px); font-weight: 700; }
+.section p.lead { color: var(--text-muted); margin-bottom: 20px; font-size: 14px; max-width: 740px; }
+.module { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 28px; box-shadow: var(--shadow); }
+.module-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.module-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.module-title { font-size: 16px; font-weight: 700; }
+.module-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.module-body { font-size: 13.5px; color: #334155; }
+.role-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; letter-spacing: .04em; margin-bottom: 10px; }
+.steps { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 7px; margin: 10px 0; }
+.steps li { counter-increment: step; display: flex; gap: 11px; align-items: flex-start; font-size: 13px; }
+.steps li::before { content: counter(step); background: var(--accent); color: #fff; width: 19px; height: 19px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.code-block { background: var(--code-bg); border-radius: var(--radius); padding: 14px 18px; overflow-x: auto; margin: 10px 0; }
+.code-block .filename { font-size: 11px; color: #60a5fa; margin-bottom: 7px; font-family: monospace; }
+.code-block pre { font-family: "JetBrains Mono","Fira Code","Cascadia Code",monospace; font-size: 12px; color: var(--code-text); line-height: 1.7; white-space: pre; }
+.cm { color: #64748b; } .kw { color: #93c5fd; } .fn { color: #86efac; } .st { color: #fca5a5; } .nu { color: #fcd34d; } .ty { color: #c4b5fd; } .op { color: #67e8f9; }
+.test-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; margin: 10px 0; }
+.test-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 13px; }
+.test-name { font-size: 11.5px; font-weight: 700; font-family: monospace; color: var(--green); margin-bottom: 3px; }
+.test-desc { font-size: 11.5px; color: var(--text-muted); }
+.test-edge { border-left: 3px solid var(--orange); }
+.test-edge .test-name { color: var(--orange); }
+.improvements { display: flex; flex-direction: column; gap: 7px; margin: 10px 0; }
+.improvement { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; }
+.improvement::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+.risk-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 10px 0; }
+.risk-table th { text-align: left; padding: 7px 11px; background: var(--surface); border-bottom: 2px solid var(--border); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.risk-table td { padding: 9px 11px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.risk-table tr:last-child td { border-bottom: none; }
+.sev { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: .06em; }
+.sev-high { background: #fee2e2; color: #991b1b; }
+.sev-med  { background: #fff7ed; color: #9a3412; }
+.sev-low  { background: #f0fdf4; color: #166534; }
+.milestones { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin: 14px 0; }
+.milestone { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+.milestone-week { font-size: 10.5px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+.milestone-title { font-weight: 700; font-size: 12.5px; margin-bottom: 7px; }
+.milestone-items { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.milestone-items li { font-size: 11.5px; color: #475569; display: flex; gap: 5px; align-items: flex-start; }
+.milestone-items li::before { content: "·"; color: var(--accent); font-weight: 900; flex-shrink: 0; }
+.sub-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin: 18px 0 9px; border-left: 3px solid var(--accent); padding-left: 9px; }
+.badge { display: inline-block; font-size: 10.5px; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+.badge-blue { background: #dbeafe; color: #1e40af; } .badge-green { background: #dcfce7; color: #166534; } .badge-orange { background: #ffedd5; color: #9a3412; } .badge-red { background: #fee2e2; color: #991b1b; }
+.c1{background:#dbeafe}.t1{color:#1e40af} .c2{background:#dcfce7}.t2{color:#166534} .c3{background:#ffedd5}.t3{color:#9a3412} .c4{background:#ede9fe}.t4{color:#5b21b6} .c5{background:#cffafe}.t5{color:#164e63} .c6{background:#fef9c3}.t6{color:#713f12} .c7{background:#fce7f3}.t7{color:#831843}
+.notice { background: var(--accent-light); border: 1px solid #bfdbfe; border-radius: var(--radius); padding: 11px 14px; font-size: 12.5px; color: #1e3a5f; margin: 10px 0; display: flex; gap: 7px; }
+.notice::before { content: "ℹ"; font-weight: 700; flex-shrink: 0; }
+.warn { background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); padding: 11px 14px; font-size: 12.5px; color: #7c2d12; margin: 10px 0; display: flex; gap: 7px; }
+.warn::before { content: "⚠"; font-weight: 700; flex-shrink: 0; }
+[id] { scroll-margin-top: 54px; }
+
+/* ── RÈGLES ── */
+.rules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; margin: 14px 0; }
+.rule-card { border-radius: var(--radius); padding: 14px 16px; }
+.rule-card.must { background: #fff1f2; border: 1px solid #fecdd3; }
+.rule-card.never { background: #fff7ed; border: 1px solid #fed7aa; }
+.rule-card.always { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.rule-id { font-size: 10px; font-weight: 700; font-family: monospace; margin-bottom: 4px; letter-spacing: .06em; }
+.rule-card.must .rule-id { color: #be123c; }
+.rule-card.never .rule-id { color: #c2410c; }
+.rule-card.always .rule-id { color: #15803d; }
+.rule-card p { font-size: 12.5px; color: #334155; line-height: 1.5; }
+.rule-card b { color: var(--text); }
+
+/* ── CHECKLIST ── */
+.checklist { list-style: none; display: flex; flex-direction: column; gap: 5px; margin: 10px 0; }
+.checklist li { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; color: #334155; }
+.checklist li::before { content: "☐"; font-size: 14px; flex-shrink: 0; color: #94a3b8; line-height: 1.3; }
+.checklist li b { color: var(--text); }
+.checklist li.critical::before { content: "☐"; color: var(--red); }
+.checklist-section { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin: 10px 0; }
+.checklist-section h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+.checklist-section h4 .cl-badge { background: #e0e7ff; color: #3730a3; font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+
+/* ── FORMAT DE SORTIE ── */
+.output-block { background: #0c1526; border: 1px solid #1e3a5f; border-radius: var(--radius); padding: 14px 18px; margin: 10px 0; }
+.output-block .out-label { font-size: 10px; font-family: monospace; color: #38bdf8; margin-bottom: 7px; letter-spacing: .08em; text-transform: uppercase; }
+.output-block pre { font-family: "JetBrains Mono","Fira Code",monospace; font-size: 11.5px; color: #cbd5e1; line-height: 1.65; white-space: pre; }
+.out-key { color: #7dd3fc; } .out-str { color: #86efac; } .out-num { color: #fcd34d; } .out-bool { color: #f0abfc; } .out-null { color: #94a3b8; } .out-cm { color: #475569; }
+
+/* ── WORKFLOW ── */
+.workflow { margin: 12px 0; }
+.wf-step { display: flex; gap: 0; margin-bottom: 0; }
+.wf-step:last-child .wf-line { display: none; }
+.wf-left { display: flex; flex-direction: column; align-items: center; width: 32px; flex-shrink: 0; }
+.wf-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; color: #fff; }
+.wf-dot.api { background: #2563eb; }
+.wf-dot.db  { background: #16a34a; }
+.wf-dot.ext { background: #ea580c; }
+.wf-dot.err { background: #dc2626; }
+.wf-dot.ok  { background: #0891b2; }
+.wf-line { width: 2px; flex: 1; background: var(--border); min-height: 22px; margin: 3px 0; }
+.wf-body { padding: 1px 0 18px 14px; flex: 1; }
+.wf-title { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.wf-desc  { font-size: 11.5px; color: var(--text-muted); }
+.wf-code  { font-family: monospace; font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 3px; color: #334155; display: inline-block; margin-top: 3px; }
+
+/* ── FILE TREE ── */
+.file-tree { background: var(--code-bg); border-radius: var(--radius); padding: 16px 20px; font-family: "JetBrains Mono","Fira Code",monospace; font-size: 12px; color: #94a3b8; line-height: 1.8; overflow-x: auto; }
+.tree-dir { color: #60a5fa; }
+.tree-file { color: #e2e8f0; }
+.tree-cm { color: #475569; }
+.tree-key { color: #86efac; }
+
+/* COL 2 layout for outputs */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+@media(max-width:640px) { .two-col { grid-template-columns: 1fr; } .rules-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="eyebrow">AutoTransfert SAS · Projets P1 &amp; P2 · Version opérationnelle · 2026</div>
+  <h1>Plan d'implémentation<br><span>Runbook module par module</span></h1>
+  <div class="prompt-box">
+    Document opérationnel complet : architecture, règles non-négociables, workflows étape par étape, formats de sortie attendus, checklists pré-tâche, et structure des fichiers. À utiliser comme référence pendant le développement et en production.
+  </div>
+  <div class="stats-row">
+    <div class="stat"><span class="stat-label">Services</span><span class="stat-value">7</span></div>
+    <div class="stat"><span class="stat-label">Projets</span><span class="stat-value">P1 + P2</span></div>
+    <div class="stat"><span class="stat-label">Coût/mois</span><span class="stat-value">~389–404 €</span></div>
+    <div class="stat"><span class="stat-label">Règles globales</span><span class="stat-value">12</span></div>
+    <div class="stat"><span class="stat-label">Workflows</span><span class="stat-value">5</span></div>
+    <div class="stat"><span class="stat-label">Setup</span><span class="stat-value">~20–25h</span></div>
+  </div>
+</header>
+
+<nav>
+  <a href="#archi">Architecture</a>
+  <a href="#files">Fichiers</a>
+  <a href="#regles">Règles</a>
+  <a href="#workflows">Workflows</a>
+  <a href="#m1">01·VPS</a>
+  <a href="#m2">02·SMSTools</a>
+  <a href="#m3">03·iproxy</a>
+  <a href="#m4">04·browser-use</a>
+  <a href="#m5">05·SmsApp</a>
+  <a href="#m6">06·Domaine</a>
+  <a href="#m7">07·Forward</a>
+  <a href="#plan">Sprints</a>
+  <a href="#risques">Risques</a>
+</nav>
+
+<div class="content">
+
+<!-- ═══ 00 ARCHITECTURE ═══ -->
+<section class="section" id="archi">
+  <div class="section-header"><span class="section-num">00</span><h2>Architecture globale</h2></div>
+  <p class="lead">VPS Hetzner = hub central. Tous les services externes communiquent via API REST. Flèches pleines = flux principal. Pointillés = webhooks/callbacks.</p>
+
+  <svg viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:960px;background:#0f172a;border-radius:10px;display:block;margin:0 0 20px;">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#60a5fa"/></marker>
+      <marker id="arrd" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94a3b8"/></marker>
+      <marker id="arrg" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4ade80"/></marker>
+    </defs>
+    <pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0L0 0 0 40" fill="none" stroke="#1e293b" stroke-width=".5"/></pattern>
+    <rect width="960" height="540" fill="url(#g)"/>
+    <!-- External targets -->
+    <rect x="100" y="40" width="160" height="56" rx="7" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="180" y="62" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700" font-family="monospace">LeBonCoin</text>
+    <text x="180" y="78" text-anchor="middle" fill="#64748b" font-size="9">DataDome · 6 couches</text>
+    <rect x="395" y="40" width="170" height="56" rx="7" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="480" y="60" text-anchor="middle" fill="#fcd34d" font-size="10" font-weight="700" font-family="monospace">IAD · SAFTI · HelloWork</text>
+    <text x="480" y="76" text-anchor="middle" fill="#64748b" font-size="9">Recruteurs P1</text>
+    <rect x="695" y="40" width="165" height="56" rx="7" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="777" y="62" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700" font-family="monospace">La Centrale</text>
+    <text x="777" y="78" text-anchor="middle" fill="#64748b" font-size="9">Scraping direct</text>
+    <!-- VPS Hub -->
+    <rect x="355" y="205" width="250" height="105" rx="10" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2.5"/>
+    <text x="480" y="232" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="800" font-family="monospace">VPS Hetzner CPX41</text>
+    <text x="480" y="251" text-anchor="middle" fill="#60a5fa" font-size="9.5">FastAPI · Celery · PostgreSQL · Redis · n8n</text>
+    <text x="480" y="267" text-anchor="middle" fill="#475569" font-size="9">crawl4ai · Scrapling · Patchright</text>
+    <text x="480" y="283" text-anchor="middle" fill="#475569" font-size="9">Next.js back-office · WebSocket</text>
+    <text x="480" y="299" text-anchor="middle" fill="#334155" font-size="8.5">app/ · tests/ · scripts/ · .env</text>
+    <!-- browser-use -->
+    <rect x="58" y="218" width="182" height="56" rx="7" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="149" y="241" text-anchor="middle" fill="#c4b5fd" font-size="10.5" font-weight="700" font-family="monospace">browser-use Cloud</text>
+    <text x="149" y="257" text-anchor="middle" fill="#64748b" font-size="9">Dev tier · IPs résidentielles</text>
+    <!-- SMSTools -->
+    <rect x="718" y="205" width="182" height="56" rx="7" fill="#1e293b" stroke="#4ade80" stroke-width="1.5"/>
+    <text x="809" y="228" text-anchor="middle" fill="#86efac" font-size="10.5" font-weight="700" font-family="monospace">SMSTools</text>
+    <text x="809" y="244" text-anchor="middle" fill="#64748b" font-size="9">8 SIM FR · REST API</text>
+    <!-- Client phone -->
+    <rect x="718" y="325" width="182" height="48" rx="7" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="809" y="346" text-anchor="middle" fill="#fcd34d" font-size="10.5" font-weight="700" font-family="monospace">Téléphone client</text>
+    <text x="809" y="362" text-anchor="middle" fill="#64748b" font-size="9">Forwarding + back-office</text>
+    <!-- Bottom row -->
+    <rect x="70" y="438" width="158" height="56" rx="7" fill="#1e293b" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="149" y="460" text-anchor="middle" fill="#fdba74" font-size="10.5" font-weight="700" font-family="monospace">iproxy.online</text>
+    <text x="149" y="476" text-anchor="middle" fill="#64748b" font-size="9">4G FR · création comptes</text>
+    <rect x="397" y="438" width="166" height="56" rx="7" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="480" y="460" text-anchor="middle" fill="#67e8f9" font-size="10.5" font-weight="700" font-family="monospace">SmsApp.io</text>
+    <text x="480" y="476" text-anchor="middle" fill="#64748b" font-size="9">OTP jetables · pay-per-delivery</text>
+    <rect x="722" y="438" width="173" height="56" rx="7" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="808" y="458" text-anchor="middle" fill="#fcd34d" font-size="10.5" font-weight="700" font-family="monospace">Mailgun + Domaine</text>
+    <text x="808" y="474" text-anchor="middle" fill="#64748b" font-size="9">Catch-all → webhook FastAPI</text>
+    <!-- Arrows -->
+    <line x1="355" y1="248" x2="240" y2="248" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="149" y1="218" x2="180" y2="96" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrd)"/>
+    <line x1="430" y1="205" x2="230" y2="96" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="480" y1="205" x2="480" y2="96" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="560" y1="205" x2="740" y2="96" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="605" y1="248" x2="718" y2="235" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrg)"/>
+    <line x1="809" y1="261" x2="809" y2="325" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="195" y1="438" x2="385" y2="310" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="480" y1="438" x2="480" y2="310" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="750" y1="438" x2="590" y2="310" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- Labels -->
+    <text x="295" y="242" text-anchor="middle" fill="#7c3aed" font-size="8.5" font-family="monospace">sessions</text>
+    <text x="660" y="230" text-anchor="middle" fill="#16a34a" font-size="8.5" font-family="monospace">REST API</text>
+    <text x="260" y="390" fill="#ea580c" font-size="8.5" font-family="monospace">4G IP</text>
+    <text x="505" y="382" fill="#0891b2" font-size="8.5" font-family="monospace">OTP</text>
+    <text x="695" y="388" fill="#ca8a04" font-size="8.5" font-family="monospace">webhook</text>
+    <rect x="18" y="490" width="924" height="36" rx="5" fill="rgba(30,41,59,.85)"/>
+    <line x1="30" y1="508" x2="58" y2="508" stroke="#60a5fa" stroke-width="1.5" marker-end="url(#arr)"/>
+    <text x="63" y="512" fill="#94a3b8" font-size="9.5" font-family="monospace">flux principal</text>
+    <line x1="148" y1="508" x2="176" y2="508" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrd)"/>
+    <text x="181" y="512" fill="#94a3b8" font-size="9.5" font-family="monospace">secondaire</text>
+    <rect x="270" y="501" width="10" height="10" rx="2" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="284" y="511" fill="#94a3b8" font-size="9.5" font-family="monospace">Hub central</text>
+    <rect x="370" y="501" width="10" height="10" rx="2" fill="#1e293b" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="384" y="511" fill="#94a3b8" font-size="9.5" font-family="monospace">Plateforme externe</text>
+    <text x="600" y="512" fill="#334155" font-size="8.5" font-family="monospace">P1=recrutement IAD/SAFTI · P2=acquisition véhicules LBC/La Centrale · Hub mutualisé</text>
+  </svg>
+</section>
+
+<!-- ═══ 00b STRUCTURE DES FICHIERS ═══ -->
+<section class="section" id="files">
+  <div class="section-header"><span class="section-num">00b</span><h2>Structure des fichiers</h2></div>
+  <p class="lead">Organisation du dépôt Git. Chaque couche a un rôle précis — ne pas mettre de logique dans les routes, ne pas faire d'appels HTTP en dehors de boundaries.py.</p>
+
+  <div class="file-tree"><span class="tree-dir">autotransfert/</span>                          <span class="tree-cm"># racine du dépôt Git</span>
+<span class="tree-dir">├── app/</span>                                     <span class="tree-cm"># backend Python (FastAPI)</span>
+<span class="tree-dir">│   ├── api/</span>                                 <span class="tree-cm"># routes HTTP (aucune logique métier)</span>
+<span class="tree-file">│   │   ├── health.py</span>                        <span class="tree-cm"># GET /health → db+redis status</span>
+<span class="tree-file">│   │   ├── campaigns.py</span>                     <span class="tree-cm"># POST /campaigns, GET /campaigns/{id}</span>
+<span class="tree-file">│   │   ├── accounts.py</span>                      <span class="tree-cm"># GET /accounts, PATCH /accounts/{id}/status</span>
+<span class="tree-file">│   │   └── listings.py</span>                      <span class="tree-cm"># GET /listings → annonces LBC/La Centrale</span>
+<span class="tree-dir">│   ├── webhooks/</span>                            <span class="tree-cm"># réception événements externes</span>
+<span class="tree-file">│   │   ├── sms.py</span>                           <span class="tree-cm"># POST /webhooks/sms → STOP, réponses</span>
+<span class="tree-file">│   │   ├── email.py</span>                         <span class="tree-cm"># POST /webhooks/email → codes LBC</span>
+<span class="tree-file">│   │   └── call.py</span>                          <span class="tree-cm"># POST /webhooks/call → push WS back-office</span>
+<span class="tree-dir">│   ├── services/</span>                            <span class="tree-cm"># logique métier pure (pas d'I/O directe)</span>
+<span class="tree-file">│   │   ├── account_creation.py</span>              <span class="tree-cm"># orchestration création compte LBC</span>
+<span class="tree-file">│   │   ├── campaign_runner.py</span>               <span class="tree-cm"># envoi SMS par campagne</span>
+<span class="tree-file">│   │   ├── scraper.py</span>                       <span class="tree-cm"># collecte annonces LBC + La Centrale</span>
+<span class="tree-file">│   │   ├── blacklist.py</span>                     <span class="tree-cm"># gestion STOP cross-projets</span>
+<span class="tree-file">│   │   └── phone_extractor.py</span>               <span class="tree-cm"># regex → fallback Claude Haiku</span>
+<span class="tree-file">│   ├── boundaries.py</span>                        <span class="tree-cm"># <span class="tree-key">SEUL fichier autorisé à appeler APIs externes</span></span>
+<span class="tree-file">│   ├── models.py</span>                            <span class="tree-cm"># Pydantic models (SmsResult, AccountSession…)</span>
+<span class="tree-file">│   ├── config.py</span>                            <span class="tree-cm"># Settings @lru_cache — lit les .env</span>
+<span class="tree-file">│   ├── db.py</span>                                <span class="tree-cm"># pool asyncpg + get_db() context manager</span>
+<span class="tree-file">│   ├── tasks.py</span>                             <span class="tree-cm"># tâches Celery (create_account, run_campaign…)</span>
+<span class="tree-file">│   └── ws.py</span>                                <span class="tree-cm"># WebSocket manager (push back-office)</span>
+<span class="tree-dir">├── front/</span>                                   <span class="tree-cm"># Next.js 16 back-office</span>
+<span class="tree-dir">│   ├── app/</span>                                 <span class="tree-cm"># App Router (pages, layouts)</span>
+<span class="tree-dir">│   ├── components/</span>                          <span class="tree-cm"># composants Radix UI Themes</span>
+<span class="tree-dir">│   └── tests/</span>                              <span class="tree-cm"># Vitest + MSW (handlers.ts, setup.ts)</span>
+<span class="tree-dir">├── tests/</span>                                   <span class="tree-cm"># tests backend pytest</span>
+<span class="tree-file">│   ├── conftest.py</span>                          <span class="tree-cm"># fixtures DB, mocks boundaries</span>
+<span class="tree-file">│   ├── test_account_creation.py</span>             <span class="tree-cm"># <span class="tree-key">tests intégration — vraie DB</span></span>
+<span class="tree-file">│   ├── test_campaign_runner.py</span>              <span class="tree-cm"># tests campagne SMS</span>
+<span class="tree-file">│   ├── test_scraper.py</span>                      <span class="tree-cm"># tests scraping</span>
+<span class="tree-file">│   └── test_webhooks.py</span>                     <span class="tree-cm"># tests réception events</span>
+<span class="tree-dir">├── migrations/</span>                              <span class="tree-cm"># Alembic — DDL versionné</span>
+<span class="tree-dir">├── scripts/</span>                                 <span class="tree-cm"># scripts ops (verify_server.sh, seed_sims.py…)</span>
+<span class="tree-dir">├── .husky/</span>                                  <span class="tree-cm"># hooks Git (pre-commit, pre-push)</span>
+<span class="tree-file">├── .env.example</span>                             <span class="tree-cm"># variables requises (jamais de vraies valeurs)</span>
+<span class="tree-file">├── docker-compose.yml</span>                       <span class="tree-cm"># PostgreSQL + Redis dev local</span>
+<span class="tree-file">├── pyproject.toml</span>                           <span class="tree-cm"># deps Python + config pytest/ruff</span>
+<span class="tree-file">└── package.json</span>                             <span class="tree-cm"># deps JS + scripts lint/test</span></div>
+
+  <div class="notice"><b>Règle d'architecture</b> : les routes API ne font qu'appeler les services. Les services ne font qu'appeler boundaries.py. Boundaries.py est le seul fichier qui parle aux APIs externes. En test, on mocke uniquement boundaries.py.</div>
+</section>
+
+<!-- ═══ 00c RÈGLES GLOBALES ═══ -->
+<section class="section" id="regles">
+  <div class="section-header"><span class="section-num">00c</span><h2>Règles opérationnelles</h2></div>
+  <p class="lead">Ces règles sont non-négociables. Elles protègent les comptes LBC, évitent les suspensions SMS, et garantissent la confidentialité des accès. Violation = incident à traiter immédiatement.</p>
+
+  <div class="sub-title">Règles MUST — obligation absolue</div>
+  <div class="rules-grid">
+    <div class="rule-card must">
+      <div class="rule-id">R01 · HORAIRES SMS</div>
+      <p>Les SMS de prospection <b>ne partent que entre 08h00 et 20h00</b>, heure de Paris. La tâche Celery vérifie l'heure avant chaque envoi. Un message planifié hors horaire est mis en queue pour 08h00 le lendemain.</p>
+    </div>
+    <div class="rule-card must">
+      <div class="rule-id">R02 · BLACKLIST CROSS-PROJETS</div>
+      <p>Un numéro STOP reçu sur <b>n'importe quelle SIM</b> est blacklisté dans les deux projets P1 et P2 simultanément. La table <code>blacklist</code> est partagée — aucune exception.</p>
+    </div>
+    <div class="rule-card must">
+      <div class="rule-id">R03 · ACCÈS VIA BITWARDEN</div>
+      <p>Toutes les clés API, mots de passe, et tokens sont stockés et partagés <b>exclusivement via Bitwarden</b>. Zéro envoi par email, SMS, WhatsApp, ou GitHub issue. Aucune clé dans le code.</p>
+    </div>
+    <div class="rule-card must">
+      <div class="rule-id">R04 · WARM-UP OBLIGATOIRE</div>
+      <p>Tout compte LBC nouvellement créé reste en statut <b>EN_CHAUFFE pendant 48–72h minimum</b> (0 message envoyé, navigation simulée uniquement). Aucune campagne ne peut cibler un compte EN_CHAUFFE. Passage à ACTIF uniquement si <code>datadome_trust_level</code> ≥ MEDIUM.</p>
+    </div>
+    <div class="rule-card must">
+      <div class="rule-id">R05 · QUOTAS PROGRESSIFS</div>
+      <p><b>SMS SIMs SMSTools</b> : 15/SIM/jour au démarrage, montée par paliers après validation (cible 30–60/SIM/jour, soit 300–500 SMS/jour sur 8 SIMs). <b>Messagerie comptes LBC</b> : 10/compte/jour S1, +5/semaine, plafond 30/compte/jour. <b>Délai entre messages</b> : 2 à 12 minutes aléatoire (jamais de précision milliseconde).</p>
+    </div>
+    <div class="rule-card must">
+      <div class="rule-id">R06 · SNAPSHOTS AVANT DÉPLOIEMENT</div>
+      <p>Créer un snapshot Hetzner <b>avant tout déploiement majeur</b> (migration DB, mise à jour Patchright, changement de quota). Le snapshot doit exister avant le merge sur main.</p>
+    </div>
+  </div>
+
+  <div class="sub-title">Règles NEVER — interdiction absolue</div>
+  <div class="rules-grid">
+    <div class="rule-card never">
+      <div class="rule-id">R07 · JAMAIS IP DATACENTER POUR LBC</div>
+      <p>Ne <b>jamais</b> créer un compte LeBonCoin avec l'IP du VPS Hetzner ou un proxy datacenter. DataDome classe l'AS Hetzner comme suspect. Utiliser exclusivement iproxy.online (4G FR).</p>
+    </div>
+    <div class="rule-card never">
+      <div class="rule-id">R08 · JAMAIS LE DOMAINE OFFICIEL</div>
+      <p>Ne <b>jamais</b> utiliser le domaine officiel AutoTransfert pour les emails LBC automatisés. Utiliser exclusivement le domaine opérationnel dédié (<code>reprise-auto-pro.fr</code> ou équivalent).</p>
+    </div>
+    <div class="rule-card never">
+      <div class="rule-id">R09 · JAMAIS DE SÉLECTEURS CSS HARDCODÉS</div>
+      <p>Ne <b>jamais</b> piloter LeBonCoin avec des sélecteurs CSS ou XPath fixes dans le code. LBC change son HTML régulièrement. Utiliser browser-use Cloud (IA) ou crawl4ai (extraction sémantique).</p>
+    </div>
+    <div class="rule-card never">
+      <div class="rule-id">R10 · JAMAIS MOCK EN DEHORS DE BOUNDARIES</div>
+      <p>Ne <b>jamais</b> mocker PostgreSQL, Redis, ou les services internes dans les tests. Mocker <b>uniquement</b> boundaries.py (les APIs externes). Les tests utilisent une vraie DB de test.</p>
+    </div>
+  </div>
+
+  <div class="sub-title">Règles ALWAYS — discipline quotidienne</div>
+  <div class="rules-grid">
+    <div class="rule-card always">
+      <div class="rule-id">R11 · SENTRY AVANT PRODUCTION</div>
+      <p>Sentry doit être configuré (DSN Python + DSN JS) avant la mise en production. Toute exception non gérée doit créer une alerte Sentry. Ne jamais shipper sans monitoring.</p>
+    </div>
+    <div class="rule-card always">
+      <div class="rule-id">R12 · IDEMPOTENCE DES WEBHOOKS</div>
+      <p>Tous les endpoints webhook (/webhooks/sms, /webhooks/email, /webhooks/call) doivent être idempotents. Mailgun et SMSTools peuvent livrer le même événement deux fois. Clé d'unicité en DB.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 00d WORKFLOWS ═══ -->
+<section class="section" id="workflows">
+  <div class="section-header"><span class="section-num">00d</span><h2>Workflows opérationnels</h2></div>
+  <p class="lead">Cinq workflows couvrent 100% des opérations du système. Chaque étape indique qui l'exécute (API/DB/Externe) et ce qui se passe en cas d'erreur.</p>
+
+  <!-- WF1 -->
+  <div class="sub-title">WF-01 — Création d'un compte LeBonCoin</div>
+  <div class="workflow">
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">API</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Déclenchement Celery</div><div class="wf-desc">Tâche <code>create_lbc_account</code> placée en queue. Vérifie le pool de comptes : <b>minimum 3 ACTIFS</b> à maintenir en permanence. Création déclenchée si pool descend sous le seuil ou si un compte passe en QUARANTAINE.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Obtenir IP 4G française — iproxy.online</div><div class="wf-desc">Appel <code>rotate_4g_ip()</code> puis <code>get_4g_proxy()</code>. Vérification ASN (doit être Orange/SFR/Bouygues). <span class="badge badge-red">Erreur → ProxyUnavailableError, arrêt</span></div><div class="wf-code">boundaries.rotate_4g_ip() → boundaries.get_4g_proxy()</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Générer email unique — Mailgun</div><div class="wf-desc">Appel <code>generate_email(domain)</code> → <code>contact.{hex8}@reprise-auto-pro.fr</code>. Sauvegarde en DB avec statut PENDING.</div><div class="wf-code">email = generate_email(settings.operational_domain)</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Acheter numéro OTP — SmsApp.io</div><div class="wf-desc">Appel <code>buy_number("france","leboncoin")</code>. Retourne <code>{id, phone, cost}</code>. <span class="badge badge-red">Erreur → NoStockError, retry 60s</span></div><div class="wf-code">order = await boundaries.buy_number("france","leboncoin")</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Naviguer + créer compte — Mode A : Patchright + iproxy 4G</div><div class="wf-desc"><b>Mode A (principal)</b> : Patchright (Chrome patché anti-détection) routé via le proxy 4G FR iproxy. Navigation LBC → formulaire inscription → email + téléphone OTP. Délais 3–8s, scroll humain. <b>Fallback Mode B</b> : si iproxy indisponible, browser-use Cloud avec IP résidentielle FR (trust score légèrement inférieur, warm-up plus long).</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Attendre code SMS — poll SmsApp.io</div><div class="wf-desc"><code>poll_sms(order.id, max_wait=120)</code> toutes les 3s. <span class="badge badge-orange">Timeout → cancel_number() → remboursement → retry</span></div><div class="wf-code">code = await boundaries.poll_sms(order["id"], max_wait=120)</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Attendre code email — webhook Mailgun</div><div class="wf-desc">LBC envoie un lien de confirmation email. Mailgun route vers <code>POST /webhooks/email</code>. <code>extract_verification_code(body)</code> extrait le code.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Sauvegarder session + cookies DataDome</div><div class="wf-desc">Compte créé → statut EN_CHAUFFE en DB. Cookies DataDome chiffrés. Timer 48–72h démarré. <code>datadome_trust_level=LOW</code> initial.</div><div class="wf-code">db.account.update(id, status="EN_CHAUFFE", cookies=encrypted_cookies, datadome_trust_level="LOW")</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ok">OK</div></div><div class="wf-body"><div class="wf-title">Fin — compte prêt en 48–72h</div><div class="wf-desc">Alerte Sentry si échec. Prochaine tâche Celery : après 48–72h de navigation simulée, si <code>datadome_trust_level</code> ≥ MEDIUM → passage <b>ACTIF</b>. Sinon, prolongation warm-up.</div></div></div>
+  </div>
+
+  <!-- WF2 -->
+  <div class="sub-title">WF-02 — Envoi d'une campagne SMS (P1 ou P2)</div>
+  <div class="workflow">
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">API</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">POST /campaigns — création campagne</div><div class="wf-desc">Payload : <code>{type, targets[], message_template, quota_per_sim}</code>. Validation Pydantic. Statut PENDING en DB.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">API</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Vérification horaire (R01)</div><div class="wf-desc">Si heure &lt; 08h00 ou &gt; 20h00 → message planifié pour 08h00. Celery beat gère le scheduling.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Filtrage blacklist (R02)</div><div class="wf-desc">JOIN <code>targets</code> avec <code>blacklist</code>. Exclusion des numéros STOP. Log du nombre d'exclusions.</div><div class="wf-code">SELECT t.phone FROM targets t WHERE t.phone NOT IN (SELECT phone FROM blacklist)</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Sélection SIM — round-robin pondéré + délai inter-SMS</div><div class="wf-desc">Choisir la SIM ACTIVE avec le quota restant le plus élevé. Exclure SIMs RALENTIE ou BLOQUÉE. <b>Délai aléatoire 2–12 min</b> depuis le dernier SMS de cette SIM (R05 — anti-pattern milliseconde).</div><div class="wf-code">sim = select_best_sim(available_sims, daily_quotas); await sleep(uniform(120, 720))</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Envoi SMS — boundaries.send_sms()</div><div class="wf-desc">Appel SMSTools. <span class="badge badge-red">402 → InsufficientCreditError → stopper campagne, alerte</span>. Retry x2 sur timeout réseau. Le corps doit contenir "STOP au XXXX pour ne plus recevoir de SMS" (LCEN).</div><div class="wf-code">result = await boundaries.send_sms(sim.id, to=phone, body=rendered_message)</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Enregistrement résultat</div><div class="wf-desc">Statut SENT ou FAILED. Incrémentation quota SIM du jour. Timestamp pour respect fenêtre horaire.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ok">OK</div></div><div class="wf-body"><div class="wf-title">Fin — dashboard mis à jour en temps réel</div><div class="wf-desc">WebSocket push vers le back-office. Compteurs campagne mis à jour.</div></div></div>
+  </div>
+
+  <!-- WF3 -->
+  <div class="sub-title">WF-03 — Réception d'un appel entrant (vendeur rappelle)</div>
+  <div class="workflow">
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Webhook SMSTools → POST /webhooks/call</div><div class="wf-desc">Payload : <code>{sim_id, from: "+33X...", timestamp}</code>. Simultanément, SMSTools forwardl'appel vers le téléphone client.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Lookup annonce associée</div><div class="wf-desc"><code>get_listing_by_sim_and_phone(sim_id, caller)</code> → recherche le dernier SMS envoyé depuis cette SIM vers ce numéro.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">WS</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Push WebSocket back-office</div><div class="wf-desc">Broadcast <code>{event:"incoming_call", caller, listing:{url,title,price,vehicle}}</code>. Le collaborateur voit l'annonce avant de décrocher.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ok">OK</div></div><div class="wf-body"><div class="wf-title">Log appel en DB</div><div class="wf-desc">Enregistrement horodaté. Champ <code>outcome</code> à remplir manuellement dans le back-office après la conversation.</div></div></div>
+  </div>
+
+  <!-- WF4 -->
+  <div class="sub-title">WF-04 — Scraping annonces LBC (tâche quotidienne)</div>
+  <div class="workflow">
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">SCH</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Celery beat — déclenchement 06h00</div><div class="wf-desc">Tâche <code>scrape_lbc_listings</code> et <code>scrape_lacentrale_listings</code> lancées en parallèle.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Navigation LBC — Patchright (session compte ACTIF) ; La Centrale — crawl4ai direct</div><div class="wf-desc"><b>LBC</b> : session Patchright avec cookies DataDome rechargés depuis DB (compte ACTIF du pool). <b>La Centrale</b> : crawl4ai direct (pas de DataDome). crawl4ai/Scrapling extraient titre, prix, km, téléphone, url en format unifié.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">AI</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Extraction numéro — regex puis Claude Haiku</div><div class="wf-desc"><code>extract_phone(text)</code> : regex d'abord. Si ambiguïté (ex: "appel le 06 XX XX XX XX") → <code>extract_phone_llm(text)</code> via Claude Haiku. <span class="badge badge-orange">~0.001€/appel</span></div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Déduplication + sauvegarde</div><div class="wf-desc">Upsert sur <code>listing_url</code>. Marquage NOUVELLE pour les annonces jamais vues. Filtre blacklist immédiat.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ok">OK</div></div><div class="wf-body"><div class="wf-title">Annonces disponibles pour campagne</div><div class="wf-desc">Statut NOUVELLE → prêtes pour WF-02. Dashboard mis à jour.</div></div></div>
+  </div>
+
+  <!-- WF5 -->
+  <div class="sub-title">WF-05 — Réception STOP (désabonnement)</div>
+  <div class="workflow">
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">SMS entrant "STOP" → POST /webhooks/sms</div><div class="wf-desc">SMSTools envoie le webhook immédiatement. Normalisation du corps : STOP / ARRET / DESABONNEMENT.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Ajout en blacklist cross-projets (R02)</div><div class="wf-desc"><code>INSERT INTO blacklist (phone, source_sim, source_project, created_at)</code>. ON CONFLICT DO NOTHING (idempotent, R12).</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot ok">OK</div></div><div class="wf-body"><div class="wf-title">Confirmation SMS automatique</div><div class="wf-desc">Réponse automatique envoyée : "Vous êtes bien désinscrit. Cordialement, AutoTransfert." — obligation légale RGPD.</div></div></div>
+  </div>
+</section>
+
+<!-- ═══ 01 VPS ═══ -->
+<section class="section" id="m1">
+  <div class="section-header"><span class="section-num">01</span><h2>VPS Hetzner CPX41</h2></div>
+  <p class="lead">Hub central. Héberge FastAPI, Celery, PostgreSQL, Redis, n8n et le back-office Next.js. ~25 €/mois.</p>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c1">🖥️</div>
+      <div><div class="module-title t1">Rôle</div><div class="module-subtitle">hetzner.com · CPX41 · 4 vCPU, 16 GB RAM · Nuremberg</div></div>
+    </div>
+    <span class="role-tag" style="background:#dbeafe;color:#1e40af;">HUB CENTRAL — P1 + P2 mutualisé</span>
+    <p class="module-body">Sans ce serveur, rien ne tourne. Le client en est propriétaire. Si la collaboration s'arrête, le serveur et ses données restent à AutoTransfert.</p>
+  </div>
+
+  <div class="checklist-section">
+    <h4>Checklist pré-tâche <span class="cl-badge">SETUP</span></h4>
+    <ul class="checklist">
+      <li class="critical"><b>Clé SSH publique prête</b> — à fournir avant la commande du VPS (sinon impossible de se connecter)</li>
+      <li><b>Email Hetzner confirmé</b> — vérifier la boîte mail après inscription</li>
+      <li><b>Carte bancaire européenne</b> — Hetzner vérifie l'identité pour les nouveaux comptes</li>
+      <li><b>Décision datacenter</b> — Nuremberg (NBG1) ou Falkenstein (FSN1) ? Les deux sont équivalents. Choisir NBG1 si indécis.</li>
+      <li><b>Accès Bitwarden partagé configuré</b> — pour transmettre l'IP + fingerprint SSH</li>
+      <li><b>Budget snapshots approuvé</b> — +2 €/mois pour les snapshots automatiques</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">GET /health → 200 OK</div>
+      <pre>{
+  <span class="out-key">"status"</span>: <span class="out-str">"ok"</span>,       <span class="out-cm">// "ok" | "degraded"</span>
+  <span class="out-key">"db"</span>:     <span class="out-bool">true</span>,
+  <span class="out-key">"redis"</span>:  <span class="out-bool">true</span>,
+  <span class="out-key">"ts"</span>:     <span class="out-num">1718619200</span>   <span class="out-cm">// unix timestamp</span>
+}</pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">GET /health → 200 DEGRADED</div>
+      <pre>{
+  <span class="out-key">"status"</span>: <span class="out-str">"degraded"</span>,
+  <span class="out-key">"db"</span>:     <span class="out-bool">false</span>,        <span class="out-cm">// DB éteinte</span>
+  <span class="out-key">"redis"</span>:  <span class="out-bool">true</span>,
+  <span class="out-key">"ts"</span>:     <span class="out-num">1718619200</span>
+}</pre>
+    </div>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_health_ok</div><div class="test-desc">DB + Redis up → {"status":"ok"}.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_health_degraded_no_db</div><div class="test-desc">DB éteinte → "degraded", code HTTP toujours 200 (pas 500).</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_ssh_timeout_5s</div><div class="test-desc">verify_server.sh : ConnectTimeout=5s → fail rapide si IP incorrecte.</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>Snapshot pré-déploiement automatisé</b> — pipeline CI/CD appelle l'API Hetzner pour créer un snapshot avant chaque merge sur main.</div>
+    <div class="improvement"><b>Métriques Celery Flower</b> — exposer le dashboard Flower sur un port interne pour surveiller la saturation des workers pendant les campagnes.</div>
+  </div>
+</section>
+
+<!-- ═══ 02 SMSTools ═══ -->
+<section class="section" id="m2">
+  <div class="section-header"><span class="section-num">02</span><h2>SMSTools — 8 SIM cloud françaises</h2></div>
+  <p class="lead">Canal SMS de prospection. 8 numéros +336/+337 envoient les messages et forwardent les appels vers le client. ~320 €/mois.</p>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c2">📱</div>
+      <div><div class="module-title t2">Rôle</div><div class="module-subtitle">~320 €/mois · 8 SIMs FR · API REST · forwarding appels</div></div>
+    </div>
+    <span class="role-tag" style="background:#dcfce7;color:#166534;">CANAL SMS — P1 recrutement + P2 acquisition</span>
+    <p class="module-body">Chaque SMS part depuis une vraie SIM française. Les réponses STOP déclenchent WF-05. Les appels entrants déclenchent WF-03.</p>
+  </div>
+
+  <div class="checklist-section">
+    <h4>Checklist pré-tâche <span class="cl-badge">SETUP</span></h4>
+    <ul class="checklist">
+      <li class="critical"><b>Identité européenne vérifiée</b> — SMSTools exige un compte avec identité FR/EU pour les SIMs françaises</li>
+      <li><b>8 numéros achetés</b> — mix +336 et +337 (Orange / SFR / Bouygues)</li>
+      <li><b>Webhook SMS activé</b> — URL configurée dans le panel SMSTools avant le premier test</li>
+      <li><b>Numéro(s) de forward communiqué(s)</b> — via Bitwarden uniquement (R03)</li>
+      <li><b>Clé API transmise</b> — via Bitwarden</li>
+      <li><b>Test d'envoi manuel OK</b> — un SMS envoyé depuis le panel avant l'intégration</li>
+    </ul>
+  </div>
+  <div class="checklist-section">
+    <h4>Checklist avant chaque campagne SMS <span class="cl-badge">OPÉRATIONS</span></h4>
+    <ul class="checklist">
+      <li><b>Heure vérifiée</b> — entre 08h00 et 20h00 heure Paris (R01)</li>
+      <li><b>Blacklist synchronisée</b> — dernier STOP intégré en DB</li>
+      <li class="critical"><b>Quota SIM vérifié</b> — aucune SIM ne dépasse son quota journalier (R05)</li>
+      <li><b>SIMs ACTIVES uniquement</b> — exclure SIMs RALENTIE ou BLOQUÉE de la sélection</li>
+      <li><b>Message template validé</b> — contient "STOP pour se désabonner" (obligation légale)</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">send_sms() → SmsResult</div>
+      <pre>{
+  <span class="out-key">"id"</span>:     <span class="out-str">"msg_8f3a2b"</span>,
+  <span class="out-key">"status"</span>: <span class="out-str">"sent"</span>,    <span class="out-cm">// "sent"|"failed"</span>
+  <span class="out-key">"cost"</span>:   <span class="out-num">0.042</span>,       <span class="out-cm">// euros</span>
+  <span class="out-key">"sim_id"</span>: <span class="out-str">"sim_01"</span>,
+  <span class="out-key">"to"</span>:     <span class="out-str">"+33612345678"</span>
+}</pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">webhook /webhooks/sms payload</div>
+      <pre>{
+  <span class="out-key">"sim_id"</span>: <span class="out-str">"sim_03"</span>,
+  <span class="out-key">"from"</span>:   <span class="out-str">"+33698765432"</span>,
+  <span class="out-key">"body"</span>:   <span class="out-str">"STOP"</span>,
+  <span class="out-key">"ts"</span>:     <span class="out-num">1718620000</span>
+}</pre>
+    </div>
+  </div>
+  <div class="output-block">
+    <div class="out-label">table DB — sms_log</div>
+    <pre><span class="out-key">id</span>          UUID PRIMARY KEY
+<span class="out-key">sim_id</span>      TEXT NOT NULL              <span class="out-cm">-- "sim_01" .. "sim_08"</span>
+<span class="out-key">to_phone</span>    TEXT NOT NULL
+<span class="out-key">body</span>        TEXT NOT NULL
+<span class="out-key">status</span>      TEXT NOT NULL              <span class="out-cm">-- "sent" | "failed"</span>
+<span class="out-key">project</span>     TEXT NOT NULL              <span class="out-cm">-- "P1" | "P2"</span>
+<span class="out-key">cost_eur</span>    NUMERIC(6,4)
+<span class="out-key">sent_at</span>     TIMESTAMPTZ NOT NULL DEFAULT now()</pre>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_send_sms_ok</div><div class="test-desc">send_sms("sim_01","+33612345678","Bonjour") → SmsResult(status="sent").</div></div>
+    <div class="test-card"><div class="test-name">test_webhook_stop_blacklists</div><div class="test-desc">POST /webhooks/sms body="STOP" → numéro dans blacklist P1+P2.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_send_outside_hours</div><div class="test-desc">Envoi à 21h → message différé pour 08h00 J+1.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_no_credit_stops_campaign</div><div class="test-desc">HTTP 402 → InsufficientCreditError → campagne stoppée, alerte Sentry.</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>Retry backoff exponentiel</b> — sur HTTP 429 (rate limit SMSTools), attendre 2^n secondes, max 3 tentatives.</div>
+    <div class="improvement"><b>Round-robin pondéré</b> — favoriser les SIMs avec le meilleur taux de succès des 24h précédentes.</div>
+  </div>
+</section>
+
+<!-- ═══ 03 iproxy ═══ -->
+<section class="section" id="m3">
+  <div class="section-header"><span class="section-num">03</span><h2>iproxy.online — Proxy 4G mobile</h2></div>
+  <p class="lead">IP opérateur français (Orange/SFR/Bouygues/Free Mobile) pour la création de comptes LBC uniquement (Mode A). Inactif le reste du temps — pay-per-GB. ~15–30 €/mois.</p>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c3">📡</div>
+      <div><div class="module-title t3">Rôle</div><div class="module-subtitle">Activation ponctuelle · SIM physique en rack</div></div>
+    </div>
+    <span class="role-tag" style="background:#ffedd5;color:#9a3412;">CRÉATION COMPTES LBC — jamais pour autre chose (R07)</span>
+    <p class="module-body">DataDome maintient un modèle ML spécifique pour LBC. Une IP datacenter (ASN Hetzner) est bloquée immédiatement. L'IP 4G d'un opérateur français passe les vérifications d'ASN, de géolocalisation, et de réputation.</p>
+  </div>
+
+  <div class="warn">Règle R07 : ne jamais utiliser l'IP du VPS Hetzner pour créer un compte LBC. Si iproxy est indisponible, stopper la création — ne pas contourner.</div>
+
+  <div class="checklist-section">
+    <h4>Checklist avant création de compte LBC <span class="cl-badge">OPÉRATIONS</span></h4>
+    <ul class="checklist">
+      <li class="critical"><b>iproxy.online actif</b> — vérifier via <code>GET /v1/proxy/active</code> avant de démarrer</li>
+      <li class="critical"><b>IP vérifiée comme FR opérateur</b> — contrôle ASN via ipinfo.io (Orange/SFR/Bouygues)</li>
+      <li><b>Rotation effectuée</b> — <code>rotate_4g_ip()</code> appelé depuis la dernière création (délai 30–60s)</li>
+      <li><b>Slot compte disponible</b> — moins de 8 comptes EN_ACTIF ou EN_CHAUFFE</li>
+      <li><b>Numéro OTP disponible</b> — SmsApp.io stock France LeBonCoin vérifié</li>
+      <li><b>Domaine email opérationnel</b> — DNS Mailgun résout correctement</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">get_4g_proxy() → str</div>
+      <pre><span class="out-str">"http://user:pass@185.X.X.X:8080"</span>
+<span class="out-cm">// Toujours format http://user:pass@host:port
+// Vérifier : ipinfo.io/185.X.X.X → org contient
+// "Orange", "SFR", "Bouygues", ou "Free"</span></pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">rotate_4g_ip() → bool</div>
+      <pre><span class="out-bool">True</span>   <span class="out-cm">// rotation OK — attendre 30s avant usage</span>
+<span class="out-bool">False</span>  <span class="out-cm">// rotation échouée → lever ProxyUnavailableError</span></pre>
+    </div>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_proxy_returns_fr_ip</div><div class="test-desc">get_4g_proxy() → URL valide, IP vérifiée comme FR opérateur.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_proxy_not_fr_raises</div><div class="test-desc">IP retournée hors France → ProxyGeoError → arrêt immédiat.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_proxy_down_raises</div><div class="test-desc">Timeout API → ProxyUnavailableError. Ne jamais fallback sur IP VPS.</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>Vérification ASN avant usage</b> — appel ipinfo.io après chaque get_4g_proxy() pour confirmer l'opérateur.</div>
+    <div class="improvement"><b>Délai post-rotation</b> — attendre 30–60s après rotate_4g_ip() avant d'utiliser la nouvelle IP.</div>
+  </div>
+</section>
+
+<!-- ═══ 04 browser-use ═══ -->
+<section class="section" id="m4">
+  <div class="section-header"><span class="section-num">04</span><h2>browser-use Cloud — Dev tier</h2></div>
+  <p class="lead">Moteur d'automatisation LBC. Chrome piloté par IA, IPs résidentielles, CAPTCHA en session. Gère les opérations quotidiennes après création des comptes. ~29 €/mois.</p>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c4">🤖</div>
+      <div><div class="module-title t4">Rôle</div><div class="module-subtitle">browser-use.com · Dev tier · 195 pays · CAPTCHA intégré</div></div>
+    </div>
+    <span class="role-tag" style="background:#ede9fe;color:#5b21b6;">OPS QUOTIDIENNES LBC — messagerie + scraping</span>
+    <p class="module-body">Différent d'iproxy : browser-use gère les opérations <em>après</em> la création des comptes. Il maintient les sessions DataDome actives et sait résoudre les CAPTCHA dans le contexte de la session courante.</p>
+  </div>
+
+  <div class="checklist-section">
+    <h4>Checklist avant opération LBC <span class="cl-badge">OPÉRATIONS</span></h4>
+    <ul class="checklist">
+      <li class="critical"><b>Statut compte = ACTIF</b> — jamais EN_CRÉATION, EN_CHAUFFE, RALENTI, BLOQUÉ ou QUARANTAINE</li>
+      <li class="critical"><b>datadome_trust_level ≥ MEDIUM</b> — un compte LOW ne doit pas envoyer de messagerie</li>
+      <li><b>Score santé ≥ 80%</b> — en dessous : passage RALENTI, réduction quota à 10/jour</li>
+      <li><b>Cookies DataDome valides</b> — <code>datadome_cookie_last_seen</code> &lt; 24h, sinon refresh nécessaire</li>
+      <li><b>Session browser-use disponible</b> — vérifier le quota Dev tier (nombre de sessions parallèles)</li>
+      <li><b>Quota compte non dépassé</b> — max 30 messages/compte/jour LBC (R05)</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">send_lbc_message() → MessageResult</div>
+      <pre>{
+  <span class="out-key">"success"</span>:    <span class="out-bool">true</span>,
+  <span class="out-key">"url"</span>:        <span class="out-str">"https://leboncoin.fr/..."</span>,
+  <span class="out-key">"account_id"</span>: <span class="out-str">"acc_03"</span>,
+  <span class="out-key">"steps_used"</span>: <span class="out-num">6</span>,          <span class="out-cm">// max 8</span>
+  <span class="out-key">"cookies_updated"</span>: <span class="out-bool">true</span>
+}</pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">table DB — platform_accounts</div>
+      <pre><span class="out-key">id</span>                    UUID PRIMARY KEY
+<span class="out-key">status</span>                TEXT  <span class="out-cm">-- EN_CRÉATION|EN_CHAUFFE|ACTIF</span>
+                            <span class="out-cm">--   |RALENTI|BLOQUÉ|QUARANTAINE</span>
+<span class="out-key">datadome_trust_level</span>  TEXT  <span class="out-cm">-- LOW | MEDIUM | HIGH</span>
+<span class="out-key">score_sante</span>           INT   <span class="out-cm">-- 0-100 composite</span>
+<span class="out-key">datadome_cookie</span>       BYTEA <span class="out-cm">-- chiffré AES-256</span>
+<span class="out-key">session_path</span>          TEXT  <span class="out-cm">-- Patchright user_data_dir</span>
+<span class="out-key">quota_actuel</span>          INT   <span class="out-cm">-- 10 (S1) → 30 max</span>
+<span class="out-key">erreurs_24h</span>           INT
+<span class="out-key">date_creation</span>         TIMESTAMPTZ
+<span class="out-key">derniere_action</span>       TIMESTAMPTZ</pre>
+    </div>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_session_loads_cookies</div><div class="test-desc">get_browser_session("acc_01") → cookies DataDome chargés depuis DB.</div></div>
+    <div class="test-card"><div class="test-name">test_cookies_persisted_after_send</div><div class="test-desc">Après send_lbc_message() → cookies mis à jour en DB.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_en_chauffe_blocked</div><div class="test-desc">Compte EN_CHAUFFE → aucun envoi même si campagne active.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_datadome_block_degrades_account</div><div class="test-desc">HTTP 403 DataDome → health_score réduit → statut RALENTI si &lt;50%.</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>Health score composite</b> — 70% taux succès 200 dernières actions + 30% fraîcheur cookies DataDome. Seuil &lt;80% = RALENTI.</div>
+    <div class="improvement"><b>Session pool</b> — 2–3 sessions browser-use maintenues actives en permanence pour éviter le cold start.</div>
+  </div>
+</section>
+
+<!-- ═══ 05 SmsApp ═══ -->
+<section class="section" id="m5">
+  <div class="section-header"><span class="section-num">05</span><h2>SmsApp.io — Numéros OTP jetables</h2></div>
+  <p class="lead">Numéros temporaires pour les codes de vérification LBC lors de la création de comptes. Pay-per-delivery, remboursé si SMS non reçu. ~0.20–0.35 €/SMS.</p>
+
+  <div class="notice">Base URL : <code>https://backend.smsapp.io/v1</code> · Auth : <code>Authorization: Bearer {token}</code> · Wrapper sur 5sim — risque upstream unique (voir R-HIGH en section risques).</div>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c5">🔢</div>
+      <div><div class="module-title t5">Rôle</div><div class="module-subtitle">smsapp.io · pay-per-delivery · 150+ pays · remboursement auto</div></div>
+    </div>
+    <span class="role-tag" style="background:#cffafe;color:#164e63;">OTP CRÉATION COMPTES — uniquement lors de WF-01</span>
+    <p class="module-body">3 appels API, séquentiels : buy → poll → cancel (si timeout). Le numéro est abandonné après usage. Aucune réutilisation.</p>
+  </div>
+
+  <div class="checklist-section">
+    <h4>Checklist avant achat numéro OTP <span class="cl-badge">OPÉRATIONS</span></h4>
+    <ul class="checklist">
+      <li><b>Solde SmsApp.io suffisant</b> — minimum 5 € de crédits disponibles</li>
+      <li class="critical"><b>Stock France + LeBonCoin disponible</b> — vérifier via <code>GET /services?country=france</code> avant d'acheter</li>
+      <li><b>Taux de livraison opérateur</b> — préférer l'opérateur avec &gt; 85% delivery rate</li>
+      <li><b>Timeout configuré à 120s</b> — LBC peut mettre jusqu'à 2 minutes pour envoyer le SMS</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">buy_number() → dict</div>
+      <pre>{
+  <span class="out-key">"id"</span>:      <span class="out-str">"543210"</span>,
+  <span class="out-key">"phone"</span>:   <span class="out-str">"+33712345678"</span>,
+  <span class="out-key">"country"</span>: <span class="out-str">"france"</span>,
+  <span class="out-key">"service"</span>: <span class="out-str">"leboncoin"</span>,
+  <span class="out-key">"cost"</span>:    <span class="out-num">0.28</span>,
+  <span class="out-key">"expires"</span>: <span class="out-num">1718621320</span>
+}</pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">poll_sms() → str | None</div>
+      <pre><span class="out-cm">// Succès — retourne le code extrait</span>
+<span class="out-str">"847291"</span>
+
+<span class="out-cm">// Timeout (max_wait dépassé)</span>
+<span class="out-null">None</span>   <span class="out-cm">// → caller doit appeler cancel_number()</span>
+
+<span class="out-cm">// Structure SMS brute de l'API</span>
+<span class="out-key">"sms"</span>: [{<span class="out-key">"text"</span>: <span class="out-str">"Code LeBonCoin : 847291"</span>}]</pre>
+    </div>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_buy_france_leboncoin</div><div class="test-desc">buy_number() → id + phone +33 + cost &gt; 0.</div></div>
+    <div class="test-card"><div class="test-name">test_poll_extracts_code</div><div class="test-desc">SMS "Code LBC : 847291" → retourne "847291".</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_poll_timeout_returns_none</div><div class="test-desc">max_wait=0 → None → cancel appelé → remboursement.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_no_stock_raises</div><div class="test-desc">HTTP 404 → NoStockError → retry 60s.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_upstream_502_raises</div><div class="test-desc">HTTP 502 (5sim down) → UpstreamError → création stoppée.</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>Sélection opérateur par taux</b> — <code>GET /operators?country=france&service=leboncoin</code> avant d'acheter pour choisir le meilleur taux de livraison.</div>
+    <div class="improvement"><b>Retry 502 avec délai</b> — si 5sim indisponible, attendre 30s, retenter x3 avant d'abandonner.</div>
+  </div>
+</section>
+
+<!-- ═══ 06 Domaine ═══ -->
+<section class="section" id="m6">
+  <div class="section-header"><span class="section-num">06</span><h2>Domaine dédié + Mailgun</h2></div>
+  <p class="lead">Domaine secondaire (jamais le domaine officiel — R08) + catch-all Mailgun pour générer des adresses email à la volée. ~5–8 €/an domaine, Mailgun gratuit &lt; 1000 emails/mois.</p>
+
+  <div class="warn">Règle R08 : le domaine officiel AutoTransfert n'est jamais utilisé ici. Un problème sur ce domaine ne touche pas la marque.</div>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c6">📧</div>
+      <div><div class="module-title t6">Rôle</div><div class="module-subtitle">OVH · 5–8 €/an · Mailgun gratuit · webhook FastAPI</div></div>
+    </div>
+    <span class="role-tag" style="background:#fef9c3;color:#713f12;">EMAILS LBC — domaine dédié, isolation totale</span>
+    <p class="module-body">Chaque compte LBC créé reçoit une adresse <code>contact.{hex8}@reprise-auto-pro.fr</code> unique. LBC envoie les emails de vérification vers Mailgun → webhook → FastAPI extrait le code.</p>
+  </div>
+
+  <div class="checklist-section">
+    <h4>Checklist setup domaine + Mailgun <span class="cl-badge">SETUP</span></h4>
+    <ul class="checklist">
+      <li><b>Domaine acheté sur OVH</b> — ex: <code>reprise-auto-pro.fr</code></li>
+      <li class="critical"><b>Enregistrements MX configurés</b> — deux lignes Mailgun dans l'interface OVH DNS</li>
+      <li><b>Catch-all Mailgun activé</b> — règle de routage vers <code>POST /webhooks/email</code></li>
+      <li><b>Test end-to-end réussi</b> — email envoyé vers <code>test.aaa@domaine.fr</code> reçu dans les logs FastAPI</li>
+      <li><b>Clé API Mailgun + domaine transmis</b> — via Bitwarden uniquement</li>
+      <li><b>Variable <code>OPERATIONAL_DOMAIN</code></b> — configurée dans .env du VPS</li>
+    </ul>
+  </div>
+  <div class="checklist-section">
+    <h4>Checklist avant création de compte (partie email) <span class="cl-badge">OPÉRATIONS</span></h4>
+    <ul class="checklist">
+      <li><b>Endpoint /webhooks/email accessible</b> — vérifier health + logs récents</li>
+      <li><b>DNS Mailgun résout</b> — <code>dig MX reprise-auto-pro.fr</code> retourne les serveurs Mailgun</li>
+      <li><b>Aucune alerte Mailgun</b> — vérifier le dashboard Mailgun pour erreurs de routage</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">generate_email() → str</div>
+      <pre><span class="out-str">"contact.82hf3k29@reprise-auto-pro.fr"</span>
+<span class="out-cm">// Format : contact.{8 hex chars}@{domain}
+// Jamais réutilisée — token unique par compte</span></pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">extract_verification_code() → str | None</div>
+      <pre><span class="out-cm">// Email : "Votre code est : 847291"</span>
+<span class="out-str">"847291"</span>   <span class="out-cm">// 6 chiffres extraits</span>
+
+<span class="out-cm">// Pas de code trouvé</span>
+<span class="out-null">None</span>       <span class="out-cm">// ne pas appeler complete_account_creation</span></pre>
+    </div>
+  </div>
+  <div class="output-block">
+    <div class="out-label">webhook Mailgun → POST /webhooks/email — payload Form</div>
+    <pre><span class="out-key">recipient</span>   = <span class="out-str">"contact.82hf3k29@reprise-auto-pro.fr"</span>
+<span class="out-key">sender</span>      = <span class="out-str">"noreply@leboncoin.fr"</span>
+<span class="out-key">subject</span>     = <span class="out-str">"Confirmez votre compte LeBonCoin"</span>
+<span class="out-key">body-plain</span>  = <span class="out-str">"Votre code de confirmation est : 847291..."</span></pre>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_emails_unique</div><div class="test-desc">10 appels generate_email() → 10 adresses toutes différentes.</div></div>
+    <div class="test-card"><div class="test-name">test_extract_code_standard</div><div class="test-desc">"Code LeBonCoin : 847291" → "847291".</div></div>
+    <div class="test-card"><div class="test-name">test_webhook_idempotent</div><div class="test-desc">Même email livré 2x → complete_account_creation appelé une seule fois (R12).</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_no_code_in_email</div><div class="test-desc">Email sans 6 chiffres → None → pas de création.</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>TTL 15 minutes</b> — si le code email n'est pas utilisé dans les 15 minutes, marquer la tentative EXPIRÉE et libérer le slot.</div>
+    <div class="improvement"><b>Fallback Haiku</b> — si regex échoue, envoyer le corps à Claude Haiku (même pattern que phone_extractor.py).</div>
+  </div>
+</section>
+
+<!-- ═══ 07 Forwarding ═══ -->
+<section class="section" id="m7">
+  <div class="section-header"><span class="section-num">07</span><h2>Forwarding d'appels</h2></div>
+  <p class="lead">Votre numéro est configuré dans SMSTools pour recevoir les appels entrants des vendeurs. Aucun compte à créer. Le back-office affiche l'annonce en temps réel.</p>
+
+  <div class="module">
+    <div class="module-header">
+      <div class="module-icon c7">📞</div>
+      <div><div class="module-title t7">Rôle</div><div class="module-subtitle">Configuration SMSTools · zéro coût supplémentaire</div></div>
+    </div>
+    <span class="role-tag" style="background:#fce7f3;color:#831843;">APPELS ENTRANTS — contexte annonce en temps réel</span>
+    <p class="module-body">Le vendeur rappelle → SMSTools forwardl'appel + webhook → FastAPI lookup annonce → WebSocket push back-office. Le collaborateur voit le véhicule avant de décrocher.</p>
+  </div>
+
+  <div class="checklist-section">
+    <h4>Checklist setup forwarding <span class="cl-badge">SETUP</span></h4>
+    <ul class="checklist">
+      <li class="critical"><b>Numéro(s) destination communiqué(s) via Bitwarden</b> — jamais par email ou WhatsApp (R03)</li>
+      <li><b>Forwarding configuré sur les 8 SIMs</b> — via l'API SMSTools, pas manuellement</li>
+      <li><b>Test appel entrant réussi</b> — appel depuis un tiers, vérifier la réception</li>
+      <li><b>WebSocket back-office opérationnel</b> — la fiche annonce s'affiche à la réception de l'appel</li>
+      <li><b>Webhook /webhooks/call enregistré</b> — URL configurée dans le panel SMSTools</li>
+    </ul>
+  </div>
+
+  <div class="sub-title">Format de sortie attendu</div>
+  <div class="two-col">
+    <div class="output-block">
+      <div class="out-label">webhook /webhooks/call payload</div>
+      <pre>{
+  <span class="out-key">"sim_id"</span>:    <span class="out-str">"sim_04"</span>,
+  <span class="out-key">"from"</span>:      <span class="out-str">"+33698765432"</span>,
+  <span class="out-key">"timestamp"</span>: <span class="out-num">1718622000</span>
+}</pre>
+    </div>
+    <div class="output-block">
+      <div class="out-label">WebSocket push → back-office</div>
+      <pre>{
+  <span class="out-key">"event"</span>:   <span class="out-str">"incoming_call"</span>,
+  <span class="out-key">"caller"</span>:  <span class="out-str">"+33698765432"</span>,
+  <span class="out-key">"listing"</span>: {
+    <span class="out-key">"url"</span>:    <span class="out-str">"https://leboncoin.fr/..."</span>,
+    <span class="out-key">"title"</span>:  <span class="out-str">"BMW 320d 2021"</span>,
+    <span class="out-key">"price"</span>:  <span class="out-num">24500</span>,
+    <span class="out-key">"km"</span>:     <span class="out-num">45000</span>
+  }
+}</pre>
+    </div>
+  </div>
+
+  <div class="sub-title">Tests</div>
+  <div class="test-grid">
+    <div class="test-card"><div class="test-name">test_call_pushes_listing</div><div class="test-desc">POST /webhooks/call → listing trouvé → WS broadcast.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_unknown_caller_no_push</div><div class="test-desc">Numéro inconnu → listing=None → retourne ok, pas de broadcast.</div></div>
+    <div class="test-card test-edge"><div class="test-name">test_webhook_idempotent</div><div class="test-desc">Même appel livré 2x → un seul push WebSocket (R12).</div></div>
+  </div>
+
+  <div class="sub-title">Améliorations suggérées</div>
+  <div class="improvements">
+    <div class="improvement"><b>Log appels avec outcome</b> — champ <code>outcome</code> (intéressé/pas intéressé/rappel) rempli dans le back-office après chaque conversation.</div>
+    <div class="improvement"><b>SMS automatique si non décroché</b> — après 20s sans réponse, SMSTools envoie : "Je vous rappelle dès que possible. AutoTransfert."</div>
+  </div>
+</section>
+
+<!-- ═══ 08 PLAN INCRÉMENTAL ═══ -->
+<section class="section" id="plan">
+  <div class="section-header"><span class="section-num">08</span><h2>Plan incrémental — 6 sprints</h2></div>
+  <p class="lead">Implémentation dans l'ordre des dépendances. Les sprints 1–2 démarrent en parallèle : le warm-up DataDome (48–72h) ne peut pas attendre.</p>
+
+  <div class="milestones">
+    <div class="milestone"><div class="milestone-week">Sprint 1 · J1–3</div><div class="milestone-title">Fondations</div><ul class="milestone-items"><li>VPS + Docker + DB + Redis</li><li>GitHub Actions + Husky hooks</li><li>Health check vert</li><li>Structure fichiers en place</li></ul></div>
+    <div class="milestone"><div class="milestone-week">Sprint 2 · J4–6</div><div class="milestone-title">Création comptes</div><ul class="milestone-items"><li>iproxy.online intégré</li><li>SmsApp.io buy/poll/cancel</li><li>Mailgun catch-all actif</li><li>3 premiers comptes EN_CHAUFFE</li></ul></div>
+    <div class="milestone"><div class="milestone-week">Sprint 3 · J7–10</div><div class="milestone-title">Scraping</div><ul class="milestone-items"><li>crawl4ai LBC + La Centrale</li><li>phone_extractor + Haiku fallback</li><li>Déduplication annonces</li><li>WF-04 automatisé 06h00</li></ul></div>
+    <div class="milestone"><div class="milestone-week">Sprint 4 · J11–14</div><div class="milestone-title">Messagerie SMS</div><ul class="milestone-items"><li>SMSTools 8 SIMs actives</li><li>WF-02 campagne complet</li><li>WF-05 STOP opérationnel</li><li>Forwarding appels configuré</li></ul></div>
+    <div class="milestone"><div class="milestone-week">Sprint 5 · J15–18</div><div class="milestone-title">Back-office</div><ul class="milestone-items"><li>Next.js dashboard</li><li>WebSocket appels entrants</li><li>Sentry monitoring actif</li><li>Warm-up 48h terminé</li></ul></div>
+    <div class="milestone"><div class="milestone-week">Sprint 6 · J19–21</div><div class="milestone-title">Go Live</div><ul class="milestone-items"><li>Quota 10 msg/SIM/jour</li><li>72h monitoring sans incident</li><li>Formation back-office client</li><li>Documentation livrée</li></ul></div>
+  </div>
+
+  <div class="notice">Les sprints 1 et 2 démarrent simultanément. Chaque heure de retard sur le warm-up DataDome repousse d'autant le go live.</div>
+</section>
+
+<!-- ═══ 09 RISQUES ═══ -->
+<section class="section" id="risques">
+  <div class="section-header"><span class="section-num">09</span><h2>Risques &amp; mitigations</h2></div>
+  <p class="lead">Les risques HIGH sont traités architecturalement (pas opérationnellement). Les règles R01–R12 couvrent les risques principaux.</p>
+
+  <table class="risk-table">
+    <thead><tr><th>Risque</th><th>Sév.</th><th>Règle liée</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td><b>DataDome nouveau modèle ML</b> sur LBC</td><td><span class="sev sev-high">HIGH</span></td><td>R04, R05</td><td>Health score composite. browser-use Cloud met à jour Chromium côté serveur. Warm-up obligatoire.</td></tr>
+      <tr><td><b>5sim indisponible</b> → SmsApp.io 502</td><td><span class="sev sev-high">HIGH</span></td><td>—</td><td>Retry x3 / 30s. Pause création comptes si persiste. Sessions existantes continuent.</td></tr>
+      <tr><td><b>LBC modifie son HTML</b></td><td><span class="sev sev-med">MED</span></td><td>R09</td><td>browser-use pilote via IA (pas de sélecteurs). crawl4ai s'adapte sémantiquement.</td></tr>
+      <tr><td><b>SIM SMSTools suspicion spam</b></td><td><span class="sev sev-med">MED</span></td><td>R01, R05</td><td>Quotas progressifs. Fenêtre 8h–20h. Distribution équilibrée 8 SIMs.</td></tr>
+      <tr><td><b>iproxy.online hors ligne</b></td><td><span class="sev sev-med">MED</span></td><td>R07</td><td>Stopper création (jamais IP VPS). Comptes existants opérationnels via browser-use.</td></tr>
+      <tr><td><b>Mailgun &gt; 1000 emails/mois</b></td><td><span class="sev sev-low">LOW</span></td><td>—</td><td>Upgrade Flex (~1 €/1000 emails). Très improbable en régime normal.</td></tr>
+      <tr><td><b>VPS RAM saturée</b></td><td><span class="sev sev-low">LOW</span></td><td>—</td><td>CPX41 = 16 GB, largement dimensionné. Upgrade CX52 (32 GB) en 5 min si nécessaire.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- FOOTER -->
+<div style="margin-top:56px;padding:20px 0;border-top:1px solid var(--border);color:var(--text-muted);font-size:11.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+  <span>AutoTransfert SAS · Plan opérationnel P1+P2 · 2026-06-17</span>
+  <span>Code review : <a href="https://github.com/alibaba/open-code-review" style="color:var(--accent);">alibaba/open-code-review</a> · Tests : pytest + Vitest · Hooks : Husky · Monitoring : Sentry</span>
+</div>
+
+</div>
+</body>
+</html>

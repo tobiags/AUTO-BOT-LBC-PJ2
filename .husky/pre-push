@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Husky pre-push — suite complète
+set -e
+
+echo "==> Tests complets"
+pytest -q --tb=short
