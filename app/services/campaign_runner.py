@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app import boundaries
 from app.config import get_settings
@@ -70,12 +70,22 @@ async def run_campaign(campaign_id: str) -> dict:
         await db.flush()
 
         # Annonces NOUVELLES avec numéro de téléphone — filtrées blacklist (R02)
-        result = await db.execute(
-            select(Listing).where(
-                Listing.phone.isnot(None),
-                Listing.status == ListingStatus.NOUVELLE,
-            ).limit(200)
+        # Si des annonces sont pré-assignées (POST /campaigns/{id}/listings), les cibler.
+        assigned_count_result = await db.execute(
+            select(func.count())
+            .select_from(Listing)
+            .where(Listing.campaign_id == campaign_uuid)
         )
+        has_assigned = (assigned_count_result.scalar() or 0) > 0
+
+        listing_q = select(Listing).where(
+            Listing.phone.isnot(None),
+            Listing.status == ListingStatus.NOUVELLE,
+        )
+        if has_assigned:
+            listing_q = listing_q.where(Listing.campaign_id == campaign_uuid)
+
+        result = await db.execute(listing_q.limit(200))
         listings = result.scalars().all()
 
     sent = 0

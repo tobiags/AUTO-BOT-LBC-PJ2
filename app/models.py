@@ -110,6 +110,11 @@ class CampaignCreate(BaseModel):
     listing_ids: list[UUID] = []
 
 
+class CampaignListingsPayload(BaseModel):
+    """Payload pour POST /campaigns/{id}/listings — pré-assigne des annonces."""
+    listing_ids: list[UUID] = Field(..., min_length=1)
+
+
 class CampaignOut(BaseModel):
     id: UUID
     type: str

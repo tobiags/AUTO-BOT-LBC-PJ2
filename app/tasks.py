@@ -69,13 +69,25 @@ def run_campaign_task(self, campaign_id: str):
 
 @celery_app.task(name="app.tasks.scrape_listings_task")
 def scrape_listings_task(search_params: dict | None = None):
-    """WF-04 — scraping quotidien LBC + La Centrale."""
+    """WF-04 — scraping quotidien LBC + La Centrale + persistance."""
+    from app.services.listing_persistence import persist_listings
     from app.services.scraper import scrape_la_centrale, scrape_lbc
+
     params = search_params or {}
     lbc_results = _run(scrape_lbc(params))
     lc_results = _run(scrape_la_centrale(params))
-    log.info("Scraping terminé — LBC: %d, La Centrale: %d", len(lbc_results), len(lc_results))
-    return {"lbc": len(lbc_results), "la_centrale": len(lc_results)}
+    all_listings = lbc_results + lc_results
+
+    persist_result = _run(persist_listings(all_listings))
+    log.info(
+        "Scraping terminé — LBC: %d La Centrale: %d persistés: %s",
+        len(lbc_results), len(lc_results), persist_result,
+    )
+    return {
+        "lbc": len(lbc_results),
+        "la_centrale": len(lc_results),
+        "persist": persist_result,
+    }
 
 
 @celery_app.task(name="app.tasks.check_account_pool_task")

@@ -74,6 +74,9 @@ class Listing(Base):
     status: Mapped[str] = mapped_column(
         Enum(ListingStatus, name="listing_status"), default=ListingStatus.NOUVELLE
     )
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
