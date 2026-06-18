@@ -5,5 +5,5 @@ set -e
 echo "==> Lint Python (ruff)"
 ruff check app/ tests/
 
-echo "==> Tests unitaires backend (<5s)"
-pytest -m unit -q --tb=short 2>/dev/null || pytest -q --tb=short -x tests/test_boundaries.py tests/test_campaign_runner.py tests/test_webhooks.py
+echo "==> Tests unitaires (marqueur unit)"
+pytest -m unit -q --tb=short

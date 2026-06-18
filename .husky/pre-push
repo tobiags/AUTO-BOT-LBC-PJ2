@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
-# Husky pre-push — suite complète
+# Husky pre-push — suite complète (unit + integration)
 set -e
 
-echo "==> Tests complets"
-pytest -q --tb=short
+echo "==> Lint Python (ruff)"
+ruff check app/ tests/
+
+echo "==> Tests unit + integration"
+pytest -m "unit or integration" -q --tb=short
