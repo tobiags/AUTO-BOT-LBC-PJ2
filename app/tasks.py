@@ -24,6 +24,7 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="Europe/Paris",
     enable_utc=True,
+    broker_connection_retry_on_startup=True,
     beat_schedule={
         # WF-04 — scraping quotidien à 06h00
         "scrape-lbc-daily": {

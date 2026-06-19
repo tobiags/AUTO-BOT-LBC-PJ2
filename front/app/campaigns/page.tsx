@@ -31,11 +31,11 @@ export default async function CampaignsPage() {
       <Table.Root variant="surface">
         <Table.Header>
           <Table.Row>
-            <Table.ColumnHeaderCell>Nom</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Véhicule cible</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Budget max</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Années</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Type</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Statut</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Envoyés</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Échoués</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Créée le</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
           </Table.Row>
         </Table.Header>
@@ -50,34 +50,29 @@ export default async function CampaignsPage() {
             campaigns.map((c) => (
               <Table.Row key={c.id}>
                 <Table.Cell>
-                  <Text weight="bold">{c.name}</Text>
-                </Table.Cell>
-                <Table.Cell>
-                  {c.make} {c.model}
-                </Table.Cell>
-                <Table.Cell>
-                  {c.price_max != null
-                    ? `${c.price_max.toLocaleString('fr-FR')} €`
-                    : '—'}
-                </Table.Cell>
-                <Table.Cell>
-                  {c.year_min || c.year_max
-                    ? `${c.year_min ?? '?'} – ${c.year_max ?? '?'}`
-                    : '—'}
+                  <Text weight="bold" style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                    {c.type}
+                  </Text>
                 </Table.Cell>
                 <Table.Cell>
                   <Badge color={STATUS_COLOR[c.status] ?? 'gray'}>{c.status}</Badge>
                 </Table.Cell>
                 <Table.Cell>
+                  <Text color="green">{c.sent}</Text>
+                </Table.Cell>
+                <Table.Cell>
+                  <Text color={c.failed > 0 ? 'red' : 'gray'}>{c.failed}</Text>
+                </Table.Cell>
+                <Table.Cell>
+                  <Text size="2" color="gray">
+                    {new Date(c.created_at).toLocaleDateString('fr-FR')}
+                  </Text>
+                </Table.Cell>
+                <Table.Cell>
                   <Flex gap="2">
-                    {c.status === 'RUNNING' && (
-                      <Button size="1" variant="soft" color="orange">
-                        Pause
-                      </Button>
-                    )}
-                    {c.status === 'PAUSED' && (
+                    {c.status === 'PENDING' && (
                       <Button size="1" variant="soft" color="green">
-                        Reprendre
+                        Démarrer
                       </Button>
                     )}
                   </Flex>

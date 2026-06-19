@@ -24,56 +24,68 @@ export type Listing = {
   id: string
   source: string
   url: string
-  title: string
+  title: string | null
   price: number | null
   km: number | null
+  location: string | null
   make: string | null
   model: string | null
   year: number | null
+  fuel: string | null
+  transmission: string | null
   price_score: number | null
   market_avg_price: number | null
-  ai_summary: string | null
+  market_sample_size: number | null
   status: ListingStatus
   created_at: string
 }
 
 export type PlatformAccount = {
   id: string
-  email: string
   status: AccountStatus
   score_sante: number
   quota_actuel: number
   erreurs_24h: number
   datadome_trust_level: DatadomeTrustLevel
   date_creation: string
+  derniere_action: string | null
 }
 
 export type Campaign = {
   id: string
-  name: string
-  make: string
-  model: string
-  year_min: number | null
-  year_max: number | null
-  price_max: number | null
+  type: string
   status: CampaignStatus
+  sent: number
+  failed: number
   created_at: string
 }
 
 export type AnalyzerStats = {
-  total_analyzed: number
+  total_listings: number
+  analyzed: number
   pending: number
-  avg_score: number | null
-  high_value_count: number
+  high_confidence: number
+  medium_confidence: number
+  underpriced: number
+  overpriced: number
+  avg_price_score: number | null
+  top_opportunities: AnalyzerResult[]
 }
 
 export type AnalyzerResult = {
-  listing_id: string
-  price_score: number
-  market_avg_price: number
-  market_sample_size: number
-  ai_summary: string
-  analyzed_at: string
+  id: string
+  url: string
+  title: string | null
+  make: string | null
+  model: string | null
+  year: number | null
+  km: number | null
+  price: number | null
+  price_score: number | null
+  market_avg_price: number | null
+  market_sample_size: number | null
+  confidence: string | null
+  ai_summary: string | null
 }
 
 export const api = {
@@ -85,8 +97,7 @@ export const api = {
   },
   campaigns: {
     list: () => apiFetch<Campaign[]>('/campaigns'),
-    pause: (id: string) => apiFetch<void>(`/campaigns/${id}/pause`, { method: 'POST' }),
-    resume: (id: string) => apiFetch<void>(`/campaigns/${id}/resume`, { method: 'POST' }),
+    start: (id: string) => apiFetch<void>(`/campaigns/${id}/start`, { method: 'POST' }),
   },
   accounts: {
     list: () => apiFetch<PlatformAccount[]>('/accounts'),

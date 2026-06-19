@@ -5,10 +5,15 @@ import { PriceScoreBadge } from '@/components/PriceScoreBadge'
 export const revalidate = 0
 
 const EMPTY_STATS: AnalyzerStats = {
-  total_analyzed: 0,
+  total_listings: 0,
+  analyzed: 0,
   pending: 0,
-  avg_score: null,
-  high_value_count: 0,
+  high_confidence: 0,
+  medium_confidence: 0,
+  underpriced: 0,
+  overpriced: 0,
+  avg_price_score: null,
+  top_opportunities: [],
 }
 
 export default async function AnalyzerPage() {
@@ -36,7 +41,7 @@ export default async function AnalyzerPage() {
             Total analysés
           </Text>
           <Text size="7" weight="bold">
-            {stats.total_analyzed}
+            {stats.analyzed}
           </Text>
         </Card>
 
@@ -58,16 +63,16 @@ export default async function AnalyzerPage() {
             Score moyen
           </Text>
           <Text size="7" weight="bold">
-            {stats.avg_score != null ? stats.avg_score.toFixed(1) : '—'}
+            {stats.avg_price_score != null ? stats.avg_price_score.toFixed(1) : '—'}
           </Text>
         </Card>
 
         <Card style={{ flex: 1, minWidth: 160 }}>
           <Text size="2" color="gray" as="div" mb="1">
-            Bonnes affaires (≥ 8)
+            Haute confiance
           </Text>
           <Text size="7" weight="bold" color="green">
-            {stats.high_value_count}
+            {stats.high_confidence}
           </Text>
         </Card>
       </Flex>
@@ -93,24 +98,32 @@ export default async function AnalyzerPage() {
             </Table.Row>
           ) : (
             results.map((r) => (
-              <Table.Row key={r.listing_id}>
+              <Table.Row key={r.id}>
                 <Table.Cell>
                   <PriceScoreBadge score={r.price_score} />
                 </Table.Cell>
                 <Table.Cell>
-                  {r.market_avg_price.toLocaleString('fr-FR')} €
+                  {r.market_avg_price != null
+                    ? `${r.market_avg_price.toLocaleString('fr-FR')} €`
+                    : '—'}
                 </Table.Cell>
-                <Table.Cell>{r.market_sample_size} annonces</Table.Cell>
                 <Table.Cell>
-                  <Text
-                    size="1"
-                    style={{ maxWidth: 400, display: 'block' }}
-                    title={r.ai_summary}
-                  >
-                    {r.ai_summary.length > 120
-                      ? `${r.ai_summary.slice(0, 120)}…`
-                      : r.ai_summary}
-                  </Text>
+                  {r.market_sample_size != null ? `${r.market_sample_size} annonces` : '—'}
+                </Table.Cell>
+                <Table.Cell>
+                  {r.ai_summary != null ? (
+                    <Text
+                      size="1"
+                      style={{ maxWidth: 400, display: 'block' }}
+                      title={r.ai_summary}
+                    >
+                      {r.ai_summary.length > 120
+                        ? `${r.ai_summary.slice(0, 120)}…`
+                        : r.ai_summary}
+                    </Text>
+                  ) : (
+                    <Text size="1" color="gray">—</Text>
+                  )}
                 </Table.Cell>
               </Table.Row>
             ))

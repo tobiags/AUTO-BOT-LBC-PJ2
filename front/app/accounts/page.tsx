@@ -50,7 +50,7 @@ export default async function AccountsPage() {
       <Table.Root variant="surface">
         <Table.Header>
           <Table.Row>
-            <Table.ColumnHeaderCell>Email</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>ID</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Statut</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Santé</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Quota</Table.ColumnHeaderCell>
@@ -69,7 +69,9 @@ export default async function AccountsPage() {
             accounts.map((a) => (
               <Table.Row key={a.id}>
                 <Table.Cell>
-                  <Text size="2">{a.email}</Text>
+                  <Text size="1" style={{ fontFamily: 'monospace' }} color="gray">
+                    …{a.id.slice(-8)}
+                  </Text>
                 </Table.Cell>
                 <Table.Cell>
                   <Badge color={STATUS_COLOR[a.status] ?? 'gray'}>{a.status}</Badge>

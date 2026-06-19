@@ -20,13 +20,18 @@ export function IncomingCallAlert() {
         </Badge>
       </Flex>
       {calls.map((call, i) => (
-        <Callout.Root key={`${call.listing_id}-${i}`} color="green" mb="2">
+        <Callout.Root key={`${call.caller}-${i}`} color="green" mb="2">
           <Callout.Text>
-            <strong>Appel entrant</strong> — {call.make} {call.model} ·{' '}
+            <strong>Appel entrant</strong> —{' '}
             <Text as="span" style={{ fontFamily: 'monospace' }}>
-              {call.phone}
-            </Text>{' '}
-            · {call.price?.toLocaleString('fr-FR')} €
+              {call.caller}
+            </Text>
+            {call.listing?.make && (
+              <> · {String(call.listing.make)} {String(call.listing.model ?? '')}</>
+            )}
+            {call.listing?.price && (
+              <> · {Number(call.listing.price).toLocaleString('fr-FR')} €</>
+            )}
           </Callout.Text>
         </Callout.Root>
       ))}

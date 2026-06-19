@@ -17,53 +17,65 @@ export const mockListing: Listing = {
   title: 'Renault Clio 1.2 TCe 90',
   price: 7500,
   km: 85000,
+  location: 'Paris 75001',
   make: 'Renault',
   model: 'Clio',
   year: 2018,
+  fuel: 'Essence',
+  transmission: 'Manuelle',
   price_score: 7.5,
   market_avg_price: 8200,
-  ai_summary: 'Bon rapport qualité/prix — kilométrage raisonnable pour l\'année.',
+  market_sample_size: 31,
   status: 'NOUVELLE',
   created_at: '2026-06-19T10:00:00Z',
 }
 
 export const mockAccount: PlatformAccount = {
-  id: 'acc-001',
-  email: 'test@autotransfert-tmp.fr',
+  id: 'acc-00000001',
   status: 'ACTIF',
   score_sante: 95,
   quota_actuel: 10,
   erreurs_24h: 0,
   datadome_trust_level: 'HIGH',
   date_creation: '2026-06-01T00:00:00Z',
+  derniere_action: '2026-06-19T09:00:00Z',
 }
 
 export const mockCampaign: Campaign = {
   id: 'camp-001',
-  name: 'Recherche Clio 2018',
-  make: 'Renault',
-  model: 'Clio',
-  year_min: 2016,
-  year_max: 2020,
-  price_max: 10000,
+  type: 'sms_direct',
   status: 'RUNNING',
+  sent: 42,
+  failed: 1,
   created_at: '2026-06-15T00:00:00Z',
 }
 
 export const mockAnalyzerStats: AnalyzerStats = {
-  total_analyzed: 42,
-  pending: 3,
-  avg_score: 6.8,
-  high_value_count: 12,
+  total_listings: 150,
+  analyzed: 42,
+  pending: 108,
+  high_confidence: 12,
+  medium_confidence: 18,
+  underpriced: 24,
+  overpriced: 10,
+  avg_price_score: 6.8,
+  top_opportunities: [],
 }
 
 export const mockAnalyzerResult: AnalyzerResult = {
-  listing_id: '123e4567-e89b-12d3-a456-426614174000',
+  id: '123e4567-e89b-12d3-a456-426614174000',
+  url: 'https://www.leboncoin.fr/voitures/123',
+  title: 'Renault Clio 1.2 TCe 90',
+  make: 'Renault',
+  model: 'Clio',
+  year: 2018,
+  km: 85000,
+  price: 7500,
   price_score: 7.5,
   market_avg_price: 8200,
   market_sample_size: 31,
+  confidence: 'high',
   ai_summary: 'Véhicule sous-coté de 8,5% par rapport au marché.',
-  analyzed_at: '2026-06-19T11:00:00Z',
 }
 
 export const handlers = [

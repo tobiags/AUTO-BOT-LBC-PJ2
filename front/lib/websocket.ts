@@ -1,15 +1,12 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 
-const WS_URL = process.env.NEXT_PUBLIC_API_WS_URL ?? 'ws://localhost:8000/ws/calls'
+const WS_URL = process.env.NEXT_PUBLIC_API_WS_URL ?? 'ws://localhost:8000/ws'
 
 export type IncomingCall = {
-  listing_id: string
-  phone: string
-  make: string
-  model: string
-  price: number
-  received_at: string
+  event: string
+  caller: string
+  listing: Record<string, unknown> | null
 }
 
 export function useIncomingCalls(onCall: (call: IncomingCall) => void) {

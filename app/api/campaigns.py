@@ -1,13 +1,22 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException
-from sqlalchemy import update
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import select, update
 
 from app.db import get_db
 from app.models import CampaignCreate, CampaignListingsPayload, CampaignOut
 from app.tables import Campaign, Listing
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+
+
+@router.get("", response_model=list[CampaignOut])
+async def list_campaigns(limit: int = Query(50, le=200)):
+    async with get_db() as db:
+        result = await db.execute(
+            select(Campaign).order_by(Campaign.created_at.desc()).limit(limit)
+        )
+        return [CampaignOut.model_validate(c) for c in result.scalars()]
 
 
 @router.post("", response_model=CampaignOut, status_code=201)
