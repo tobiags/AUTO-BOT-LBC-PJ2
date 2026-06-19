@@ -149,7 +149,7 @@ async def cancel_number(order_id: str) -> bool:
 
 # ── MAILGUN ───────────────────────────────────────────────────────────────────
 
-import secrets
+import secrets  # noqa: E402
 
 
 def generate_email(domain: str | None = None) -> str:

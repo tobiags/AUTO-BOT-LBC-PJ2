@@ -3,13 +3,13 @@
 Règle TDD : on mocke UNIQUEMENT boundaries.py — jamais PostgreSQL/Redis.
 Tests d'intégration tournent sur vraie DB de test (port 5433).
 """
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from app.boundaries import ProxyInfo
 from app.models import AccountStatus, DatadomeTrustLevel
 from app.services.account_creation import (
-    AccountCreationError,
     CreationResult,
     ProxyUnavailableError,
     _build_proxy_config,
@@ -105,8 +105,9 @@ def test_build_proxy_config_preserves_scheme():
 @pytest.mark.unit
 def test_session_loads_cookies(tmp_path):
     """Le dossier de session Patchright est créé pour un UUID donné."""
-    from app.services.account_creation import _session_path_for
     import app.services.account_creation as svc
+
+    from app.services.account_creation import _session_path_for
 
     original = svc.settings.sessions_dir
     svc.settings.__dict__["sessions_dir"] = str(tmp_path)
@@ -143,7 +144,7 @@ def test_datadome_block_degrades_account():
     assert DatadomeTrustLevel.LOW.value == "LOW"
     # L'ordre de sévérité : LOW < MEDIUM < HIGH
     levels = [DatadomeTrustLevel.LOW, DatadomeTrustLevel.MEDIUM, DatadomeTrustLevel.HIGH]
-    assert len(set(l.value for l in levels)) == 3
+    assert len(set(lvl.value for lvl in levels)) == 3
 
 
 # ── Unit : create_lbc_account (Mode A complet) ───────────────────────────────

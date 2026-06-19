@@ -10,7 +10,7 @@ Deux composants :
 Point d'entrée public : analyze_listing(listing_id)
 """
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -43,7 +43,7 @@ _ANALYSIS_TOOL = {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 100,
-                "description": "Score de fiabilité globale du modèle (0=très mauvais, 100=excellent)",
+                "description": "Score de fiabilité du modèle (0=mauvais, 100=excellent)",
             },
             "ai_summary": {
                 "type": "string",
@@ -61,7 +61,7 @@ _ANALYSIS_TOOL = {
             },
             "negotiation_tip": {
                 "type": "string",
-                "description": "Argument de négociation basé sur le prix marché et les défauts connus",
+                "description": "Argument de négociation basé sur le prix marché et les défauts",
             },
         },
         "required": [
@@ -170,7 +170,7 @@ async def _ai_analysis(
     from anthropic import AsyncAnthropic
 
     prompt_parts = [
-        f"Analyse ce véhicule d'occasion :",
+        "Analyse ce véhicule d'occasion :",
         f"- Marque / Modèle : {make} {model}",
     ]
     if year:

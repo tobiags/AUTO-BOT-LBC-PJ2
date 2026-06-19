@@ -69,6 +69,7 @@ async def test_evaluate_warmup_batch_returns_dict():
 @pytest.mark.integration
 async def test_update_account_health_noop_on_unknown_id():
     """Compte inexistant → ne lève pas d'exception."""
-    from app.services.warm_up import update_account_health
     import uuid
+
+    from app.services.warm_up import update_account_health
     await update_account_health(str(uuid.uuid4()), success=True)

@@ -1,5 +1,6 @@
 """Tests unitaires boundaries — couvrent les wrappers API externes."""
 import pytest
+
 from app.services.phone_extractor import extract_phone
 
 
@@ -39,6 +40,7 @@ async def test_poll_sms_extracts_code(mock_poll_sms):
 async def test_poll_sms_timeout_returns_none():
     """poll_sms retourne None après timeout."""
     from unittest.mock import AsyncMock, patch
+
     import app.boundaries as b
 
     with patch.object(b, "poll_sms", new_callable=AsyncMock) as m:
@@ -66,7 +68,9 @@ async def test_proxy_datacenter_raises():
     from app.models import ProxyInfo
     from app.services.account_creation import ProxyUnavailableError, _verify_proxy_is_fr_carrier
 
-    bad_proxy = ProxyInfo(url="http://u:p@94.130.X.X:8080", asn_org="Hetzner Online GmbH", country="DE")
+    bad_proxy = ProxyInfo(
+        url="http://u:p@94.130.X.X:8080", asn_org="Hetzner Online GmbH", country="DE"
+    )
     with pytest.raises(ProxyUnavailableError):
         await _verify_proxy_is_fr_carrier(bad_proxy)
 

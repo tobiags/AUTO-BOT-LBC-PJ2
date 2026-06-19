@@ -6,6 +6,7 @@ Les fonctions testées ici ne font aucun I/O.
 """
 import pytest
 
+from app.services.scraper import _extract_attr, _parse_year
 from app.services.vehicle_analyzer import (
     _CONFIDENCE_HIGH,
     _CONFIDENCE_MEDIUM,
@@ -13,7 +14,6 @@ from app.services.vehicle_analyzer import (
     _YEAR_WINDOW,
     _MarketStats,
 )
-from app.services.scraper import _extract_attr, _parse_year
 
 
 # ── Constantes de fenêtre ────────────────────────────────────────────────────

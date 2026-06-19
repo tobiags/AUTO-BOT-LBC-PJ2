@@ -10,6 +10,7 @@ Endpoints :
 from uuid import UUID
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from app.db import get_db
@@ -21,8 +22,6 @@ router = APIRouter(prefix="/analyzer", tags=["analyzer"])
 
 
 # ── Modèles de réponse locaux ──────────────────────────────────────────────────
-
-from pydantic import BaseModel
 
 
 class ListingAnalysisResult(BaseModel):

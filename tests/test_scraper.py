@@ -10,10 +10,10 @@ from app.models import ListingSource
 from app.services.scraper import (
     RawListing,
     _build_lbc_api_payload,
+    enrich_with_phone,
     _parse_api_items,
     _parse_km,
     _parse_price,
-    enrich_with_phone,
 )
 
 

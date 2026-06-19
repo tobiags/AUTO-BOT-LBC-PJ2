@@ -4,10 +4,10 @@ Règle TDD : on mocke UNIQUEMENT boundaries.py — jamais PostgreSQL/Redis.
 Les tests d'intégration tournent sur une vraie DB de test (port 5433).
 """
 import asyncio
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock, patch
 
 from app.main import app
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus

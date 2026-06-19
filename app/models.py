@@ -3,7 +3,7 @@ Pydantic models (API I/O + boundaries return types).
 SQLAlchemy ORM tables sont dans app/tables.py.
 """
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 # ── ENUMS ─────────────────────────────────────────────────────────────────────
 
-class AccountStatus(str, Enum):
+class AccountStatus(StrEnum):
     EN_CREATION = "EN_CRÉATION"
     EN_CHAUFFE = "EN_CHAUFFE"
     ACTIF = "ACTIF"
@@ -21,24 +21,24 @@ class AccountStatus(str, Enum):
     QUARANTAINE = "QUARANTAINE"
 
 
-class DatadomeTrustLevel(str, Enum):
+class DatadomeTrustLevel(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
 
 
-class SmsStatus(str, Enum):
+class SmsStatus(StrEnum):
     SENT = "sent"
     FAILED = "failed"
     QUEUED = "queued"
 
 
-class ListingSource(str, Enum):
+class ListingSource(StrEnum):
     LBC = "leboncoin"
     LA_CENTRALE = "la_centrale"
 
 
-class ListingStatus(str, Enum):
+class ListingStatus(StrEnum):
     NOUVELLE = "NOUVELLE"
     SMS_ENVOYE = "SMS_ENVOYÉ"
     REPONSE = "RÉPONSE"
@@ -46,7 +46,7 @@ class ListingStatus(str, Enum):
     ARCHIVE = "ARCHIVÉ"
 
 
-class CampaignStatus(str, Enum):
+class CampaignStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"

@@ -1,6 +1,7 @@
 """Tests webhooks SMS, email, call — idempotence + STOP."""
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 
 @pytest.mark.asyncio
@@ -24,7 +25,7 @@ async def test_webhook_sms_idempotent(client):
     """Même payload livré 2x → traité une seule fois (R12)."""
     payload = {"sim_id": "sim_01", "from": "+33611111111", "body": "Bonjour", "ts": 1718620100}
     with patch("app.webhooks.sms._event_key", return_value="key_dup_test"):
-        with patch("app.db.get_db") as mock_db:
+        with patch("app.db.get_db"):
             # Premier appel
             resp1 = await client.post("/webhooks/sms", json=payload)
             # Deuxième appel identique

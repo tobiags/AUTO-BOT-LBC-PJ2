@@ -6,8 +6,8 @@ Marqués @pytest.mark.integration : nécessitent PostgreSQL (port 5433).
 import pytest
 
 from app.models import ListingSource
-from app.services.scraper import RawListing
 from app.services.listing_persistence import persist_listings
+from app.services.scraper import RawListing
 
 
 def _make_listing(url: str, source: ListingSource = ListingSource.LBC) -> RawListing:

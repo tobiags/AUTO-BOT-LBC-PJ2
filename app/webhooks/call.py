@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
 from app.models import CallWebhookPayload, IncomingCallEvent
-from app.tables import SmsLog, Listing, WebhookEvent
+from app.tables import Listing, SmsLog, WebhookEvent
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -38,7 +38,7 @@ async def receive_call(payload: CallWebhookPayload):
     # Lookup annonce associée — dernier SMS envoyé depuis cette SIM vers ce numéro
     listing_data = None
     async with get_db() as db:
-        sms_result = await db.execute(
+        await db.execute(
             select(SmsLog.campaign_id)
             .where(SmsLog.sim_id == payload.sim_id, SmsLog.to_phone == payload.from_)
             .order_by(SmsLog.sent_at.desc())

@@ -61,7 +61,7 @@ async def receive_email(
         if account:
             log.info("Compte trouvé : id=%s — dépôt code Redis pour Patchright", account.id)
             # Dépose le code en Redis. account_creation._poll_email_code_redis() le récupère.
-            import redis.asyncio as _aioredis
+            import redis.asyncio as _aioredis  # noqa: I001
             from app.config import get_settings as _gs
             _redis = _aioredis.from_url(_gs().redis_url, decode_responses=True)
             try:

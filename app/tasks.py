@@ -48,7 +48,11 @@ def _run(coro):
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)
 def create_account_task(self, mode: str = "A"):
     """WF-01 — création d'un nouveau compte LBC."""
-    from app.services.account_creation import AccountCreationError, ProxyUnavailableError, create_lbc_account
+    from app.services.account_creation import (
+        AccountCreationError,
+        create_lbc_account,
+        ProxyUnavailableError,
+    )
     try:
         result = _run(create_lbc_account(mode=mode))
         log.info("Compte créé : %s", result.account_id)
@@ -95,6 +99,7 @@ def scrape_listings_task(search_params: dict | None = None):
 def analyze_batch_task(listing_ids: list[str]):
     """Analyse un lot d'annonces — lancé par POST /analyzer/run/batch."""
     import uuid
+
     from app.services.vehicle_analyzer import analyze_listing
 
     results = {"done": 0, "failed": 0}

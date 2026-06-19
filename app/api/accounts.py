@@ -13,7 +13,9 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 @router.get("", response_model=list[AccountOut])
 async def list_accounts():
     async with get_db() as db:
-        result = await db.execute(select(PlatformAccount).order_by(PlatformAccount.date_creation.desc()))
+        result = await db.execute(
+            select(PlatformAccount).order_by(PlatformAccount.date_creation.desc())
+        )
         return [AccountOut.model_validate(a) for a in result.scalars()]
 
 

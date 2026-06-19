@@ -6,7 +6,7 @@ Règle R12 : idempotent via table webhook_events.
 import hashlib
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app import boundaries
@@ -14,7 +14,6 @@ from app.db import get_db
 from app.models import SmsWebhookPayload
 from app.services.blacklist import add_to_blacklist
 from app.tables import WebhookEvent
-from app.ws import ws_manager
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 log = logging.getLogger(__name__)

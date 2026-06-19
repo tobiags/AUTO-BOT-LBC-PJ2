@@ -1,8 +1,9 @@
 """Tests campaign_runner — fenêtre horaire, blacklist, quotas."""
-import pytest
-from unittest.mock import patch
 from datetime import datetime
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
+
+import pytest
 
 PARIS = ZoneInfo("Europe/Paris")
 

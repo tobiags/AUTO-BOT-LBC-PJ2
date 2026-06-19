@@ -107,7 +107,9 @@ def _parse_km(text: str) -> int | None:
     return int(digits) if digits else None
 
 
-def _build_lbc_api_payload(search_params: dict[str, Any], offset: int = 0, limit: int = 100) -> dict:
+def _build_lbc_api_payload(
+    search_params: dict[str, Any], offset: int = 0, limit: int = 100
+) -> dict:
     """Construit le body JSON pour POST /finder/search."""
     keywords = " ".join(filter(None, [
         search_params.get("marque", ""),
@@ -315,8 +317,13 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
 
     search_params : {"marque": str, "modele": str, "km_max": int, "prix_max": int}
     """
-    from crawl4ai import AsyncWebCrawler, BrowserConfig, CacheMode, CrawlerRunConfig
-    from crawl4ai import JsonCssExtractionStrategy
+    from crawl4ai import (  # noqa: I001
+        AsyncWebCrawler,
+        BrowserConfig,
+        CacheMode,
+        CrawlerRunConfig,
+        JsonCssExtractionStrategy,
+    )
 
     marque = search_params.get("marque", "")
     modele = search_params.get("modele", "")
