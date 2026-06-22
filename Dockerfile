@@ -32,7 +32,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy source (hatchling needs the full package tree to build)
 COPY . .
 
-# Install Python packages
+# Install Python packages — skip browser downloads (done at runtime or via cloud API)
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN pip install --no-cache-dir .
 
 # Default: FastAPI API (Celery worker overrides CMD via Coolify start_command)
