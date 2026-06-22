@@ -167,13 +167,31 @@ class AccountOut(BaseModel):
 
 # ── WEBHOOK PAYLOADS ───────────────────────────────────────────────────────────
 
-class SmsWebhookPayload(BaseModel):
-    sim_id: str
-    from_: str = Field(..., alias="from")
-    body: str
-    ts: int
+class SmsToolsMessage(BaseModel):
+    id: str
+    date_utc: str
+    sender: str   # numéro expéditeur
+    receiver: str # numéro SIM destinataire
+    content: str = ""
 
-    model_config = {"populate_by_name": True}
+
+class SmsToolsWebhookItem(BaseModel):
+    webhook_id: str
+    webhook_type: str
+    message: SmsToolsMessage
+
+
+class CallToolsMessage(BaseModel):
+    id: str
+    date_utc: str
+    sender: str   # numéro appelant
+    receiver: str # numéro SIM
+
+
+class CallToolsWebhookItem(BaseModel):
+    webhook_id: str
+    webhook_type: str
+    message: CallToolsMessage
 
 
 class EmailWebhookPayload(BaseModel):
@@ -181,14 +199,6 @@ class EmailWebhookPayload(BaseModel):
     sender: str
     subject: str
     body_plain: str = Field("", alias="body-plain")
-
-    model_config = {"populate_by_name": True}
-
-
-class CallWebhookPayload(BaseModel):
-    sim_id: str
-    from_: str = Field(..., alias="from")
-    timestamp: int
 
     model_config = {"populate_by_name": True}
 

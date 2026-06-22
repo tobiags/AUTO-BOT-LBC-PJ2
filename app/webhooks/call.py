@@ -1,9 +1,7 @@
 """
-Webhook appel entrant → POST /webhooks/call (WF-03).
-Push WebSocket vers le back-office avec le contexte de l'annonce.
-Règle R12 : idempotent.
+Webhook SMSTools → POST /webhooks/call  (CALL_FORWARDING).
+Push WebSocket vers le back-office. Règle R12 : idempotent via webhook_id.
 """
-import hashlib
 import logging
 
 from fastapi import APIRouter
@@ -11,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
-from app.models import CallWebhookPayload, IncomingCallEvent
-from app.tables import Listing, SmsLog, WebhookEvent
+from app.models import CallToolsWebhookItem, IncomingCallEvent
+from app.tables import Listing, WebhookEvent
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -20,10 +18,14 @@ log = logging.getLogger(__name__)
 
 
 @router.post("/call")
-async def receive_call(payload: CallWebhookPayload):
-    event_key = hashlib.sha256(
-        f"call:{payload.from_}:{payload.sim_id}:{payload.timestamp}".encode()
-    ).hexdigest()[:32]
+async def receive_call(payload: list[CallToolsWebhookItem]):
+    if not payload:
+        return {"ok": True}
+
+    item = payload[0]
+    event_key = item.webhook_id[:32]
+    from_number = item.message.sender
+    sim_id = item.message.receiver
 
     async with get_db() as db:
         result = await db.execute(
@@ -35,19 +37,12 @@ async def receive_call(payload: CallWebhookPayload):
         if result.scalar() is None:
             return {"ok": True, "duplicate": True}
 
-    # Lookup annonce associée — dernier SMS envoyé depuis cette SIM vers ce numéro
+    # Lookup annonce associée au numéro appelant
     listing_data = None
     async with get_db() as db:
-        await db.execute(
-            select(SmsLog.campaign_id)
-            .where(SmsLog.sim_id == payload.sim_id, SmsLog.to_phone == payload.from_)
-            .order_by(SmsLog.sent_at.desc())
-            .limit(1)
-        )
-        # Simplified: look up listing directly by phone
         listing_result = await db.execute(
             select(Listing)
-            .where(Listing.phone == payload.from_)
+            .where(Listing.phone == from_number)
             .order_by(Listing.created_at.desc())
             .limit(1)
         )
@@ -61,8 +56,8 @@ async def receive_call(payload: CallWebhookPayload):
                 "source": listing.source,
             }
 
-    event = IncomingCallEvent(caller=payload.from_, listing=listing_data)
+    event = IncomingCallEvent(caller=from_number, listing=listing_data)
     await ws_manager.broadcast(event.model_dump())
-    log.info("Appel entrant %s — push WS (listing=%s)", payload.from_, bool(listing_data))
+    log.info("Appel entrant %s (SIM %s) — push WS (listing=%s)", from_number, sim_id, bool(listing_data))
 
     return {"ok": True}

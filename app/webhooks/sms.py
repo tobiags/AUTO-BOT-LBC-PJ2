@@ -1,9 +1,7 @@
 """
-Webhook SMSTools → POST /webhooks/sms.
-Gère STOP (WF-05) + appels entrants (WF-03).
-Règle R12 : idempotent via table webhook_events.
+Webhook SMSTools → POST /webhooks/sms  (INBOX_MESSAGE).
+Gère STOP (WF-05). Règle R12 : idempotent via webhook_id.
 """
-import hashlib
 import logging
 
 from fastapi import APIRouter, BackgroundTasks
@@ -11,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app import boundaries
 from app.db import get_db
-from app.models import SmsWebhookPayload
+from app.models import SmsToolsWebhookItem
 from app.services.blacklist import add_to_blacklist
 from app.tables import WebhookEvent
 
@@ -25,15 +23,16 @@ def _is_stop(body: str) -> bool:
     return body.strip().lower() in _STOP_KEYWORDS
 
 
-def _event_key(payload: SmsWebhookPayload) -> str:
-    """Clé unique pour garantir l'idempotence (R12)."""
-    raw = f"sms:{payload.from_}:{payload.ts}:{payload.body[:50]}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:32]
-
-
 @router.post("/sms")
-async def receive_sms(payload: SmsWebhookPayload, bg: BackgroundTasks):
-    event_key = _event_key(payload)
+async def receive_sms(payload: list[SmsToolsWebhookItem], bg: BackgroundTasks):
+    if not payload:
+        return {"ok": True}
+
+    item = payload[0]
+    event_key = item.webhook_id[:32]
+    sim_id = item.message.receiver
+    from_number = item.message.sender
+    body = item.message.content
 
     # Idempotence — R12
     async with get_db() as db:
@@ -44,24 +43,23 @@ async def receive_sms(payload: SmsWebhookPayload, bg: BackgroundTasks):
             .returning(WebhookEvent.id)
         )
         if result.scalar() is None:
-            log.debug("SMS déjà traité — event_key=%s", event_key)
+            log.debug("SMS déjà traité — webhook_id=%s", item.webhook_id)
             return {"ok": True, "duplicate": True}
 
-    if _is_stop(payload.body):
-        log.info("STOP reçu de %s (SIM %s) — blacklist P1+P2", payload.from_, payload.sim_id)
+    if _is_stop(body):
+        log.info("STOP reçu de %s (SIM %s) — blacklist", from_number, sim_id)
         await add_to_blacklist(
-            phone=payload.from_,
-            source_sim=payload.sim_id,
+            phone=from_number,
+            source_sim=sim_id,
             source_project="P1+P2",
         )
-        # Confirmation légale (LCEN)
         bg.add_task(
             boundaries.send_sms,
-            payload.sim_id,
-            payload.from_,
+            sim_id,
+            from_number,
             "Vous êtes bien désinscrit. Cordialement, AutoTransfert.",
         )
     else:
-        log.info("SMS entrant (réponse) de %s : %s", payload.from_, payload.body[:80])
+        log.info("SMS entrant de %s (SIM %s) : %s", from_number, sim_id, body[:80])
 
     return {"ok": True}
