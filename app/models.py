@@ -203,6 +203,43 @@ class EmailWebhookPayload(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+# ── SMSTOOLS FUNDS WEBHOOKS ───────────────────────────────────────────────────
+
+class SmsToolsFundsItem(BaseModel):
+    webhook_id: str
+    webhook_type: str  # "insufficient_funds" | "funds_purchased"
+    funds: dict[str, Any]
+
+
+# ── DASHBOARD ─────────────────────────────────────────────────────────────────
+
+class ServiceBalanceOut(BaseModel):
+    service: str
+    label: str
+    balance: float | None
+    currency: str
+    is_low: bool
+    low_threshold: float
+    last_updated: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class DashboardStats(BaseModel):
+    listings_total: int
+    listings_today: int
+    sms_sent_total: int
+    sms_sent_today: int
+    calls_total: int
+    calls_today: int
+    sms_received_total: int
+    sms_received_today: int
+    accounts_active: int
+    accounts_total: int
+    campaigns_running: int
+    balances: list[ServiceBalanceOut]
+
+
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────
 
 class IncomingCallEvent(BaseModel):

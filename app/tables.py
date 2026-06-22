@@ -145,6 +145,20 @@ class Campaign(Base):
     )
 
 
+class ServiceBalance(Base):
+    """Solde des services externes (SMSTools, iProxy, BrowserUse, Anthropic…)."""
+    __tablename__ = "service_balance"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    service: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    balance: Mapped[float | None] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(10), default="EUR")
+    is_low: Mapped[bool] = mapped_column(Boolean, default=False)
+    low_threshold: Mapped[float] = mapped_column(Float, default=10.0)
+    last_updated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class WebhookEvent(Base):
     """Garantit l'idempotence des webhooks entrants (règle R12)."""
     __tablename__ = "webhook_events"
