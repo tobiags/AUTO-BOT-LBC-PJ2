@@ -9,6 +9,7 @@ Deux composants :
 
 Point d'entrée public : analyze_listing(listing_id)
 """
+import asyncio
 import logging
 from dataclasses import dataclass
 from uuid import UUID
@@ -212,6 +213,11 @@ async def _ai_analysis(
         tool_choice={"type": "tool", "name": "vehicle_analysis_result"},
         messages=[{"role": "user", "content": prompt}],
     )
+
+    # Suivi coût Anthropic (non-bloquant)
+    if response.usage:
+        from app.services.anthropic_tracker import track_usage
+        asyncio.create_task(track_usage(response.usage.input_tokens, response.usage.output_tokens))
 
     tool_block = next(
         (b for b in response.content if b.type == "tool_use"), None

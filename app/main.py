@@ -1,6 +1,7 @@
 """
 FastAPI app — AutoTransfert SAS P2 (Acquisition Véhicules).
 """
+import asyncio
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -10,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import accounts, analyzer, campaigns, dashboard, health, listings
 from app.config import get_settings
 from app.db import Base, engine
+from app.services.balance_poller import start_balance_poller
 from app.webhooks import call, debug, email, funds, sms
 from app.ws import ws_manager
 
@@ -21,8 +23,11 @@ async def lifespan(app: FastAPI):
     # Startup — création des tables si elles n'existent pas
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Polling automatique des soldes iProxy + BrowserUse
+    poller_task = asyncio.create_task(start_balance_poller())
     yield
     # Shutdown
+    poller_task.cancel()
     await engine.dispose()
 
 

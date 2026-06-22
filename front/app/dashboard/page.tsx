@@ -17,6 +17,8 @@ function CreditCard({ b }: { b: ServiceBalance }) {
   const icon = SERVICE_ICONS[b.service] ?? '💳'
   const unknown = b.balance === null
   const low = b.is_low
+  // Anthropic : on suit le coût cumulé (pas un solde à recharger)
+  const isAnthropicCost = b.service === 'anthropic'
   const lastSeen = b.last_updated
     ? new Date(b.last_updated).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
@@ -24,29 +26,40 @@ function CreditCard({ b }: { b: ServiceBalance }) {
     : null
 
   return (
-    <Card style={{ flex: 1, minWidth: 180, borderLeft: low ? '3px solid var(--red-9)' : '3px solid var(--green-9)' }}>
+    <Card style={{
+      flex: 1, minWidth: 180,
+      borderLeft: isAnthropicCost
+        ? '3px solid var(--blue-9)'
+        : low ? '3px solid var(--red-9)' : '3px solid var(--green-9)',
+    }}>
       <Flex justify="between" align="center" mb="1">
         <Text size="2" weight="bold">{icon} {b.label}</Text>
-        {low && <Badge color="red" radius="full">Faible</Badge>}
-        {!low && !unknown && <Badge color="green" radius="full">OK</Badge>}
-        {unknown && <Badge color="gray" radius="full">Inconnu</Badge>}
+        {isAnthropicCost && <Badge color="blue" radius="full">Coût cumulé</Badge>}
+        {!isAnthropicCost && low && <Badge color="red" radius="full">Faible</Badge>}
+        {!isAnthropicCost && !low && !unknown && <Badge color="green" radius="full">OK</Badge>}
+        {!isAnthropicCost && unknown && <Badge color="gray" radius="full">Inconnu</Badge>}
       </Flex>
-      <Text size="7" weight="bold" color={low ? 'red' : unknown ? 'gray' : undefined}>
-        {unknown ? '—' : `${b.balance?.toFixed(2)} ${b.currency}`}
+      <Text size="7" weight="bold" color={low && !isAnthropicCost ? 'red' : unknown ? 'gray' : undefined}>
+        {unknown ? '—' : `${b.balance?.toFixed(4)} ${b.currency}`}
       </Text>
-      {low && (
+      {!isAnthropicCost && low && (
         <Text size="1" color="red" as="div" mt="1">
           ⚠️ Rechargement requis (seuil : {b.low_threshold} {b.currency})
         </Text>
       )}
-      {lastSeen && (
-        <Text size="1" color="gray" as="div" mt="1">
-          Dernière mise à jour : {lastSeen}
+      {isAnthropicCost && (
+        <Text size="1" color="blue" as="div" mt="1">
+          Dépense estimée depuis le dernier redémarrage
         </Text>
       )}
-      {!lastSeen && (
+      {lastSeen && (
         <Text size="1" color="gray" as="div" mt="1">
-          Aucune donnée reçue
+          Mis à jour : {lastSeen}
+        </Text>
+      )}
+      {!lastSeen && !isAnthropicCost && (
+        <Text size="1" color="gray" as="div" mt="1">
+          Polling au démarrage — en attente
         </Text>
       )}
     </Card>
