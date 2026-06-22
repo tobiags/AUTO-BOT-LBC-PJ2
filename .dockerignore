@@ -1,7 +1,6 @@
 .git
 .env
 .env.*
-front/
 tests/
 docs/
 scripts/
