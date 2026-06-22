@@ -28,6 +28,8 @@ dependencies = [
     "anthropic>=0.40.0",
     # Monitoring
     "sentry-sdk[fastapi]>=2.7.0",
+    # Form data (Mailgun/SMSTools webhooks)
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
