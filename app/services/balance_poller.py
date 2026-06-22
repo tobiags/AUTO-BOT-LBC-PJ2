@@ -68,20 +68,16 @@ async def _poll_iproxy(client: httpx.AsyncClient, api_key: str) -> None:
 
 async def _poll_browseruse(client: httpx.AsyncClient, api_key: str) -> None:
     try:
+        # Endpoint billing v2 — seul endpoint documenté qui retourne le solde
         resp = await client.get(
-            "https://api.browser-use.com/api/v3/balance",
-            headers={
-                "X-Browser-Use-API-Key": api_key,
-                "Content-Type": "application/json",
-            },
+            "https://api.browser-use.com/api/v2/billing/account",
+            headers={"X-Browser-Use-API-Key": api_key},
             timeout=10,
         )
         resp.raise_for_status()
         data = resp.json()
-        # Essaie les champs courants : credits, balance, remaining
-        balance = float(
-            data.get("credits") or data.get("balance") or data.get("remaining") or 0
-        )
+        # totalCreditsBalanceUsd = somme mensuel + top-up
+        balance = float(data.get("totalCreditsBalanceUsd") or 0)
         await _upsert_balance("browseruse", "BrowserUse", balance, "USD", 5.0)
     except Exception as exc:
         log.warning("BrowserUse balance poll failed: %s", exc)
