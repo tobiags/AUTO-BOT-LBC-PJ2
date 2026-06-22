@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import accounts, analyzer, campaigns, health, listings
 from app.config import get_settings
 from app.db import Base, engine
-from app.webhooks import call, email, sms
+from app.webhooks import call, debug, email, sms
 from app.ws import ws_manager
 
 settings = get_settings()
@@ -51,6 +51,7 @@ app.include_router(analyzer.router)
 app.include_router(sms.router)
 app.include_router(email.router)
 app.include_router(call.router)
+app.include_router(debug.router)
 
 
 # WebSocket — back-office temps réel
