@@ -12,37 +12,75 @@ const SERVICE_ICONS: Record<string, string> = {
   anthropic:  '🤖',
 }
 
+function daysUntil(isoDate: string | null): number | null {
+  if (!isoDate) return null
+  const diff = new Date(isoDate).getTime() - Date.now()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
 // ── Composant carte crédit ───────────────────────────────────────────────────
 function CreditCard({ b }: { b: ServiceBalance }) {
   const icon = SERVICE_ICONS[b.service] ?? '💳'
   const unknown = b.balance === null
   const low = b.is_low
-  // Anthropic : on suit le coût cumulé (pas un solde à recharger)
   const isAnthropicCost = b.service === 'anthropic'
+  const daysLeft = daysUntil(b.expires_at)
+  const expiryWarning = daysLeft !== null && daysLeft <= 7
+  const expiryUrgent  = daysLeft !== null && daysLeft <= 3
+
+  const borderColor = isAnthropicCost
+    ? 'var(--blue-9)'
+    : expiryUrgent ? 'var(--red-9)'
+    : expiryWarning ? 'var(--orange-9)'
+    : low ? 'var(--red-9)'
+    : 'var(--green-9)'
+
   const lastSeen = b.last_updated
     ? new Date(b.last_updated).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
       })
     : null
 
+  const expiresLabel = b.expires_at
+    ? new Date(b.expires_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null
+
   return (
-    <Card style={{
-      flex: 1, minWidth: 180,
-      borderLeft: isAnthropicCost
-        ? '3px solid var(--blue-9)'
-        : low ? '3px solid var(--red-9)' : '3px solid var(--green-9)',
-    }}>
+    <Card style={{ flex: 1, minWidth: 180, borderLeft: `3px solid ${borderColor}` }}>
       <Flex justify="between" align="center" mb="1">
         <Text size="2" weight="bold">{icon} {b.label}</Text>
         {isAnthropicCost && <Badge color="blue" radius="full">Coût cumulé</Badge>}
-        {!isAnthropicCost && low && <Badge color="red" radius="full">Faible</Badge>}
-        {!isAnthropicCost && !low && !unknown && <Badge color="green" radius="full">OK</Badge>}
+        {!isAnthropicCost && expiryUrgent && <Badge color="red" radius="full">Expire bientôt</Badge>}
+        {!isAnthropicCost && expiryWarning && !expiryUrgent && <Badge color="orange" radius="full">{daysLeft}j restants</Badge>}
+        {!isAnthropicCost && low && !expiryWarning && <Badge color="red" radius="full">Faible</Badge>}
+        {!isAnthropicCost && !low && !unknown && !expiryWarning && <Badge color="green" radius="full">OK</Badge>}
         {!isAnthropicCost && unknown && <Badge color="gray" radius="full">Inconnu</Badge>}
       </Flex>
-      <Text size="7" weight="bold" color={low && !isAnthropicCost ? 'red' : unknown ? 'gray' : undefined}>
-        {unknown ? '—' : `${b.balance?.toFixed(4)} ${b.currency}`}
+
+      <Text size="7" weight="bold" color={
+        (low || expiryUrgent) && !isAnthropicCost ? 'red'
+        : expiryWarning && !isAnthropicCost ? 'orange'
+        : unknown ? 'gray' : undefined
+      }>
+        {unknown ? '—' : `${b.balance?.toFixed(2)} ${b.currency}`}
       </Text>
-      {!isAnthropicCost && low && (
+
+      {expiryUrgent && (
+        <Text size="1" color="red" as="div" mt="1">
+          ⚠️ Expire dans {daysLeft} jour{daysLeft !== 1 ? 's' : ''} ({expiresLabel}) — recharger iProxy
+        </Text>
+      )}
+      {expiryWarning && !expiryUrgent && (
+        <Text size="1" color="orange" as="div" mt="1">
+          Expire le {expiresLabel} ({daysLeft} jours)
+        </Text>
+      )}
+      {!expiryWarning && expiresLabel && (
+        <Text size="1" color="gray" as="div" mt="1">
+          Valide jusqu'au {expiresLabel}
+        </Text>
+      )}
+      {!isAnthropicCost && low && !expiryWarning && (
         <Text size="1" color="red" as="div" mt="1">
           ⚠️ Rechargement requis (seuil : {b.low_threshold} {b.currency})
         </Text>
@@ -100,6 +138,11 @@ export default async function DashboardPage() {
   }
 
   const anyLowBalance = stats?.balances.some((b) => b.is_low) ?? false
+  const anyExpiringSoon = stats?.balances.some((b) => {
+    if (!b.expires_at) return false
+    const days = Math.ceil((new Date(b.expires_at).getTime() - Date.now()) / 86400000)
+    return days <= 7
+  }) ?? false
 
   return (
     <Box>
@@ -109,7 +152,7 @@ export default async function DashboardPage() {
 
       {/* Alerte globale crédit faible */}
       {anyLowBalance && (
-        <Card mb="4" style={{ background: 'var(--red-2)', border: '1px solid var(--red-6)' }}>
+        <Card mb="3" style={{ background: 'var(--red-2)', border: '1px solid var(--red-6)' }}>
           <Flex align="center" gap="2">
             <Text size="4">⚠️</Text>
             <Box>
@@ -117,7 +160,24 @@ export default async function DashboardPage() {
                 Crédit insuffisant sur un ou plusieurs services
               </Text>
               <Text size="2" color="red">
-                Rechargez dès que possible pour éviter toute interruption de service.
+                Rechargez dès que possible pour éviter toute interruption.
+              </Text>
+            </Box>
+          </Flex>
+        </Card>
+      )}
+
+      {/* Alerte expiration imminente */}
+      {anyExpiringSoon && (
+        <Card mb="4" style={{ background: 'var(--orange-2)', border: '1px solid var(--orange-6)' }}>
+          <Flex align="center" gap="2">
+            <Text size="4">📅</Text>
+            <Box>
+              <Text size="3" weight="bold" color="orange" as="div">
+                Abonnement expirant dans moins de 7 jours
+              </Text>
+              <Text size="2" color="orange">
+                Renouvelez l'abonnement iProxy ou BrowserUse pour éviter toute coupure.
               </Text>
             </Box>
           </Flex>

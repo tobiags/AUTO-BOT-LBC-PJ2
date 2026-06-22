@@ -157,6 +157,7 @@ class ServiceBalance(Base):
     is_low: Mapped[bool] = mapped_column(Boolean, default=False)
     low_threshold: Mapped[float] = mapped_column(Float, default=10.0)
     last_updated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class WebhookEvent(Base):

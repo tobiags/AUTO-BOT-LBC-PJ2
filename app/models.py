@@ -221,6 +221,7 @@ class ServiceBalanceOut(BaseModel):
     is_low: bool
     low_threshold: float
     last_updated: datetime | None
+    expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

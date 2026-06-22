@@ -96,6 +96,7 @@ export type ServiceBalance = {
   is_low: boolean
   low_threshold: number
   last_updated: string | null
+  expires_at: string | null
 }
 
 export type DashboardStats = {
