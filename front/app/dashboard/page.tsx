@@ -20,7 +20,7 @@ export default async function DashboardPage() {
     activeAccounts = accounts.filter(
       (a) => a.status === 'ACTIF' || a.status === 'EN_CHAUFFE',
     ).length
-    analyzerTotal = stats.total_analyzed
+    analyzerTotal = stats.analyzed
     pendingAnalysis = stats.pending
   } catch {
     // API indisponible — affichage dégradé
