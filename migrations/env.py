@@ -21,7 +21,8 @@ target_metadata = Base.metadata
 # Override sqlalchemy.url from environment variable (R03 — pas de creds dans le code)
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+    # configparser interprets % as interpolation — double-escape for safe storage
+    config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
