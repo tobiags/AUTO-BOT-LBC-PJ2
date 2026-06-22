@@ -29,15 +29,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python packages first (cache layer)
-COPY pyproject.toml .
+# Copy source (hatchling needs the full package tree to build)
+COPY . .
+
+# Install Python packages
 RUN pip install --no-cache-dir .
 
 # Install patchright browser (Chromium + stealth patches)
 RUN patchright install chromium --with-deps || true
-
-# Copy source
-COPY . .
 
 # Default: FastAPI API (Celery worker overrides CMD via Coolify start_command)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
