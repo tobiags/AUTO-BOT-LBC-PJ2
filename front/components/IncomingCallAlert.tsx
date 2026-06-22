@@ -26,10 +26,10 @@ export function IncomingCallAlert() {
             <Text as="span" style={{ fontFamily: 'monospace' }}>
               {call.caller}
             </Text>
-            {call.listing?.make && (
+            {!!call.listing?.make && (
               <> · {String(call.listing.make)} {String(call.listing.model ?? '')}</>
             )}
-            {call.listing?.price && (
+            {!!call.listing?.price && (
               <> · {Number(call.listing.price).toLocaleString('fr-FR')} €</>
             )}
           </Callout.Text>
