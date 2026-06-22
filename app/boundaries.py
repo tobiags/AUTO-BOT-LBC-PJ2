@@ -51,7 +51,7 @@ async def get_sim_list() -> list[dict]:
 
 # ── IPROXY.ONLINE ────────────────────────────────────────────────────────────
 
-_IPROXY_BASE = "https://iproxy.online/api/v1"
+_IPROXY_BASE = "https://iproxy.online/api/cn/v1"
 
 
 async def get_4g_proxy() -> ProxyInfo:
@@ -62,24 +62,28 @@ async def get_4g_proxy() -> ProxyInfo:
     """
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
-            f"{_IPROXY_BASE}/proxy/{settings.iproxy_proxy_id}",
+            f"{_IPROXY_BASE}/proxy-access",
             headers={"Authorization": f"Bearer {settings.iproxy_api_key}"},
         )
         resp.raise_for_status()
-        data = resp.json()
-        return ProxyInfo(
-            url=data["proxy_url"],
-            asn_org=data.get("asn_org", ""),
-            country=data.get("country", "FR"),
+        accesses = resp.json()["proxy_accesses"]
+        proxy = next(
+            (a for a in accesses if a["id"] == settings.iproxy_proxy_id),
+            accesses[0],
         )
+        auth = proxy["auth"]
+        scheme = proxy["listen_service"]
+        url = f"{scheme}://{auth['login']}:{auth['password']}@{proxy['hostname']}:{proxy['port']}"
+        return ProxyInfo(url=url)
 
 
 async def rotate_4g_ip() -> bool:
     """Demande une rotation d'IP — attendre 30–60s avant de réutiliser."""
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            f"{_IPROXY_BASE}/proxy/{settings.iproxy_proxy_id}/rotate",
+            f"{_IPROXY_BASE}/command-push",
             headers={"Authorization": f"Bearer {settings.iproxy_api_key}"},
+            json={"action": "changeip"},
         )
         return resp.status_code == 200
 
@@ -149,16 +153,41 @@ async def cancel_number(order_id: str) -> bool:
 
 # ── MAILGUN ───────────────────────────────────────────────────────────────────
 
+import random  # noqa: E402
 import secrets  # noqa: E402
+
+_PRENOMS = [
+    "thomas", "nicolas", "julien", "alexandre", "maxime", "antoine", "pierre",
+    "clement", "baptiste", "kevin", "romain", "quentin", "florian", "adrien",
+    "lucas", "hugo", "mathieu", "simon", "valentin", "guillaume", "camille",
+    "marine", "sarah", "laura", "julie", "emma", "pauline", "lucie", "manon",
+    "lea", "alice", "chloe", "jessica", "amelie", "claire", "sophie", "marie",
+    "aurelie", "stephanie", "melanie",
+]
+
+_NOMS = [
+    "martin", "bernard", "thomas", "petit", "robert", "richard", "durand",
+    "dubois", "moreau", "laurent", "simon", "michel", "lefebvre", "leroy",
+    "roux", "david", "bertrand", "morel", "fournier", "girard", "bonnet",
+    "dupont", "lambert", "fontaine", "rousseau", "vincent", "muller", "lefevre",
+    "faure", "andre", "mercier", "blanc", "guerin", "boyer", "garnier",
+    "chevalier", "francois", "legrand", "gauthier", "garcia",
+]
 
 
 def generate_email(domain: str | None = None) -> str:
     """
-    Génère une adresse email unique pour un nouveau compte LBC.
-    Format : contact.{8 hex chars}@{operational_domain}
-    Jamais réutilisée — token unique par compte.
+    Génère une adresse email d'apparence réaliste pour un nouveau compte LBC.
+    Format : prenom.nom[@][suffixe_optionnel]@{operational_domain}
+    Jamais réutilisée — combinaison aléatoire + suffixe unique.
     """
     domain = domain or settings.operational_domain
-    token = secrets.token_hex(4)
-    return f"contact.{token}@{domain}"
+    prenom = random.choice(_PRENOMS)
+    nom = random.choice(_NOMS)
+    # 40 % de chance d'ajouter un suffixe numérique (ex: .martin73)
+    suffix = str(random.randint(10, 99)) if random.random() < 0.4 else ""
+    # séparateur aléatoire : point ou tiret
+    sep = random.choice([".", "-", "_"])
+    local = f"{prenom}{sep}{nom}{suffix}"
+    return f"{local}@{domain}"
 
