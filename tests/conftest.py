@@ -1,52 +1,64 @@
 """
-Fixtures pytest partagées.
-Règle TDD : on mocke UNIQUEMENT boundaries.py — jamais PostgreSQL/Redis.
-Les tests d'intégration tournent sur une vraie DB de test (port 5433).
+Fixtures pytest partagees.
+Regle TDD : on mocke UNIQUEMENT boundaries.py - jamais PostgreSQL/Redis.
+Les tests d'integration tournent sur une vraie DB de test (port 5433).
 """
 import asyncio
+import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+asyncpg://autotransfert:password@localhost:5433/autotransfert_p2_test",
+)
 
 from app.main import app
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus
 
 
-# ── DB SETUP ─────────────────────────────────────────────────────────────────
-
 @pytest.fixture(scope="session", autouse=True)
 def create_db_tables():
-    """Crée toutes les tables via create_all (idempotent) avant la session.
-
-    Couvre les tests d'intégration qui appellent les services directement
-    sans passer par l'ASGI lifespan (ex : test_listing_persistence.py).
-    En cas d'échec (DB non disponible), les tests unitaires ne sont pas bloqués.
-    """
+    """Cree les tables de test si la base d'integration est disponible."""
     from app.db import Base, engine
 
     async def _create():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        # Dispose pour libérer les connexions du loop asyncio.run() avant les tests.
-        # Les tests créent leurs propres connexions dans leurs event loops respectifs.
         await engine.dispose()
 
     try:
         asyncio.run(_create())
     except Exception:
-        pass  # DB non disponible — les tests unitaires passent quand même
+        pass
 
 
-# ── APP CLIENT ───────────────────────────────────────────────────────────────
+@pytest.fixture(autouse=True)
+def require_integration_db(request):
+    if request.node.get_closest_marker("integration") is None:
+        return
+
+    from app.db import engine
+
+    async def _ping():
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        await engine.dispose()
+
+    try:
+        asyncio.run(_ping())
+    except Exception as exc:
+        pytest.skip(f"DB d'integration indisponible: {exc}")
+
 
 @pytest.fixture
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
-
-# ── BOUNDARIES MOCKS ─────────────────────────────────────────────────────────
 
 @pytest.fixture
 def mock_send_sms():

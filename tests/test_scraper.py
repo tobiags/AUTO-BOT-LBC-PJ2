@@ -10,12 +10,11 @@ from app.models import ListingSource
 from app.services.scraper import (
     RawListing,
     _build_lbc_api_payload,
-    enrich_with_phone,
     _parse_api_items,
     _parse_km,
     _parse_price,
+    enrich_with_phone,
 )
-
 
 # ── _parse_price ──────────────────────────────────────────────────────────────
 
@@ -117,6 +116,27 @@ def test_enrich_preserves_all_fields():
     assert result.price == 18500
     assert result.km == 87000
     assert result.location == "Lyon (69)"
+
+
+@pytest.mark.unit
+def test_enrich_preserves_vehicle_metadata():
+    listing = RawListing(
+        source=ListingSource.LBC,
+        url="https://www.leboncoin.fr/vo/metadata.htm",
+        title="BMW 320d contactez le 06 12 34 56 78",
+        make="BMW",
+        model="320d",
+        year=2021,
+        fuel="diesel",
+        transmission="auto",
+    )
+    result = enrich_with_phone(listing)
+    assert result.phone == "+33612345678"
+    assert result.make == "BMW"
+    assert result.model == "320d"
+    assert result.year == 2021
+    assert result.fuel == "diesel"
+    assert result.transmission == "auto"
 
 
 @pytest.mark.unit

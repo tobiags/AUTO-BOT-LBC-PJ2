@@ -1,13 +1,32 @@
-"""Tests webhooks SMS, email, call — idempotence + STOP."""
+"""Tests webhooks SMS, email, call - idempotence + STOP."""
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 
+def _mock_sms_db(*scalar_results):
+    execute = AsyncMock(
+        side_effect=[
+            SimpleNamespace(scalar=lambda value=value: value)
+            for value in scalar_results
+        ]
+    )
+    db = AsyncMock()
+    db.execute = execute
+    ctx = AsyncMock()
+    ctx.__aenter__.return_value = db
+    ctx.__aexit__.return_value = False
+    return ctx
+
+
 @pytest.mark.asyncio
 async def test_webhook_stop_blacklists(client, mock_send_sms):
-    """STOP reçu → numéro blacklisté P1+P2 + confirmation SMS envoyée."""
-    with patch("app.services.blacklist.add_to_blacklist", new_callable=AsyncMock) as mock_bl:
+    """STOP recu -> numero blackliste P1+P2 + confirmation SMS envoyee."""
+    with (
+        patch("app.webhooks.sms.add_to_blacklist", new_callable=AsyncMock) as mock_bl,
+        patch("app.webhooks.sms.get_db", return_value=_mock_sms_db(1)),
+    ):
         resp = await client.post(
             "/webhooks/sms",
             json={"sim_id": "sim_03", "from": "+33698765432", "body": "STOP", "ts": 1718620000},
@@ -22,14 +41,14 @@ async def test_webhook_stop_blacklists(client, mock_send_sms):
 
 @pytest.mark.asyncio
 async def test_webhook_sms_idempotent(client):
-    """Même payload livré 2x → traité une seule fois (R12)."""
+    """Meme payload livre 2x -> traite une seule fois (R12)."""
     payload = {"sim_id": "sim_01", "from": "+33611111111", "body": "Bonjour", "ts": 1718620100}
-    with patch("app.webhooks.sms._event_key", return_value="key_dup_test"):
-        with patch("app.db.get_db"):
-            # Premier appel
-            resp1 = await client.post("/webhooks/sms", json=payload)
-            # Deuxième appel identique
-            resp2 = await client.post("/webhooks/sms", json=payload)
+    with (
+        patch("app.webhooks.sms._event_key", return_value="key_dup_test"),
+        patch("app.webhooks.sms.get_db", return_value=_mock_sms_db(1, None)),
+    ):
+        resp1 = await client.post("/webhooks/sms", json=payload)
+        resp2 = await client.post("/webhooks/sms", json=payload)
     assert resp1.status_code == 200
     assert resp2.status_code == 200
 

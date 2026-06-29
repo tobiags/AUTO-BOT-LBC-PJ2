@@ -7,6 +7,8 @@ En test, on mocke uniquement ce module — jamais les services internes.
 Règle R07 : ne jamais passer l'IP du VPS à get_4g_proxy().
 Règle R03 : les clés API viennent de Settings, jamais hardcodées.
 """
+import secrets
+
 import httpx
 
 from app.config import get_settings
@@ -153,28 +155,6 @@ async def cancel_number(order_id: str) -> bool:
 
 # ── MAILGUN ───────────────────────────────────────────────────────────────────
 
-import random  # noqa: E402
-import secrets  # noqa: E402
-
-_PRENOMS = [
-    "thomas", "nicolas", "julien", "alexandre", "maxime", "antoine", "pierre",
-    "clement", "baptiste", "kevin", "romain", "quentin", "florian", "adrien",
-    "lucas", "hugo", "mathieu", "simon", "valentin", "guillaume", "camille",
-    "marine", "sarah", "laura", "julie", "emma", "pauline", "lucie", "manon",
-    "lea", "alice", "chloe", "jessica", "amelie", "claire", "sophie", "marie",
-    "aurelie", "stephanie", "melanie",
-]
-
-_NOMS = [
-    "martin", "bernard", "thomas", "petit", "robert", "richard", "durand",
-    "dubois", "moreau", "laurent", "simon", "michel", "lefebvre", "leroy",
-    "roux", "david", "bertrand", "morel", "fournier", "girard", "bonnet",
-    "dupont", "lambert", "fontaine", "rousseau", "vincent", "muller", "lefevre",
-    "faure", "andre", "mercier", "blanc", "guerin", "boyer", "garnier",
-    "chevalier", "francois", "legrand", "gauthier", "garcia",
-]
-
-
 def generate_email(domain: str | None = None) -> str:
     """
     Génère une adresse email d'apparence réaliste pour un nouveau compte LBC.
@@ -182,12 +162,4 @@ def generate_email(domain: str | None = None) -> str:
     Jamais réutilisée — combinaison aléatoire + suffixe unique.
     """
     domain = domain or settings.operational_domain
-    prenom = random.choice(_PRENOMS)
-    nom = random.choice(_NOMS)
-    # 40 % de chance d'ajouter un suffixe numérique (ex: .martin73)
-    suffix = str(random.randint(10, 99)) if random.random() < 0.4 else ""
-    # séparateur aléatoire : point ou tiret
-    sep = random.choice([".", "-", "_"])
-    local = f"{prenom}{sep}{nom}{suffix}"
-    return f"{local}@{domain}"
-
+    return f"contact.{secrets.token_hex(4)}@{domain}"

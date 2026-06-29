@@ -3,7 +3,7 @@
 Règle TDD : on mocke UNIQUEMENT boundaries.py — jamais PostgreSQL/Redis.
 Tests d'intégration tournent sur vraie DB de test (port 5433).
 """
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -18,7 +18,6 @@ from app.services.account_creation import (
     create_lbc_account,
 )
 from app.tables import PlatformAccount
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -106,7 +105,6 @@ def test_build_proxy_config_preserves_scheme():
 def test_session_loads_cookies(tmp_path):
     """Le dossier de session Patchright est créé pour un UUID donné."""
     import app.services.account_creation as svc
-
     from app.services.account_creation import _session_path_for
 
     original = svc.settings.sessions_dir
@@ -164,6 +162,7 @@ async def test_create_mode_a_success(
         patch("app.boundaries.generate_email", return_value="auto@tmp.fr"),
     ):
         mock_db = AsyncMock()
+        mock_db.add = MagicMock()
         mock_db_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
 
@@ -187,6 +186,7 @@ async def test_create_mode_b_success(mock_buy_number, mock_poll_sms):
         patch("app.boundaries.generate_email", return_value="b@tmp.fr"),
     ):
         mock_db = AsyncMock()
+        mock_db.add = MagicMock()
         mock_db_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
 
@@ -235,6 +235,7 @@ async def test_create_persists_en_chauffe_and_trust_low(
         patch("app.boundaries.generate_email", return_value="persist@tmp.fr"),
     ):
         mock_db = AsyncMock()
+        mock_db.add = MagicMock()
         mock_db_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
 

@@ -72,3 +72,36 @@ Voir `docs/Plan_Implementation_Modules.html` pour la documentation complète mod
 ```bash
 ./scripts/deploy.sh <VPS_IP>
 ```
+
+## Cadrage
+
+### Objectif réel
+
+Automatiser l'acquisition de vendeurs véhicules avec une chaîne robuste : collecte d'annonces, qualification, orchestration SMS/appels et supervision back-office.
+
+### Sorties attendues
+
+- API FastAPI exploitable pour les workflows métier et webhooks
+- Workers Celery fiables pour les tâches longues et planifiées
+- Back-office Next.js pour le pilotage opérationnel
+- Journaux, retries et monitoring suffisants pour diagnostiquer les incidents
+
+### Contraintes
+
+- Python validé : `3.12.x` à `3.13.x` uniquement pour l'instant
+- Fenêtre SMS `08:00-20:00` heure de Paris
+- Jamais d'IP VPS pour la création de comptes LBC
+- Données sensibles uniquement via variables d'environnement / coffre-fort
+
+## Auto-vérification
+
+```bash
+# Backend
+python -m pytest -q
+python -m ruff check app tests
+
+# Front
+cd front
+npm test
+npm run build
+```

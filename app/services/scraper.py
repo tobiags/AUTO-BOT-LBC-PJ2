@@ -400,4 +400,9 @@ def enrich_with_phone(listing: RawListing) -> RawListing:
         location=listing.location,
         phone=phone,
         raw_data=listing.raw_data,
+        make=listing.make,
+        model=listing.model,
+        year=listing.year,
+        fuel=listing.fuel,
+        transmission=listing.transmission,
     )
