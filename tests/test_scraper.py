@@ -1,31 +1,27 @@
 """
-Tests unitaires scraper — fonctions pures (pas de I/O réelle).
-
-Règle TDD : seul boundaries.py est mocké.
-Les fonctions de parsing et d'enrichissement sont testées directement.
+Tests unitaires scraper - fonctions pures (pas de I/O reelle).
 """
 import pytest
 
 from app.models import ListingSource
 from app.services.scraper import (
     RawListing,
-    _build_lbc_api_payload,
-    _parse_api_items,
     _parse_km,
+    _parse_lbc_search_items,
     _parse_price,
+    _pick_lbc_title,
     enrich_with_phone,
 )
 
-# ── _parse_price ──────────────────────────────────────────────────────────────
 
 @pytest.mark.unit
 def test_parse_price_fr_spacing():
-    assert _parse_price("15 900 €") == 15900
+    assert _parse_price("15 900 EUR") == 15900
 
 
 @pytest.mark.unit
 def test_parse_price_compact():
-    assert _parse_price("8500€") == 8500
+    assert _parse_price("8500EUR") == 8500
 
 
 @pytest.mark.unit
@@ -40,10 +36,8 @@ def test_parse_price_none():
 
 @pytest.mark.unit
 def test_parse_price_text_only():
-    assert _parse_price("Prix non communiqué") is None
+    assert _parse_price("Prix non communique") is None
 
-
-# ── _parse_km ────────────────────────────────────────────────────────────────
 
 @pytest.mark.unit
 def test_parse_km_with_unit():
@@ -65,7 +59,23 @@ def test_parse_km_none():
     assert _parse_km(None) is None
 
 
-# ── enrich_with_phone ─────────────────────────────────────────────────────────
+@pytest.mark.unit
+def test_pick_lbc_title_prefers_semantic_title():
+    assert _pick_lbc_title(
+        "Peugeot 308 HDi",
+        "Peugeot 308 HDi\n9 500 EUR\nBordeaux 33000",
+        "Bordeaux 33000",
+    ) == "Peugeot 308 HDi"
+
+
+@pytest.mark.unit
+def test_pick_lbc_title_falls_back_to_text_lines():
+    assert _pick_lbc_title(
+        "9 500 EUR",
+        "Renault Clio 4\n9 500 EUR\nParis 75001",
+        "Paris 75001",
+    ) == "Renault Clio 4"
+
 
 @pytest.mark.unit
 def test_enrich_adds_phone_from_title():
@@ -95,7 +105,7 @@ def test_enrich_returns_none_when_no_phone():
     listing = RawListing(
         source=ListingSource.LA_CENTRALE,
         url="https://www.lacentrale.fr/auto-occasion-annonce-1.html",
-        title="Renault Clio sans numéro",
+        title="Renault Clio sans numero",
     )
     result = enrich_with_phone(listing)
     assert result.phone is None
@@ -150,88 +160,37 @@ def test_enrich_no_title_returns_unchanged():
     assert result.title is None
 
 
-# ── _build_lbc_api_payload ────────────────────────────────────────────────────
-
 @pytest.mark.unit
-def test_build_payload_structure():
-    payload = _build_lbc_api_payload({"marque": "Peugeot", "modele": "308"})
-    assert payload["filters"]["category"]["id"] == "2"
-    assert payload["filters"]["keywords"]["text"] == "Peugeot 308"
-    assert payload["filters"]["enums"]["ad_type"] == ["offer"]
-    assert payload["sort_by"] == "time"
-    assert payload["sort_order"] == "desc"
-
-
-@pytest.mark.unit
-def test_build_payload_ranges_with_limits():
-    payload = _build_lbc_api_payload({"km_max": 100000, "prix_max": 15000})
-    assert payload["filters"]["ranges"]["mileage"] == {"max": 100000}
-    assert payload["filters"]["ranges"]["price"] == {"max": 15000}
-
-
-@pytest.mark.unit
-def test_build_payload_empty_params():
-    payload = _build_lbc_api_payload({})
-    assert payload["filters"]["keywords"]["text"] == ""
-    assert payload["filters"]["ranges"] == {}
-
-
-@pytest.mark.unit
-def test_build_payload_offset_pagination():
-    p0 = _build_lbc_api_payload({}, offset=0)
-    p1 = _build_lbc_api_payload({}, offset=100)
-    assert p0["listing_source"] == "direct-search"
-    assert p1["listing_source"] == "pagination"
-    assert p1["offset"] == 100
-
-
-# ── _parse_api_items ──────────────────────────────────────────────────────────
-
-def _make_api_ad(**overrides) -> dict:
-    base = {
-        "subject": "Peugeot 308 HDi 90",
-        "price": [9500],
+def test_parse_lbc_search_items_basic():
+    items = _parse_lbc_search_items([{
         "url": "https://www.leboncoin.fr/voitures/123456789.htm",
-        "attributes": [{"key": "mileage", "value": "95000"}],
-        "location": {"city": "Bordeaux", "zipcode": "33000"},
-    }
-    base.update(overrides)
-    return base
-
-
-@pytest.mark.unit
-def test_parse_api_items_basic():
-    items = _parse_api_items([_make_api_ad()])
+        "title": "Peugeot 308 HDi 90",
+        "price": "9 500 EUR",
+        "location": "Bordeaux 33000",
+        "text": "Peugeot 308 HDi 90\n9 500 EUR\nBordeaux 33000",
+    }])
     assert len(items) == 1
     item = items[0]
     assert item.source == ListingSource.LBC
     assert item.title == "Peugeot 308 HDi 90"
     assert item.price == 9500
-    assert item.km == 95000
-    assert item.location == "Bordeaux, 33000"
-    assert "leboncoin.fr" in item.url
+    assert item.location == "Bordeaux 33000"
 
 
 @pytest.mark.unit
-def test_parse_api_items_no_price():
-    items = _parse_api_items([_make_api_ad(price=[])])
-    assert items[0].price is None
+def test_parse_lbc_search_items_ignores_empty_urls():
+    items = _parse_lbc_search_items([{"url": "", "text": "Annonce vide"}])
+    assert items == []
 
 
 @pytest.mark.unit
-def test_parse_api_items_no_mileage():
-    items = _parse_api_items([_make_api_ad(attributes=[])])
-    assert items[0].km is None
-
-
-@pytest.mark.unit
-def test_parse_api_items_empty():
-    assert _parse_api_items([]) == []
-
-
-@pytest.mark.unit
-def test_parse_api_items_multiple():
-    ads = [_make_api_ad(subject=f"Annonce {i}") for i in range(5)]
-    items = _parse_api_items(ads)
-    assert len(items) == 5
-    assert items[2].title == "Annonce 2"
+def test_parse_lbc_search_items_can_extract_phone_from_text_fallback():
+    items = _parse_lbc_search_items([{
+        "url": "https://www.leboncoin.fr/voitures/987654321.htm",
+        "title": "12 000 EUR",
+        "price": "12 000 EUR",
+        "location": "Lille 59000",
+        "text": "Citroen C3 appelez le 06 12 34 56 78\n12 000 EUR\nLille 59000",
+    }])
+    assert items[0].title == "Citroen C3 appelez le 06 12 34 56 78"
+    assert items[0].phone == "+33612345678"

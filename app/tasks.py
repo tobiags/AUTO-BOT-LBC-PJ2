@@ -3,6 +3,7 @@ Tâches Celery — exécutées en arrière-plan.
 """
 import asyncio
 import logging
+from datetime import datetime
 
 from celery import Celery
 from celery.schedules import crontab
@@ -69,7 +70,14 @@ def create_account_task(self, mode: str = "A"):
 def run_campaign_task(self, campaign_id: str):
     """WF-02 — exécution d'une campagne SMS."""
     from app.services.campaign_runner import run_campaign
-    return _run(run_campaign(campaign_id))
+
+    result = _run(run_campaign(campaign_id))
+    scheduled_for = result.get("scheduled_for")
+    if result.get("status") == "deferred" and scheduled_for:
+        eta = datetime.fromisoformat(scheduled_for)
+        log.info("Campagne %s requeuee pour %s", campaign_id, scheduled_for)
+        run_campaign_task.apply_async(args=[campaign_id], eta=eta)
+    return result
 
 
 @celery_app.task(name="app.tasks.scrape_listings_task")

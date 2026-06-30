@@ -1,4 +1,7 @@
 """Tests unitaires boundaries — couvrent les wrappers API externes."""
+from unittest.mock import AsyncMock, Mock, patch
+
+import httpx
 import pytest
 
 from app.services.phone_extractor import extract_phone
@@ -85,3 +88,50 @@ def test_generate_emails_unique():
     for e in emails:
         assert e.startswith("contact.")
         assert e.endswith("@reprise-auto-pro.fr")
+
+
+@pytest.mark.asyncio
+async def test_send_sms_retries_once_on_timeout_then_succeeds():
+    from app import boundaries
+
+    response = Mock()
+    response.status_code = 200
+    response.json.return_value = {"id": "msg_1", "status": "sent", "cost": 0.04}
+    response.raise_for_status.return_value = None
+
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.post = AsyncMock(
+        side_effect=[
+            httpx.ReadTimeout("boom", request=httpx.Request("POST", "https://api.smstools.org/v1/messages")),
+            response,
+        ]
+    )
+
+    with (
+        patch("app.boundaries.httpx.AsyncClient", return_value=client),
+        patch("app.boundaries.asyncio.sleep", new_callable=AsyncMock) as sleep_mock,
+    ):
+        result = await boundaries.send_sms("sim_01", "+33612345678", "Bonjour")
+
+    assert result.status.value == "sent"
+    assert client.post.await_count == 2
+    sleep_mock.assert_awaited_once_with(2)
+
+
+@pytest.mark.asyncio
+async def test_send_sms_raises_insufficient_credit_on_402():
+    from app import boundaries
+
+    response = Mock()
+    response.status_code = 402
+
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.post = AsyncMock(return_value=response)
+
+    with patch("app.boundaries.httpx.AsyncClient", return_value=client):
+        with pytest.raises(boundaries.InsufficientCreditError):
+            await boundaries.send_sms("sim_01", "+33612345678", "Bonjour")

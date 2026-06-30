@@ -146,6 +146,8 @@ class CampaignOut(BaseModel):
     status: CampaignStatus
     sent: int = 0
     failed: int = 0
+    scheduled_at: datetime | None = None
+    last_error: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -246,3 +248,15 @@ class IncomingCallEvent(BaseModel):
     event: str = "incoming_call"
     caller: str
     listing: dict[str, Any] | None = None
+
+
+class BalanceUpdateEvent(BaseModel):
+    event: str = "balance_update"
+    service: str
+    label: str
+    balance: float | None
+    currency: str
+    is_low: bool
+    low_threshold: float
+    last_updated: datetime
+    expires_at: datetime | None = None

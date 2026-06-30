@@ -57,6 +57,8 @@ export type Campaign = {
   status: CampaignStatus
   sent: number
   failed: number
+  scheduled_at: string | null
+  last_error: string | null
   created_at: string
 }
 

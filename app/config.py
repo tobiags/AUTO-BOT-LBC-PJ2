@@ -43,11 +43,15 @@ class Settings(BaseSettings):
 
     # Patchright sessions — répertoire des profils persistants
     sessions_dir: str = "/tmp/lbc_sessions"
+    patchright_channel: str = "chrome"
+    patchright_headless: bool = True
+    patchright_no_viewport: bool = True
 
 
     # Fenêtre horaire SMS (règle R01 — heure Paris)
     sms_hour_start: int = 8
     sms_hour_end: int = 20
+    sms_stop_number: str = "XXXX"
 
     # Pool comptes LBC (règle — minimum à maintenir)
     lbc_accounts_min_active: int = 3

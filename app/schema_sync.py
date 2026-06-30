@@ -14,6 +14,8 @@ _DDL = [
     "ALTER TABLE listings ADD COLUMN IF NOT EXISTS inspection_tips_json TEXT",
     "ALTER TABLE listings ADD COLUMN IF NOT EXISTS negotiation_tip TEXT",
     "ALTER TABLE sms_log ADD COLUMN IF NOT EXISTS listing_id UUID",
+    "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ",
+    "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_error TEXT",
 ]
 
 

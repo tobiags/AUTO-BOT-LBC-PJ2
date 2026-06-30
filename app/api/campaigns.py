@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select, update
 
 from app.db import get_db
-from app.models import CampaignCreate, CampaignListingsPayload, CampaignOut
+from app.models import CampaignCreate, CampaignListingsPayload, CampaignOut, CampaignStatus
+from app.services.campaign_runner import is_within_sms_window, next_sms_window_start
 from app.tables import Campaign, Listing
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -29,14 +30,41 @@ async def create_campaign(payload: CampaignCreate):
         )
         db.add(campaign)
         await db.flush()
+        if payload.listing_ids:
+            await db.execute(
+                update(Listing)
+                .where(Listing.id.in_(payload.listing_ids))
+                .values(campaign_id=campaign.id)
+            )
         return CampaignOut.model_validate(campaign)
 
 
 @router.post("/{campaign_id}/start", tags=["campaigns"])
 async def start_campaign(campaign_id: uuid.UUID):
     from app.tasks import run_campaign_task
-    run_campaign_task.delay(str(campaign_id))
-    return {"queued": True, "campaign_id": str(campaign_id)}
+
+    async with get_db() as db:
+        campaign = await db.get(Campaign, campaign_id)
+        if not campaign:
+            raise HTTPException(404, "Campagne introuvable")
+        if campaign.status in (CampaignStatus.COMPLETED, CampaignStatus.FAILED):
+            raise HTTPException(409, "Campagne deja terminee")
+
+        if is_within_sms_window():
+            campaign.scheduled_at = None
+            campaign.last_error = None
+            run_campaign_task.apply_async(args=[str(campaign_id)])
+            return {"queued": True, "campaign_id": str(campaign_id)}
+
+        scheduled_for = next_sms_window_start()
+        campaign.scheduled_at = scheduled_for
+        campaign.last_error = None
+        run_campaign_task.apply_async(args=[str(campaign_id)], eta=scheduled_for)
+        return {
+            "queued": True,
+            "campaign_id": str(campaign_id),
+            "scheduled_for": scheduled_for.isoformat(),
+        }
 
 
 @router.post("/{campaign_id}/listings", tags=["campaigns"])

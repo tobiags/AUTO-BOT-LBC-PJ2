@@ -21,6 +21,15 @@ def _mock_sms_db(*scalar_results):
     return ctx
 
 
+def _ctx_with_execute_results(*results):
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=results)
+    ctx = AsyncMock()
+    ctx.__aenter__.return_value = db
+    ctx.__aexit__.return_value = False
+    return ctx
+
+
 @pytest.mark.asyncio
 async def test_webhook_stop_blacklists(client, mock_send_sms):
     """STOP recu -> numero blackliste P1+P2 + confirmation SMS envoyee."""
@@ -79,16 +88,8 @@ async def test_call_webhook_uses_latest_sms_log_mapping(client):
         model="208",
     )
 
-    def _ctx_with_results(*results):
-        db = AsyncMock()
-        db.execute = AsyncMock(side_effect=results)
-        ctx = AsyncMock()
-        ctx.__aenter__.return_value = db
-        ctx.__aexit__.return_value = False
-        return ctx
-
-    dedupe_ctx = _ctx_with_results(SimpleNamespace(scalar=lambda: 1))
-    lookup_ctx = _ctx_with_results(
+    dedupe_ctx = _ctx_with_execute_results(SimpleNamespace(scalar=lambda: 1))
+    lookup_ctx = _ctx_with_execute_results(
         SimpleNamespace(scalar_one_or_none=lambda: sms_log),
         SimpleNamespace(scalar_one_or_none=lambda: listing),
     )
@@ -117,3 +118,79 @@ async def test_call_webhook_uses_latest_sms_log_mapping(client):
     assert payload["listing"]["url"] == "https://www.leboncoin.fr/voitures/abc"
     assert payload["listing"]["title"] == "Peugeot 208"
     assert payload["listing"]["vehicle"] == "Peugeot 208"
+
+
+@pytest.mark.asyncio
+async def test_call_webhook_without_listing_does_not_push(client):
+    dedupe_ctx = _ctx_with_execute_results(SimpleNamespace(scalar=lambda: 1))
+    lookup_ctx = _ctx_with_execute_results(
+        SimpleNamespace(scalar_one_or_none=lambda: None),
+        SimpleNamespace(scalar_one_or_none=lambda: None),
+    )
+
+    with (
+        patch("app.webhooks.call.get_db", side_effect=[dedupe_ctx, lookup_ctx]),
+        patch("app.webhooks.call.ws_manager.broadcast", new_callable=AsyncMock) as broadcast,
+    ):
+        resp = await client.post(
+            "/webhooks/call",
+            json=[{
+                "webhook_id": "wh_call_nomatch",
+                "webhook_type": "CALL_FORWARDING",
+                "message": {
+                    "id": "call_nomatch",
+                    "date_utc": "2026-06-30T09:31:00Z",
+                    "sender": "+33611112222",
+                    "receiver": "sim_99",
+                },
+            }],
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "matched": False}
+    broadcast.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_call_webhook_idempotent_single_push(client):
+    listing_id = uuid.uuid4()
+    sms_log = SimpleNamespace(listing_id=listing_id)
+    listing = SimpleNamespace(
+        url="https://www.leboncoin.fr/voitures/once",
+        title="Renault Clio",
+        price=7200,
+        km=99000,
+        source="leboncoin",
+        make="Renault",
+        model="Clio",
+    )
+
+    dedupe_ctx_1 = _ctx_with_execute_results(SimpleNamespace(scalar=lambda: 1))
+    lookup_ctx = _ctx_with_execute_results(
+        SimpleNamespace(scalar_one_or_none=lambda: sms_log),
+        SimpleNamespace(scalar_one_or_none=lambda: listing),
+    )
+    dedupe_ctx_2 = _ctx_with_execute_results(SimpleNamespace(scalar=lambda: None))
+
+    payload = [{
+        "webhook_id": "wh_call_duplicate",
+        "webhook_type": "CALL_FORWARDING",
+        "message": {
+            "id": "call_dup",
+            "date_utc": "2026-06-30T09:32:00Z",
+            "sender": "+33601020304",
+            "receiver": "sim_01",
+        },
+    }]
+
+    with (
+        patch("app.webhooks.call.get_db", side_effect=[dedupe_ctx_1, lookup_ctx, dedupe_ctx_2]),
+        patch("app.webhooks.call.ws_manager.broadcast", new_callable=AsyncMock) as broadcast,
+    ):
+        resp1 = await client.post("/webhooks/call", json=payload)
+        resp2 = await client.post("/webhooks/call", json=payload)
+
+    assert resp1.status_code == 200
+    assert resp2.status_code == 200
+    assert resp2.json() == {"ok": True, "duplicate": True}
+    broadcast.assert_awaited_once()

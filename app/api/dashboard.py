@@ -2,13 +2,20 @@
 import logging
 from datetime import UTC, datetime
 
+import sentry_sdk
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
-from app.models import AccountStatus, CampaignStatus, DashboardStats, ServiceBalanceOut
+from app.models import (
+    AccountStatus,
+    BalanceUpdateEvent,
+    CampaignStatus,
+    DashboardStats,
+    ServiceBalanceOut,
+)
 from app.tables import (
     Campaign,
     Listing,
@@ -17,6 +24,7 @@ from app.tables import (
     SmsLog,
     WebhookEvent,
 )
+from app.ws import ws_manager
 
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 log = logging.getLogger(__name__)
@@ -155,5 +163,22 @@ async def update_balance(service: str, body: BalanceUpdate):
             )
         )
         await db.commit()
+
+    if is_low:
+        sentry_sdk.capture_message(
+            f"Manual low balance update for {service}: {body.balance} {body.currency}",
+            level="warning",
+        )
+    await ws_manager.broadcast(
+        BalanceUpdateEvent(
+            service=service,
+            label=svc_info["label"],
+            balance=body.balance,
+            currency=body.currency,
+            is_low=is_low,
+            low_threshold=svc_info["low_threshold"],
+            last_updated=now,
+        ).model_dump()
+    )
 
     return {"ok": True, "service": service, "balance": body.balance, "is_low": is_low}

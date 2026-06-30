@@ -13,11 +13,14 @@ import logging
 from datetime import UTC, datetime
 
 import httpx
+import sentry_sdk
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import get_settings
 from app.db import get_db
+from app.models import BalanceUpdateEvent
 from app.tables import ServiceBalance
+from app.ws import ws_manager
 
 log = logging.getLogger(__name__)
 _INTERVAL = 30 * 60  # 30 min
@@ -31,7 +34,7 @@ async def _upsert_balance(
     currency: str,
     low_threshold: float,
     expires_at: datetime | None = None,
-) -> None:
+    ) -> None:
     is_low = balance is not None and balance < low_threshold
     now = datetime.now(UTC)
     async with get_db() as db:
@@ -59,6 +62,23 @@ async def _upsert_balance(
         )
         await db.commit()
     log.info("Balance updated: %s = %s %s expires=%s", service, balance, currency, expires_at)
+    await ws_manager.broadcast(
+        BalanceUpdateEvent(
+            service=service,
+            label=label,
+            balance=balance,
+            currency=currency,
+            is_low=is_low,
+            low_threshold=low_threshold,
+            last_updated=now,
+            expires_at=expires_at,
+        ).model_dump()
+    )
+    if is_low:
+        sentry_sdk.capture_message(
+            f"Low balance detected for {service}: {balance} {currency}",
+            level="warning",
+        )
 
 
 async def _poll_iproxy(client: httpx.AsyncClient, api_key: str) -> None:
@@ -91,6 +111,7 @@ async def _poll_iproxy(client: httpx.AsyncClient, api_key: str) -> None:
         await _upsert_balance("iproxy", "iProxy SIMs", balance, "USD", 5.0, expires_at)
     except Exception as exc:
         log.warning("iProxy balance poll failed: %s", exc)
+        sentry_sdk.capture_exception(exc)
 
 
 async def _poll_browseruse(client: httpx.AsyncClient, api_key: str) -> None:
@@ -110,6 +131,7 @@ async def _poll_browseruse(client: httpx.AsyncClient, api_key: str) -> None:
         await _upsert_balance("browseruse", "BrowserUse", balance, "USD", 5.0, expires_at)
     except Exception as exc:
         log.warning("BrowserUse balance poll failed: %s", exc)
+        sentry_sdk.capture_exception(exc)
 
 
 async def _poll_once() -> None:

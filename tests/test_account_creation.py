@@ -12,6 +12,7 @@ from app.models import AccountStatus, DatadomeTrustLevel
 from app.services.account_creation import (
     CreationResult,
     ProxyUnavailableError,
+    _build_patchright_launch_options,
     _build_proxy_config,
     _check_active_pool_needs_account,
     _verify_proxy_is_fr_carrier,
@@ -97,6 +98,23 @@ def test_build_proxy_config_preserves_scheme():
     proxy = ProxyInfo(url="socks5://user:pass@10.0.0.1:1080", asn_org="Orange", country="FR")
     cfg = _build_proxy_config(proxy)
     assert cfg["server"].startswith("socks5://")
+
+
+@pytest.mark.unit
+def test_build_patchright_launch_options_uses_doc_friendly_defaults():
+    options = _build_patchright_launch_options(_proxy())
+    assert options["channel"] == "chrome"
+    assert options["no_viewport"] is True
+    assert options["headless"] is True
+    assert options["focus_control"] is False
+    assert options["proxy"]["server"] == "http://185.10.20.30:8080"
+
+
+@pytest.mark.unit
+def test_build_patchright_launch_options_without_proxy():
+    options = _build_patchright_launch_options()
+    assert options["channel"] == "chrome"
+    assert "proxy" not in options
 
 
 # ── Unit : session path & cookies ────────────────────────────────────────────

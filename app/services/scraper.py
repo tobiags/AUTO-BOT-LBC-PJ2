@@ -1,13 +1,12 @@
 """
-Collecte d'annonces — LeBonCoin + La Centrale (Workflow WF-04).
+Collecte d'annonces - LeBonCoin + La Centrale (Workflow WF-04).
 
 LBC         : session Patchright avec profil persistant (compte ACTIF).
-               Approche 1 (primaire)  : extraction DOM via data-qa-id (stable).
-               Approche 2 (fallback)  : POST /finder/search depuis page.evaluate()
-                                        — même tab LBC, DataDome transparent.
-La Centrale : crawl4ai AsyncWebCrawler + JsonCssExtractionStrategy (pas de DataDome).
+              Extraction heuristique depuis la page rendue, sans dependre
+              d'une API privee ni de selecteurs DOM fixes.
+La Centrale : crawl4ai AsyncWebCrawler + JsonCssExtractionStrategy.
 
-Format unifié de sortie : RawListing
+Format unifie de sortie : RawListing
 """
 import json
 import logging
@@ -15,63 +14,60 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+import sentry_sdk
+
 from app.models import ListingSource
+from app.services.account_creation import _launch_patchright_context
 from app.services.phone_extractor import extract_phone
 
 log = logging.getLogger(__name__)
 
-# ── Schéma CSS La Centrale ────────────────────────────────────────────────────
-# Sélecteurs basés sur l'inspection du site (à réviser si La Centrale refactorise).
-# baseSelector cible les cartes d'annonces dans la liste de résultats.
 _LC_SCHEMA = {
     "name": "Annonces La Centrale",
     "baseSelector": "article.listing-item, div[class*='AdCard'], div[class*='listing-card']",
     "fields": [
-        {"name": "title",    "selector": "h2, h3, [class*='title']",             "type": "text"},
-        {"name": "price",    "selector": "[class*='price'], [class*='Price']",    "type": "text"},
-        {"name": "km",       "selector": "[class*='mileage'], [class*='km']",     "type": "text"},
-        {"name": "location", "selector": "[class*='location']",                  "type": "text"},
-        {"name": "url",      "selector": "a[href]", "type": "attribute", "attribute": "href"},
+        {"name": "title", "selector": "h2, h3, [class*='title']", "type": "text"},
+        {"name": "price", "selector": "[class*='price'], [class*='Price']", "type": "text"},
+        {"name": "km", "selector": "[class*='mileage'], [class*='km']", "type": "text"},
+        {"name": "location", "selector": "[class*='location']", "type": "text"},
+        {"name": "url", "selector": "a[href]", "type": "attribute", "attribute": "href"},
     ],
 }
 
-# ── LBC approche 1 : DOM via data-qa-id ──────────────────────────────────────
-# Attributs test-id exposés dans leur React — moins fragiles que les classes CSS (R08).
-_LBC_JS_EXTRACT = """
-() => Array.from(
-    document.querySelectorAll('[data-qa-id="aditem_container"]')
-).map(el => ({
-    title:    el.querySelector('[data-qa-id="aditem_title"]')?.innerText   ?? '',
-    price:    el.querySelector('[data-qa-id="aditem_price"]')?.innerText   ?? '',
-    location: el.querySelector('[data-qa-id="aditem_location"]')?.innerText ?? '',
-    url:      el.querySelector('a[href]')?.href ?? '',
-}))
-"""
+_LBC_GENERIC_JS_EXTRACT = """
+() => {
+    const seen = new Set();
+    const anchors = Array.from(document.querySelectorAll('a[href]'));
 
-# ── LBC approche 2 : API /finder/search depuis le tab ────────────────────────
-# api_key publique dans le JS bundle LBC (visible dans les DevTools réseau).
-# L'appel fetch est exécuté depuis une vraie tab leboncoin.fr → DataDome le laisse passer.
-_LBC_API_KEY = "ba0c2dad52b3ec"
-_LBC_API_URL = "https://api.leboncoin.fr/finder/search"
+    return anchors
+        .map((anchor) => {
+            const href = anchor.href || '';
+            if (!href.includes('/voitures/') || seen.has(href)) return null;
+            seen.add(href);
 
-_LBC_API_JS_FETCH = f"""
-async (payload) => {{
-    try {{
-        const resp = await fetch('{_LBC_API_URL}', {{
-            method: 'POST',
-            credentials: 'include',
-            headers: {{
-                'content-type': 'application/json',
-                'api_key': '{_LBC_API_KEY}',
-            }},
-            body: JSON.stringify(payload),
-        }});
-        if (!resp.ok) return null;
-        return await resp.json();
-    }} catch (e) {{
-        return null;
-    }}
-}}
+            const card = anchor.closest('article, li, section, div');
+            const text = (card?.innerText || anchor.innerText || '').trim();
+            if (!text) return null;
+
+            const lines = Array.from(
+                new Set(text.split('\\n').map((line) => line.trim()).filter(Boolean))
+            );
+            const title =
+                lines.find((line) => !/[€]/.test(line) && !/\\bkm\\b/i.test(line)) ||
+                anchor.getAttribute('aria-label') ||
+                anchor.textContent ||
+                '';
+            const price = lines.find((line) => /€/.test(line)) || '';
+            const location =
+                lines.find((line) => /\\b\\d{5}\\b/.test(line)) ||
+                lines[lines.length - 1] ||
+                '';
+
+            return { url: href, title, price, location, text };
+        })
+        .filter(Boolean)
+        .slice(0, 100);
+}
 """
 
 
@@ -85,7 +81,6 @@ class RawListing:
     location: str | None = None
     phone: str | None = None
     raw_data: str | None = None
-    # Attributs véhicule — disponibles via API /finder/search
     make: str | None = None
     model: str | None = None
     year: int | None = None
@@ -93,102 +88,69 @@ class RawListing:
     transmission: str | None = None
 
 
-def _parse_price(text: str) -> int | None:
+def _parse_price(text: str | None) -> int | None:
     if not text:
         return None
     digits = re.sub(r"[^\d]", "", text)
     return int(digits) if digits else None
 
 
-def _parse_km(text: str) -> int | None:
+def _parse_km(text: str | None) -> int | None:
     if not text:
         return None
     digits = re.sub(r"[^\d]", "", text)
     return int(digits) if digits else None
 
 
-def _build_lbc_api_payload(
-    search_params: dict[str, Any], offset: int = 0, limit: int = 100
-) -> dict:
-    """Construit le body JSON pour POST /finder/search."""
-    keywords = " ".join(filter(None, [
-        search_params.get("marque", ""),
-        search_params.get("modele", ""),
-    ])).strip()
-
-    ranges: dict = {}
-    if search_params.get("prix_max"):
-        ranges["price"] = {"max": int(search_params["prix_max"])}
-    if search_params.get("km_max"):
-        ranges["mileage"] = {"max": int(search_params["km_max"])}
-
-    return {
-        "sort_by": "time",
-        "sort_order": "desc",
-        "limit": limit,
-        "limit_alu": 3,
-        "offset": offset,
-        "disable_total": False,
-        "extend": True,
-        "listing_source": "direct-search" if offset == 0 else "pagination",
-        "filters": {
-            "category": {"id": "2"},          # Voitures
-            "enums": {"ad_type": ["offer"]},
-            "keywords": {"text": keywords},
-            "ranges": ranges,
-        },
-    }
-
-
-def _extract_attr(attributes: list[dict], *keys: str) -> str:
-    """Extrait la valeur du premier attribut correspondant à l'une des keys."""
+def _extract_attr(attributes: list[dict[str, Any]], *keys: str) -> str:
     for attr in attributes:
         if attr.get("key") in keys:
             return str(attr.get("value_label") or attr.get("value") or "")
     return ""
 
 
-def _parse_year(raw: str) -> int | None:
-    """'2018-01' → 2018 ; '2018' → 2018 ; '' → None."""
+def _parse_year(raw: str | None) -> int | None:
     if not raw:
         return None
     try:
-        return int(raw[:4])
+        return int(str(raw)[:4])
     except (ValueError, TypeError):
         return None
 
 
-def _parse_api_items(ads: list[dict]) -> list[RawListing]:
-    """Convertit les annonces JSON de /finder/search en RawListing enrichis."""
+def _pick_lbc_title(raw_title: str, raw_text: str, location: str | None) -> str | None:
+    def _looks_like_meta(line: str) -> bool:
+        return "EUR" in line or "€" in line or bool(re.search(r"\bkm\b", line, re.I))
+
+    title = raw_title.strip()
+    if title and not _looks_like_meta(title) and title != location:
+        return title
+
+    for line in [part.strip() for part in raw_text.splitlines() if part.strip()]:
+        if line == location or _looks_like_meta(line):
+            continue
+        return line
+    return None
+
+
+def _parse_lbc_search_items(items: list[dict[str, Any]]) -> list[RawListing]:
     results: list[RawListing] = []
-    for ad in ads:
-        subject = ad.get("subject", "")
-        price_raw = ad.get("price", [])
-        price = int(price_raw[0]) if price_raw else None
+    for item in items:
+        url = str(item.get("url", "")).strip()
+        if not url:
+            continue
 
-        attrs = ad.get("attributes", [])
-
-        km = _parse_km(_extract_attr(attrs, "mileage"))
-
-        location_data = ad.get("location", {})
-        location = ", ".join(filter(None, [
-            location_data.get("city", ""),
-            location_data.get("zipcode", ""),
-        ])) or None
+        raw_text = str(item.get("text", ""))
+        location = str(item.get("location", "")).strip() or None
+        title = _pick_lbc_title(str(item.get("title", "")), raw_text, location)
 
         listing = RawListing(
             source=ListingSource.LBC,
-            url=ad.get("url", ""),
-            title=subject.strip() or None,
-            price=price,
-            km=km,
+            url=url,
+            title=title,
+            price=_parse_price(str(item.get("price", "")) or raw_text),
             location=location,
-            raw_data=json.dumps(ad, ensure_ascii=False),
-            make=_extract_attr(attrs, "brand", "u_car_brand") or None,
-            model=_extract_attr(attrs, "model", "u_car_model") or None,
-            year=_parse_year(_extract_attr(attrs, "regdate")),
-            fuel=_extract_attr(attrs, "fuel") or None,
-            transmission=_extract_attr(attrs, "gearbox") or None,
+            raw_data=json.dumps(item, ensure_ascii=False),
         )
         results.append(enrich_with_phone(listing))
     return results
@@ -196,12 +158,7 @@ def _parse_api_items(ads: list[dict]) -> list[RawListing]:
 
 async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
     """
-    Scrape LeBonCoin via Patchright avec un compte ACTIF (session persistante).
-
-    Stratégie duale (robustesse) :
-      1. DOM primaire  : data-qa-id stables (rapide, pas de réseau supplémentaire)
-      2. API fallback  : POST /finder/search depuis page.evaluate() dans le même tab
-                         → DataDome transparent car requête issue d'un vrai contexte LBC
+    Scrape LeBonCoin via Patchright avec un compte ACTIF.
 
     search_params : {"marque": str, "modele": str, "km_max": int, "prix_max": int}
     """
@@ -211,7 +168,6 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
     from app.db import get_db
     from app.tables import PlatformAccount
 
-    # ── Récupérer un compte ACTIF avec session Patchright ─────────────────────
     async with get_db() as db:
         result = await db.execute(
             select(PlatformAccount)
@@ -226,6 +182,10 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
 
     if not account:
         log.warning("scrape_lbc : aucun compte ACTIF avec session_path disponible")
+        sentry_sdk.capture_message(
+            "scrape_lbc called without any ACTIF account with session_path",
+            level="warning",
+        )
         return []
 
     marque = search_params.get("marque", "")
@@ -238,82 +198,42 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
         f"&mileage_max={km_max}&price_max={prix_max}&sort=time&order=desc"
     )
 
-    listings: list[RawListing] = []
-
     async with async_playwright() as p:
-        # Charger le profil persistant — cookies DataDome inclus
-        ctx = await p.chromium.launch_persistent_context(
-            account.session_path,
-            headless=True,
-            focus_control=False,
-        )
+        ctx = await _launch_patchright_context(p.chromium, account.session_path)
         try:
             page = await ctx.new_page()
             await page.goto(search_url, wait_until="networkidle", timeout=30_000)
+            await page.wait_for_load_state("domcontentloaded", timeout=15_000)
 
-            # ── Approche 1 : DOM extraction ────────────────────────────────────
-            dom_ok = False
             try:
-                await page.wait_for_selector(
-                    '[data-qa-id="aditem_container"]', timeout=15_000
+                raw_items: list[dict[str, Any]] = await page.evaluate(
+                    _LBC_GENERIC_JS_EXTRACT,
+                    isolated_context=True,
                 )
-                raw_items: list[dict] = await page.evaluate(
-                    _LBC_JS_EXTRACT, isolated_context=True
-                )
-                if raw_items:
-                    dom_ok = True
-                    for item in raw_items:
-                        listing = RawListing(
-                            source=ListingSource.LBC,
-                            url=item.get("url", ""),
-                            title=item.get("title", "").strip() or None,
-                            price=_parse_price(item.get("price", "")),
-                            location=item.get("location", "").strip() or None,
-                            raw_data=json.dumps(item, ensure_ascii=False),
-                        )
-                        listings.append(enrich_with_phone(listing))
-                    log.info(
-                        "scrape_lbc DOM : %d annonces (compte=%s)",
-                        len(listings), account.id,
-                    )
             except Exception as exc:
-                log.warning("scrape_lbc DOM échoué : %s — bascule API", exc)
-
-            # ── Approche 2 : API /finder/search (fallback si DOM vide/bloqué) ──
-            if not dom_ok:
-                log.info("scrape_lbc : DOM vide, tentative API /finder/search")
-                payload = _build_lbc_api_payload(search_params)
-                try:
-                    api_resp = await page.evaluate(
-                        _LBC_API_JS_FETCH, payload, isolated_context=True
-                    )
-                    ads: list[dict] = (api_resp or {}).get("ads", [])
-                    if ads:
-                        listings = _parse_api_items(ads)
-                        log.info(
-                            "scrape_lbc API : %d annonces (compte=%s)",
-                            len(listings), account.id,
-                        )
-                    else:
-                        log.warning(
-                            "scrape_lbc API : réponse vide (resp=%s)", api_resp
-                        )
-                except Exception as exc:
-                    log.error("scrape_lbc API échoué : %s", exc)
-
+                log.error("scrape_lbc heuristique echouee : %s", exc)
+                sentry_sdk.capture_exception(exc)
+                return []
         finally:
             await ctx.close()
 
-    log.info("scrape_lbc : total %d annonces collectées", len(listings))
+    listings = _parse_lbc_search_items(raw_items)
+    log.info(
+        "scrape_lbc heuristique : %d annonces (compte=%s)",
+        len(listings),
+        account.id,
+    )
+    if not listings:
+        sentry_sdk.capture_message(
+            f"scrape_lbc returned no listing candidates for account {account.id}",
+            level="warning",
+        )
     return listings
 
 
 async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
     """
     Scrape La Centrale via crawl4ai + JsonCssExtractionStrategy.
-
-    La Centrale n'utilise pas DataDome → accès direct possible.
-    simulate_user=True + magic=True pour contourner les protections basiques.
 
     search_params : {"marque": str, "modele": str, "km_max": int, "prix_max": int}
     """
@@ -330,7 +250,6 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
     km_max = search_params.get("km_max", 150000)
     prix_max = search_params.get("prix_max", 50000)
 
-    # Encodage minimal pour les paramètres URL
     makes_models = f"{marque.lower()}%3A{modele.lower()}"
     search_url = (
         f"https://www.lacentrale.fr/listing"
@@ -355,17 +274,16 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
         result = await crawler.arun(url=search_url, config=crawler_config)
 
     if not result.success:
-        log.warning("crawl4ai La Centrale échoué : %s", result.error_message)
+        log.warning("crawl4ai La Centrale echoue : %s", result.error_message)
         return []
 
     if not result.extracted_content:
         log.warning("crawl4ai La Centrale : extracted_content vide")
         return []
 
-    raw_items: list[dict] = json.loads(result.extracted_content)
+    raw_items: list[dict[str, Any]] = json.loads(result.extracted_content)
     for item in raw_items:
         raw_url = item.get("url", "")
-        # La Centrale peut retourner des URLs relatives
         if raw_url and not raw_url.startswith("http"):
             raw_url = f"https://www.lacentrale.fr{raw_url}"
 
@@ -378,15 +296,14 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
             location=item.get("location", "").strip() or None,
             raw_data=json.dumps(item, ensure_ascii=False),
         )
-        listing = enrich_with_phone(listing)
-        listings.append(listing)
+        listings.append(enrich_with_phone(listing))
 
-    log.info("scrape_la_centrale : %d annonces collectées", len(listings))
+    log.info("scrape_la_centrale : %d annonces collectees", len(listings))
     return listings
 
 
 def enrich_with_phone(listing: RawListing) -> RawListing:
-    """Extrait le numéro de téléphone depuis le titre si absent (regex)."""
+    """Extrait le numero de telephone depuis le texte si absent."""
     if listing.phone or not listing.title:
         return listing
 

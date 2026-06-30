@@ -6,11 +6,12 @@ Met à jour service_balance en DB + push WS dashboard.
 import logging
 from datetime import UTC, datetime
 
+import sentry_sdk
 from fastapi import APIRouter
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
-from app.models import SmsToolsFundsItem
+from app.models import BalanceUpdateEvent, SmsToolsFundsItem
 from app.tables import ServiceBalance
 from app.ws import ws_manager
 
@@ -61,13 +62,22 @@ async def receive_funds(payload: list[SmsToolsFundsItem]):
         await db.commit()
 
     log.warning("SMSTools fonds: type=%s balance=%s is_low=%s", wtype, balance, is_low)
+    if is_low:
+        sentry_sdk.capture_message(
+            f"SMSTools balance low via webhook: balance={balance}",
+            level="warning",
+        )
 
     # Push WS pour mise à jour dashboard en temps réel
-    await ws_manager.broadcast({
-        "event": "balance_update",
-        "service": "smstools",
-        "balance": balance,
-        "is_low": is_low,
-    })
+    event = BalanceUpdateEvent(
+        service="smstools",
+        label="SMSTools SMS",
+        balance=balance,
+        currency="EUR",
+        is_low=is_low,
+        low_threshold=_LOW_THRESHOLD,
+        last_updated=now,
+    )
+    await ws_manager.broadcast(event.model_dump())
 
     return {"ok": True, "is_low": is_low}

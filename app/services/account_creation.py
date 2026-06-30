@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+import sentry_sdk
+
 from app import boundaries
 from app.config import get_settings
 from app.db import get_db
@@ -85,6 +87,45 @@ def _build_proxy_config(proxy: boundaries.ProxyInfo) -> dict:
     return cfg
 
 
+def _build_patchright_launch_options(proxy: boundaries.ProxyInfo | None = None) -> dict:
+    options: dict = {
+        "headless": settings.patchright_headless,
+        "no_viewport": settings.patchright_no_viewport,
+        "focus_control": False,
+    }
+    if settings.patchright_channel:
+        options["channel"] = settings.patchright_channel
+    if proxy is not None:
+        options["proxy"] = _build_proxy_config(proxy)
+    return options
+
+
+async def _launch_patchright_context(
+    browser_type,
+    session_path: str,
+    proxy: boundaries.ProxyInfo | None = None,
+):
+    options = _build_patchright_launch_options(proxy)
+    try:
+        return await browser_type.launch_persistent_context(session_path, **options)
+    except Exception as exc:
+        if "channel" not in options:
+            raise
+
+        fallback_options = dict(options)
+        fallback_channel = fallback_options.pop("channel")
+        log.warning(
+            "Patchright launch via channel=%s impossible (%s) - fallback sans channel",
+            fallback_channel,
+            exc,
+        )
+        sentry_sdk.capture_message(
+            f"Patchright fallback sans channel after launch failure: {exc}",
+            level="warning",
+        )
+        return await browser_type.launch_persistent_context(session_path, **fallback_options)
+
+
 async def _poll_email_code_redis(email: str, timeout: int = _EMAIL_CODE_TIMEOUT) -> str | None:
     """
     Poll Redis toutes les 2s jusqu'à réception du code email LBC.
@@ -129,12 +170,7 @@ async def _create_with_patchright(
     async with async_playwright() as p:
         # Contexte persistant recommandé par docs Patchright pour le stealth.
         # Ne pas ajouter user_agent ni headers custom (anti-fingerprint).
-        ctx = await p.chromium.launch_persistent_context(
-            session_path,
-            headless=True,
-            focus_control=False,
-            proxy=_build_proxy_config(proxy),
-        )
+        ctx = await _launch_patchright_context(p.chromium, session_path, proxy)
         try:
             page = await ctx.new_page()
 

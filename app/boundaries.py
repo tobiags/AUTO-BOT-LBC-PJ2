@@ -7,6 +7,8 @@ En test, on mocke uniquement ce module — jamais les services internes.
 Règle R07 : ne jamais passer l'IP du VPS à get_4g_proxy().
 Règle R03 : les clés API viennent de Settings, jamais hardcodées.
 """
+import asyncio
+import logging
 import secrets
 
 import httpx
@@ -15,29 +17,65 @@ from app.config import get_settings
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus
 
 settings = get_settings()
+log = logging.getLogger(__name__)
 
 # ── SMSTOOLS ─────────────────────────────────────────────────────────────────
 
 _SMSTOOLS_BASE = "https://api.smstools.org/v1"
 
 
+class InsufficientCreditError(RuntimeError):
+    """SMSTools a refusé l'envoi faute de crédit disponible."""
+
+
 async def send_sms(sim_id: str, to: str, body: str) -> SmsResult:
     """Envoie un SMS depuis la SIM spécifiée via SMSTools REST API."""
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(
-            f"{_SMSTOOLS_BASE}/messages",
-            headers={"Authorization": f"Bearer {settings.smstools_api_key}"},
-            json={"sim_id": sim_id, "to": to, "body": body},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return SmsResult(
-            id=data["id"],
-            status=SmsStatus.SENT if data.get("status") == "sent" else SmsStatus.FAILED,
-            cost=data.get("cost", 0.0),
-            sim_id=sim_id,
-            to=to,
-        )
+        for attempt in range(1, 4):
+            try:
+                resp = await client.post(
+                    f"{_SMSTOOLS_BASE}/messages",
+                    headers={"Authorization": f"Bearer {settings.smstools_api_key}"},
+                    json={"sim_id": sim_id, "to": to, "body": body},
+                )
+                if resp.status_code == 402:
+                    raise InsufficientCreditError(
+                        f"SMSTools crédit insuffisant pour la SIM {sim_id}"
+                    )
+                if resp.status_code == 429 and attempt < 3:
+                    backoff = 2 ** attempt
+                    log.warning(
+                        "SMSTools rate limit sur %s - retry %d/3 dans %ds",
+                        sim_id,
+                        attempt,
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                    continue
+
+                resp.raise_for_status()
+                data = resp.json()
+                return SmsResult(
+                    id=data["id"],
+                    status=SmsStatus.SENT if data.get("status") == "sent" else SmsStatus.FAILED,
+                    cost=data.get("cost", 0.0),
+                    sim_id=sim_id,
+                    to=to,
+                )
+            except InsufficientCreditError:
+                raise
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                if attempt >= 3:
+                    raise
+                backoff = 2 ** attempt
+                log.warning(
+                    "SMSTools erreur réseau sur %s - retry %d/3 dans %ds: %s",
+                    sim_id,
+                    attempt,
+                    backoff,
+                    exc,
+                )
+                await asyncio.sleep(backoff)
 
 
 async def get_sim_list() -> list[dict]:

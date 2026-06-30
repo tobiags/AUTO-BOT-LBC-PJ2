@@ -48,6 +48,8 @@ export const mockCampaign: Campaign = {
   status: 'RUNNING',
   sent: 42,
   failed: 1,
+  scheduled_at: null,
+  last_error: null,
   created_at: '2026-06-15T00:00:00Z',
 }
 

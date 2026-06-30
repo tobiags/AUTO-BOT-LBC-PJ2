@@ -82,6 +82,14 @@ async def receive_call(payload: list[CallToolsWebhookItem]):
             return {"ok": True, "duplicate": True}
 
     listing_data = await _find_listing_for_call(sim_id, from_number)
+    if not listing_data:
+        log.info(
+            "Appel entrant %s (SIM %s) - aucun listing corrélé, pas de push WS",
+            from_number,
+            sim_id,
+        )
+        return {"ok": True, "matched": False}
+
     event = IncomingCallEvent(caller=from_number, listing=listing_data)
     await ws_manager.broadcast(event.model_dump())
     log.info(
