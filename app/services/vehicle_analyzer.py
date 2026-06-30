@@ -1,15 +1,8 @@
 """
-Service d'analyse véhicule — Option B, 100% notre infrastructure.
-
-Deux composants :
-  1. Scoring marché  : calcul statistique sur notre propre DB listings
-                       (pas de dépendance externe, améliore avec le temps)
-  2. Analyse IA      : appel Claude via tool_use → JSON structuré garanti
-                       (problèmes connus, points d'inspection, argument de négo)
-
-Point d'entrée public : analyze_listing(listing_id)
+Service d'analyse vehicule - Option B, 100% notre infrastructure.
 """
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from uuid import UUID
@@ -22,20 +15,16 @@ from app.tables import Listing
 
 log = logging.getLogger(__name__)
 
-# ── Seuils de confiance ───────────────────────────────────────────────────────
 _CONFIDENCE_HIGH = 10
 _CONFIDENCE_MEDIUM = 5
+_YEAR_WINDOW = 1
+_KM_WINDOW = 25_000
 
-# ── Fenêtres de comparaison marché ────────────────────────────────────────────
-_YEAR_WINDOW = 1       # ± 1 an
-_KM_WINDOW = 25_000    # ± 25 000 km
-
-# ── Schéma tool_use Claude ────────────────────────────────────────────────────
 _ANALYSIS_TOOL = {
     "name": "vehicle_analysis_result",
     "description": (
-        "Retourne l'analyse complète d'un véhicule d'occasion : "
-        "fiabilité, problèmes connus, inspection, négociation."
+        "Retourne l'analyse complete d'un vehicule d'occasion : "
+        "fiabilite, problemes connus, inspection, negociation."
     ),
     "input_schema": {
         "type": "object",
@@ -44,42 +33,34 @@ _ANALYSIS_TOOL = {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 100,
-                "description": "Score de fiabilité du modèle (0=mauvais, 100=excellent)",
             },
-            "ai_summary": {
-                "type": "string",
-                "description": "Résumé de 2-3 phrases sur ce véhicule et son positionnement marché",
-            },
+            "ai_summary": {"type": "string"},
             "known_issues": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Liste des problèmes connus et récurrents sur ce modèle/génération",
             },
             "inspection_tips": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Points précis à vérifier lors de l'inspection physique",
             },
-            "negotiation_tip": {
-                "type": "string",
-                "description": "Argument de négociation basé sur le prix marché et les défauts",
-            },
+            "negotiation_tip": {"type": "string"},
         },
         "required": [
-            "reliability_score", "ai_summary",
-            "known_issues", "inspection_tips", "negotiation_tip",
+            "reliability_score",
+            "ai_summary",
+            "known_issues",
+            "inspection_tips",
+            "negotiation_tip",
         ],
     },
 }
 
 _SYSTEM_PROMPT = (
-    "Tu es un expert automobile français spécialisé dans les véhicules d'occasion. "
-    "Tu analyses des annonces pour identifier les opportunités d'achat et les risques. "
-    "Tes réponses sont concises, précises et exclusivement en français."
+    "Tu es un expert automobile francais specialise dans les vehicules d'occasion. "
+    "Tu analyses des annonces pour identifier les opportunites d'achat et les risques. "
+    "Tes reponses sont concises, precises et exclusivement en francais."
 )
 
-
-# ── Calcul scoring marché ─────────────────────────────────────────────────────
 
 @dataclass
 class _MarketStats:
@@ -100,10 +81,6 @@ async def _compute_market_stats(
     current_price: int,
     exclude_id: UUID,
 ) -> _MarketStats:
-    """
-    Calcule les statistiques de prix marché depuis notre DB.
-    Fenêtre : ±1 an, ±25 000 km, même make+model.
-    """
     stmt = (
         select(
             func.avg(Listing.price).label("avg"),
@@ -123,7 +100,6 @@ async def _compute_market_stats(
     row = (await db.execute(stmt)).one()
 
     stats = _MarketStats(count=row.count or 0)
-
     if not stats.count:
         return stats
 
@@ -144,8 +120,6 @@ async def _compute_market_stats(
     return stats
 
 
-# ── Analyse IA Claude ─────────────────────────────────────────────────────────
-
 async def _ai_analysis(
     make: str,
     model: str,
@@ -158,78 +132,71 @@ async def _ai_analysis(
     location: str | None,
     market_stats: _MarketStats,
 ) -> dict:
-    """
-    Appel Claude avec tool_use → JSON structuré garanti.
-    Retourne les clés : reliability_score, ai_summary, known_issues,
-                        inspection_tips, negotiation_tip.
-    """
     import os
+
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        log.warning("vehicle_analyzer : ANTHROPIC_API_KEY absent — analyse IA ignorée")
+        log.warning("vehicle_analyzer : ANTHROPIC_API_KEY absent - analyse IA ignoree")
         return {}
 
     from anthropic import AsyncAnthropic
 
     prompt_parts = [
-        "Analyse ce véhicule d'occasion :",
-        f"- Marque / Modèle : {make} {model}",
+        "Analyse ce vehicule d'occasion :",
+        f"- Marque / Modele : {make} {model}",
     ]
     if year:
-        prompt_parts.append(f"- Année : {year}")
+        prompt_parts.append(f"- Annee : {year}")
     if km is not None:
-        prompt_parts.append(f"- Kilométrage : {km:,} km")
+        prompt_parts.append(f"- Kilometrage : {km:,} km")
     if price:
-        prompt_parts.append(f"- Prix demandé : {price:,} €")
+        prompt_parts.append(f"- Prix demande : {price:,} EUR")
     if fuel:
         prompt_parts.append(f"- Carburant : {fuel}")
     if transmission:
-        prompt_parts.append(f"- Boîte : {transmission}")
+        prompt_parts.append(f"- Boite : {transmission}")
     if location:
         prompt_parts.append(f"- Localisation : {location}")
     if description:
         prompt_parts.append(f"- Description vendeur : {description[:500]}")
-
     if market_stats.count:
-        prompt_parts.append(
-            f"\nDonnées marché ({market_stats.count} annonces similaires) :"
-        )
-        prompt_parts.append(f"- Prix moyen : {market_stats.avg:,} €")
-        prompt_parts.append(f"- Fourchette : {market_stats.min:,} – {market_stats.max:,} €")
+        prompt_parts.append(f"\nDonnees marche ({market_stats.count} annonces similaires) :")
+        prompt_parts.append(f"- Prix moyen : {market_stats.avg:,} EUR")
+        prompt_parts.append(f"- Fourchette : {market_stats.min:,} - {market_stats.max:,} EUR")
         if market_stats.price_score is not None:
             sign = "+" if market_stats.price_score >= 0 else ""
             prompt_parts.append(
-                f"- Écart au marché : {sign}{market_stats.price_score:.1f}% "
-                f"({'sous-évalué' if market_stats.price_score > 0 else 'sur-évalué'})"
+                f"- Ecart au marche : {sign}{market_stats.price_score:.1f}% "
+                f"({'sous-evalue' if market_stats.price_score > 0 else 'sur-evalue'})"
             )
 
-    prompt = "\n".join(prompt_parts)
-
-    client = AsyncAnthropic()  # lit ANTHROPIC_API_KEY depuis l'environnement
+    client = AsyncAnthropic()
     response = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=_SYSTEM_PROMPT,
         tools=[_ANALYSIS_TOOL],
         tool_choice={"type": "tool", "name": "vehicle_analysis_result"},
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": "\n".join(prompt_parts)}],
     )
 
-    # Suivi coût Anthropic (non-bloquant)
     if response.usage:
         from app.services.anthropic_tracker import track_usage
+
         asyncio.create_task(track_usage(response.usage.input_tokens, response.usage.output_tokens))
 
-    tool_block = next(
-        (b for b in response.content if b.type == "tool_use"), None
-    )
+    tool_block = next((block for block in response.content if block.type == "tool_use"), None)
     if not tool_block:
-        log.error("vehicle_analyzer : Claude n'a pas retourné de tool_use block")
+        log.error("vehicle_analyzer : Claude n'a pas retourne de tool_use block")
         return {}
 
-    return tool_block.input  # dict validé par le schema
+    return tool_block.input
 
 
-# ── Persistance du résultat ───────────────────────────────────────────────────
+def _dump_json_list(values: list[str] | None) -> str | None:
+    if not values:
+        return None
+    return json.dumps(values, ensure_ascii=False)
+
 
 async def _persist_analysis(db, listing_id: UUID, stats: _MarketStats, ai: dict) -> None:
     await db.execute(
@@ -239,28 +206,23 @@ async def _persist_analysis(db, listing_id: UUID, stats: _MarketStats, ai: dict)
             price_score=stats.price_score,
             market_avg_price=stats.avg,
             market_sample_size=stats.count,
+            reliability_score=ai.get("reliability_score"),
             ai_summary=ai.get("ai_summary"),
+            known_issues_json=_dump_json_list(ai.get("known_issues")),
+            inspection_tips_json=_dump_json_list(ai.get("inspection_tips")),
+            negotiation_tip=ai.get("negotiation_tip"),
         )
     )
 
 
-# ── Point d'entrée public ─────────────────────────────────────────────────────
-
 async def analyze_listing(listing_id: UUID) -> VehicleAnalysisOut:
-    """
-    Analyse complète d'une annonce :
-      1. Charge le listing depuis la DB
-      2. Calcule le scoring marché (nos données)
-      3. Appelle Claude pour l'analyse textuelle
-      4. Persiste le résultat et retourne VehicleAnalysisOut
-    """
     async with get_db() as db:
         listing = await db.get(Listing, listing_id)
         if not listing:
             from fastapi import HTTPException
+
             raise HTTPException(status_code=404, detail="Annonce introuvable")
 
-        # Scoring marché — possible seulement si on a make+model+year+km
         stats = _MarketStats()
         if all([listing.make, listing.model, listing.year, listing.km, listing.price]):
             stats = await _compute_market_stats(
@@ -273,16 +235,14 @@ async def analyze_listing(listing_id: UUID) -> VehicleAnalysisOut:
                 exclude_id=listing_id,
             )
 
-        # Analyse IA — nécessite au minimum make + model
         ai: dict = {}
         if listing.make and listing.model:
             description = None
             if listing.raw_data:
-                import json
                 try:
                     description = json.loads(listing.raw_data).get("body")
                 except Exception:
-                    pass
+                    description = None
 
             ai = await _ai_analysis(
                 make=listing.make,
@@ -298,7 +258,7 @@ async def analyze_listing(listing_id: UUID) -> VehicleAnalysisOut:
             )
         else:
             log.warning(
-                "analyze_listing %s : make/model absents — analyse IA ignorée", listing_id
+                "analyze_listing %s : make/model absents - analyse IA ignoree", listing_id
             )
 
         await _persist_analysis(db, listing_id, stats, ai)

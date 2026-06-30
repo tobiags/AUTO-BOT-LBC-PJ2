@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+
 import type {
   AnalyzerResult,
   AnalyzerStats,
@@ -75,13 +76,18 @@ export const mockAnalyzerResult: AnalyzerResult = {
   market_avg_price: 8200,
   market_sample_size: 31,
   confidence: 'high',
-  ai_summary: 'Véhicule sous-coté de 8,5% par rapport au marché.',
+  reliability_score: 84,
+  ai_summary: 'Vehicule sous-cote de 8,5% par rapport au marche.',
+  known_issues: ['Courroie a surveiller'],
+  inspection_tips: ['Verifier l embrayage'],
+  negotiation_tip: 'Mettre en avant l entretien a venir.',
 }
 
 export const handlers = [
   http.get(`${BASE}/listings`, () => HttpResponse.json([mockListing])),
   http.get(`${BASE}/accounts`, () => HttpResponse.json([mockAccount])),
   http.get(`${BASE}/campaigns`, () => HttpResponse.json([mockCampaign])),
+  http.post(`${BASE}/campaigns/:id/start`, () => HttpResponse.json({ queued: true })),
   http.get(`${BASE}/analyzer/stats`, () => HttpResponse.json(mockAnalyzerStats)),
   http.get(`${BASE}/analyzer/results`, () => HttpResponse.json([mockAnalyzerResult])),
   http.post(`${BASE}/analyzer/run/:id`, () => HttpResponse.json({ ok: true })),

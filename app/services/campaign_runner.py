@@ -1,9 +1,5 @@
 """
 Envoi d'une campagne SMS (Workflow WF-02).
-
-Règle R01 : fenêtre horaire 08h–20h (heure Paris).
-Règle R02 : filtrage blacklist cross-projets avant envoi.
-Règle R05 : délai aléatoire 2–12 min entre messages, quotas progressifs.
 """
 import asyncio
 import logging
@@ -27,37 +23,28 @@ PARIS_TZ = ZoneInfo("Europe/Paris")
 
 
 def is_within_sms_window() -> bool:
-    """R01 — vérifie si l'heure courante (Paris) est dans la fenêtre autorisée."""
     now_paris = datetime.now(PARIS_TZ)
     return settings.sms_hour_start <= now_paris.hour < settings.sms_hour_end
 
 
 async def _select_best_sim(available_sims: list[dict], daily_quotas: dict[str, int]) -> dict | None:
-    """
-    Round-robin pondéré : SIM ACTIVE avec le plus de quota restant.
-    Exclut les SIMs RALENTIE / BLOQUÉE.
-    """
     eligible = [
-        s for s in available_sims
-        if s.get("status") == "active" and daily_quotas.get(s["id"], 0) > 0
+        sim
+        for sim in available_sims
+        if sim.get("status") == "active" and daily_quotas.get(sim["id"], 0) > 0
     ]
     if not eligible:
         return None
-    return max(eligible, key=lambda s: daily_quotas.get(s["id"], 0))
+    return max(eligible, key=lambda sim: daily_quotas.get(sim["id"], 0))
 
 
 async def run_campaign(campaign_id: str) -> dict:
-    """
-    Exécute une campagne SMS. Retourne les statistiques d'envoi.
-    Appelé par Celery task run_campaign_task.
-    """
     if not is_within_sms_window():
-        log.info("Campagne %s — hors fenêtre horaire R01, mise en attente.", campaign_id)
+        log.info("Campagne %s - hors fenetre horaire R01, mise en attente.", campaign_id)
         return {"status": "deferred", "sent": 0, "failed": 0}
 
     campaign_uuid = uuid.UUID(campaign_id)
 
-    # Charger la campagne
     async with get_db() as db:
         campaign = await db.get(Campaign, campaign_uuid)
         if not campaign:
@@ -65,16 +52,11 @@ async def run_campaign(campaign_id: str) -> dict:
         if campaign.status not in (CampaignStatus.PENDING, CampaignStatus.RUNNING):
             return {"status": campaign.status, "sent": campaign.sent, "failed": campaign.failed}
 
-        # Passage en RUNNING
         campaign.status = CampaignStatus.RUNNING
         await db.flush()
 
-        # Annonces NOUVELLES avec numéro de téléphone — filtrées blacklist (R02)
-        # Si des annonces sont pré-assignées (POST /campaigns/{id}/listings), les cibler.
         assigned_count_result = await db.execute(
-            select(func.count())
-            .select_from(Listing)
-            .where(Listing.campaign_id == campaign_uuid)
+            select(func.count()).select_from(Listing).where(Listing.campaign_id == campaign_uuid)
         )
         has_assigned = (assigned_count_result.scalar() or 0) > 0
 
@@ -90,28 +72,25 @@ async def run_campaign(campaign_id: str) -> dict:
 
     sent = 0
     failed = 0
+    paused_for_quota = False
     sims = await boundaries.get_sim_list()
-    daily_quotas: dict[str, int] = {s["id"]: s.get("quota_remaining", 15) for s in sims}
+    daily_quotas: dict[str, int] = {sim["id"]: sim.get("quota_remaining", 15) for sim in sims}
 
     for listing in listings:
-        # R02 — vérification blacklist
         if await is_blacklisted(listing.phone):
             log.debug("Skipping blacklisted phone %s", listing.phone)
             continue
 
         sim = await _select_best_sim(sims, daily_quotas)
         if sim is None:
-            log.warning("Plus de quota SIM disponible — campagne suspendue.")
+            paused_for_quota = True
+            log.warning("Plus de quota SIM disponible - campagne suspendue.")
             break
 
-        # R05 — délai aléatoire 2–12 min entre messages (anti-pattern milliseconde)
         delay = random.uniform(120, 720)
         await asyncio.sleep(delay)
 
-        message = campaign.message_template.format(
-            url=listing.url,
-            title=listing.title or "",
-        )
+        message = campaign.message_template.format(url=listing.url, title=listing.title or "")
 
         try:
             result = await boundaries.send_sms(sim["id"], listing.phone, message)
@@ -119,15 +98,18 @@ async def run_campaign(campaign_id: str) -> dict:
                 sent += 1
                 daily_quotas[sim["id"]] -= 1
                 async with get_db() as db:
-                    db.add(SmsLog(
-                        sim_id=sim["id"],
-                        to_phone=listing.phone,
-                        body=message,
-                        status=SmsStatus.SENT,
-                        project="P2",
-                        cost_eur=result.cost,
-                        campaign_id=campaign_uuid,
-                    ))
+                    db.add(
+                        SmsLog(
+                            sim_id=sim["id"],
+                            to_phone=listing.phone,
+                            listing_id=listing.id,
+                            body=message,
+                            status=SmsStatus.SENT,
+                            project="P2",
+                            cost_eur=result.cost,
+                            campaign_id=campaign_uuid,
+                        )
+                    )
                     await db.execute(
                         update(Listing)
                         .where(Listing.id == listing.id)
@@ -136,15 +118,18 @@ async def run_campaign(campaign_id: str) -> dict:
             else:
                 failed += 1
         except Exception as exc:
-            log.error("Échec envoi SMS vers %s : %s", listing.phone, exc)
+            log.error("Echec envoi SMS vers %s : %s", listing.phone, exc)
             failed += 1
+
+    final_status = CampaignStatus.PAUSED if paused_for_quota else CampaignStatus.COMPLETED
+    result_status = "paused" if paused_for_quota else "completed"
 
     async with get_db() as db:
         await db.execute(
             update(Campaign)
             .where(Campaign.id == campaign_uuid)
-            .values(status=CampaignStatus.COMPLETED, sent=sent, failed=failed)
+            .values(status=final_status, sent=sent, failed=failed)
         )
 
-    log.info("Campagne %s terminée — sent=%d failed=%d", campaign_id, sent, failed)
-    return {"status": "completed", "sent": sent, "failed": failed}
+    log.info("Campagne %s terminee - status=%s sent=%d failed=%d", campaign_id, result_status, sent, failed)
+    return {"status": result_status, "sent": sent, "failed": failed}

@@ -1,6 +1,6 @@
 """
-SQLAlchemy ORM — définitions des tables.
-Aligné sur le schéma du Cahier Technique Projet 2.
+SQLAlchemy ORM - definitions des tables.
+Aligne sur le schema du Cahier Technique Projet 2.
 """
 import uuid
 from datetime import datetime
@@ -31,7 +31,8 @@ from app.models import (
 
 
 class PlatformAccount(Base):
-    """Comptes LeBonCoin gérés par le système."""
+    """Comptes LeBonCoin geres par le systeme."""
+
     __tablename__ = "platform_accounts"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -43,11 +44,11 @@ class PlatformAccount(Base):
     datadome_trust_level: Mapped[str] = mapped_column(
         Enum(DatadomeTrustLevel, name="datadome_trust_level"), default=DatadomeTrustLevel.LOW
     )
-    datadome_cookie: Mapped[bytes | None] = mapped_column(LargeBinary)  # chiffré AES-256
+    datadome_cookie: Mapped[bytes | None] = mapped_column(LargeBinary)
     datadome_cookie_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    session_path: Mapped[str | None] = mapped_column(String(500))       # Patchright user_data_dir
+    session_path: Mapped[str | None] = mapped_column(String(500))
     score_sante: Mapped[int] = mapped_column(Integer, default=100)
-    quota_actuel: Mapped[int] = mapped_column(Integer, default=10)      # messages/jour
+    quota_actuel: Mapped[int] = mapped_column(Integer, default=10)
     erreurs_24h: Mapped[int] = mapped_column(Integer, default=0)
     date_creation: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -56,7 +57,8 @@ class PlatformAccount(Base):
 
 
 class Listing(Base):
-    """Annonces collectées sur LBC et La Centrale."""
+    """Annonces collectees sur LBC et La Centrale."""
+
     __tablename__ = "listings"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -65,28 +67,28 @@ class Listing(Base):
     )
     url: Mapped[str] = mapped_column(String(1000), unique=True, nullable=False)
     title: Mapped[str | None] = mapped_column(String(500))
-    price: Mapped[int | None] = mapped_column(Integer)                  # euros
+    price: Mapped[int | None] = mapped_column(Integer)
     km: Mapped[int | None] = mapped_column(Integer)
     location: Mapped[str | None] = mapped_column(String(200))
     phone: Mapped[str | None] = mapped_column(String(30))
-    raw_data: Mapped[str | None] = mapped_column(Text)                  # JSON brut
-    # Attributs véhicule — enrichis depuis l'API /finder/search ou scraping détail
+    raw_data: Mapped[str | None] = mapped_column(Text)
     make: Mapped[str | None] = mapped_column(String(100), index=True)
     model: Mapped[str | None] = mapped_column(String(100), index=True)
     year: Mapped[int | None] = mapped_column(Integer, index=True)
     fuel: Mapped[str | None] = mapped_column(String(50))
     transmission: Mapped[str | None] = mapped_column(String(50))
-    # Analyse marché — calculée par vehicle_analyzer
-    price_score: Mapped[float | None] = mapped_column(Float)           # % sous marché
+    price_score: Mapped[float | None] = mapped_column(Float)
     market_avg_price: Mapped[int | None] = mapped_column(Integer)
     market_sample_size: Mapped[int | None] = mapped_column(Integer)
+    reliability_score: Mapped[int | None] = mapped_column(Integer)
     ai_summary: Mapped[str | None] = mapped_column(Text)
+    known_issues_json: Mapped[str | None] = mapped_column(Text)
+    inspection_tips_json: Mapped[str | None] = mapped_column(Text)
+    negotiation_tip: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
         Enum(ListingStatus, name="listing_status"), default=ListingStatus.NOUVELLE
     )
-    campaign_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), index=True
-    )
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -96,12 +98,14 @@ class Listing(Base):
 
 
 class SmsLog(Base):
-    """Journal de tous les SMS envoyés."""
+    """Journal de tous les SMS envoyes."""
+
     __tablename__ = "sms_log"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sim_id: Mapped[str] = mapped_column(String(50), nullable=False)
     to_phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    listing_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(
         Enum(SmsStatus, name="sms_status"), nullable=False
@@ -115,7 +119,8 @@ class SmsLog(Base):
 
 
 class Blacklist(Base):
-    """Numéros STOP — cross-projets P1 + P2."""
+    """Numeros STOP - cross-projets P1 + P2."""
+
     __tablename__ = "blacklist"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -129,10 +134,11 @@ class Blacklist(Base):
 
 class Campaign(Base):
     """Campagnes SMS."""
+
     __tablename__ = "campaigns"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    type: Mapped[str] = mapped_column(String(50), nullable=False)       # sms_direct | lbc_message
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
     message_template: Mapped[str] = mapped_column(Text, nullable=False)
     quota_per_sim: Mapped[int] = mapped_column(Integer, default=15)
     status: Mapped[str] = mapped_column(
@@ -146,7 +152,8 @@ class Campaign(Base):
 
 
 class ServiceBalance(Base):
-    """Solde des services externes (SMSTools, iProxy, BrowserUse, Anthropic…)."""
+    """Solde des services externes."""
+
     __tablename__ = "service_balance"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -161,12 +168,13 @@ class ServiceBalance(Base):
 
 
 class WebhookEvent(Base):
-    """Garantit l'idempotence des webhooks entrants (règle R12)."""
+    """Garantit l'idempotence des webhooks entrants."""
+
     __tablename__ = "webhook_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
-    source: Mapped[str] = mapped_column(String(50), nullable=False)     # sms | email | call
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
     processed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

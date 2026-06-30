@@ -1,4 +1,5 @@
 """Tests webhooks SMS, email, call - idempotence + STOP."""
+import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -61,3 +62,58 @@ async def test_extract_verification_code():
     assert extract_verification_code("Votre code LeBonCoin est : 847291") == "847291"
     assert extract_verification_code("Code de confirmation : 123456") == "123456"
     assert extract_verification_code("Bienvenue sur LeBonCoin") is None
+
+
+@pytest.mark.asyncio
+async def test_call_webhook_uses_latest_sms_log_mapping(client):
+    """Le webhook call corrèle d'abord via la dernière entrée SmsLog SIM+numéro."""
+    listing_id = uuid.uuid4()
+    sms_log = SimpleNamespace(listing_id=listing_id)
+    listing = SimpleNamespace(
+        url="https://www.leboncoin.fr/voitures/abc",
+        title="Peugeot 208",
+        price=8900,
+        km=74000,
+        source="leboncoin",
+        make="Peugeot",
+        model="208",
+    )
+
+    def _ctx_with_results(*results):
+        db = AsyncMock()
+        db.execute = AsyncMock(side_effect=results)
+        ctx = AsyncMock()
+        ctx.__aenter__.return_value = db
+        ctx.__aexit__.return_value = False
+        return ctx
+
+    dedupe_ctx = _ctx_with_results(SimpleNamespace(scalar=lambda: 1))
+    lookup_ctx = _ctx_with_results(
+        SimpleNamespace(scalar_one_or_none=lambda: sms_log),
+        SimpleNamespace(scalar_one_or_none=lambda: listing),
+    )
+
+    with (
+        patch("app.webhooks.call.get_db", side_effect=[dedupe_ctx, lookup_ctx]),
+        patch("app.webhooks.call.ws_manager.broadcast", new_callable=AsyncMock) as broadcast,
+    ):
+        resp = await client.post(
+            "/webhooks/call",
+            json=[{
+                "webhook_id": "wh_call_1234567890",
+                "webhook_type": "CALL_FORWARDING",
+                "message": {
+                    "id": "call_1",
+                    "date_utc": "2026-06-30T09:30:00Z",
+                    "sender": "+33601020304",
+                    "receiver": "sim_01",
+                },
+            }],
+        )
+
+    assert resp.status_code == 200
+    broadcast.assert_awaited_once()
+    payload = broadcast.await_args.args[0]
+    assert payload["listing"]["url"] == "https://www.leboncoin.fr/voitures/abc"
+    assert payload["listing"]["title"] == "Peugeot 208"
+    assert payload["listing"]["vehicle"] == "Peugeot 208"

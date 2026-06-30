@@ -1,4 +1,6 @@
-import { Badge, Box, Button, Flex, Heading, Table, Text } from '@radix-ui/themes'
+import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
+
+import { CampaignStartButton } from '@/components/CampaignStartButton'
 import { api, type Campaign } from '@/lib/api'
 
 export const revalidate = 0
@@ -33,9 +35,9 @@ export default async function CampaignsPage() {
           <Table.Row>
             <Table.ColumnHeaderCell>Type</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Statut</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Envoyés</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Échoués</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Créée le</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Envoyes</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Echoues</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Creee le</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
           </Table.Row>
         </Table.Header>
@@ -47,35 +49,35 @@ export default async function CampaignsPage() {
               </Table.Cell>
             </Table.Row>
           ) : (
-            campaigns.map((c) => (
-              <Table.Row key={c.id}>
+            campaigns.map((campaign) => (
+              <Table.Row key={campaign.id}>
                 <Table.Cell>
                   <Text weight="bold" style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                    {c.type}
+                    {campaign.type}
                   </Text>
                 </Table.Cell>
                 <Table.Cell>
-                  <Badge color={STATUS_COLOR[c.status] ?? 'gray'}>{c.status}</Badge>
+                  <Badge color={STATUS_COLOR[campaign.status] ?? 'gray'}>{campaign.status}</Badge>
                 </Table.Cell>
                 <Table.Cell>
-                  <Text color="green">{c.sent}</Text>
+                  <Text color="green">{campaign.sent}</Text>
                 </Table.Cell>
                 <Table.Cell>
-                  <Text color={c.failed > 0 ? 'red' : 'gray'}>{c.failed}</Text>
+                  <Text color={campaign.failed > 0 ? 'red' : 'gray'}>{campaign.failed}</Text>
                 </Table.Cell>
                 <Table.Cell>
                   <Text size="2" color="gray">
-                    {new Date(c.created_at).toLocaleDateString('fr-FR')}
+                    {new Date(campaign.created_at).toLocaleDateString('fr-FR')}
                   </Text>
                 </Table.Cell>
                 <Table.Cell>
-                  <Flex gap="2">
-                    {c.status === 'PENDING' && (
-                      <Button size="1" variant="soft" color="green">
-                        Démarrer
-                      </Button>
-                    )}
-                  </Flex>
+                  {campaign.status === 'PENDING' ? (
+                    <CampaignStartButton campaignId={campaign.id} />
+                  ) : (
+                    <Text size="1" color="gray">
+                      Aucune action
+                    </Text>
+                  )}
                 </Table.Cell>
               </Table.Row>
             ))

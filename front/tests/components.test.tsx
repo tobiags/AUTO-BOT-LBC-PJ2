@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Theme } from '@radix-ui/themes'
+import { AnalyzeListingButton } from '@/components/AnalyzeListingButton'
+import { CampaignStartButton } from '@/components/CampaignStartButton'
 import { PriceScoreBadge } from '@/components/PriceScoreBadge'
 
 function Wrap({ children }: { children: React.ReactNode }) {
@@ -31,5 +34,43 @@ describe('PriceScoreBadge', () => {
   it('affiche le score exact 8 comme bonne affaire', () => {
     render(<Wrap><PriceScoreBadge score={8} /></Wrap>)
     expect(screen.getByText('8/10')).toBeTruthy()
+  })
+})
+
+describe('CampaignStartButton', () => {
+  it('declenche le demarrage de campagne puis appelle onSuccess', async () => {
+    const user = userEvent.setup()
+    const onSuccess = vi.fn()
+
+    render(
+      <Wrap>
+        <CampaignStartButton campaignId="camp-001" onSuccess={onSuccess} />
+      </Wrap>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /demarrer/i }))
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1)
+    })
+  })
+})
+
+describe('AnalyzeListingButton', () => {
+  it('declenche l analyse puis appelle onSuccess', async () => {
+    const user = userEvent.setup()
+    const onSuccess = vi.fn()
+
+    render(
+      <Wrap>
+        <AnalyzeListingButton listingId="123e4567-e89b-12d3-a456-426614174000" onSuccess={onSuccess} />
+      </Wrap>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /analyser/i }))
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1)
+    })
   })
 })

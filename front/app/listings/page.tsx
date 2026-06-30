@@ -1,6 +1,8 @@
 import { Badge, Box, Button, Flex, Heading, Table, Text } from '@radix-ui/themes'
-import { api, type Listing } from '@/lib/api'
+
+import { AnalyzeListingButton } from '@/components/AnalyzeListingButton'
 import { PriceScoreBadge } from '@/components/PriceScoreBadge'
+import { api, type Listing } from '@/lib/api'
 
 export const revalidate = 0
 
@@ -25,17 +27,17 @@ export default async function ListingsPage() {
       <Flex justify="between" align="center" mb="4">
         <Heading size="6">Annonces</Heading>
         <Text size="2" color="gray">
-          {listings.length} résultat(s)
+          {listings.length} resultat(s)
         </Text>
       </Flex>
 
       <Table.Root variant="surface">
         <Table.Header>
           <Table.Row>
-            <Table.ColumnHeaderCell>Véhicule</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Vehicule</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Prix</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Score</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Moy. marché</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Moy. marche</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Km</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Statut</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
@@ -49,48 +51,44 @@ export default async function ListingsPage() {
               </Table.Cell>
             </Table.Row>
           ) : (
-            listings.map((l) => (
-              <Table.Row key={l.id}>
+            listings.map((listing) => (
+              <Table.Row key={listing.id}>
                 <Table.Cell>
                   <Text weight="bold">
-                    {l.make ?? '—'} {l.model ?? ''}
+                    {listing.make ?? '-'} {listing.model ?? ''}
                   </Text>
-                  {l.year && (
+                  {listing.year && (
                     <Text size="1" color="gray">
                       {' '}
-                      — {l.year}
+                      - {listing.year}
                     </Text>
                   )}
                 </Table.Cell>
                 <Table.Cell>
-                  {l.price != null ? `${l.price.toLocaleString('fr-FR')} €` : '—'}
+                  {listing.price != null ? `${listing.price.toLocaleString('fr-FR')} EUR` : '-'}
                 </Table.Cell>
                 <Table.Cell>
-                  <PriceScoreBadge score={l.price_score} />
+                  <PriceScoreBadge score={listing.price_score} />
                 </Table.Cell>
                 <Table.Cell>
-                  {l.market_avg_price != null
-                    ? `${l.market_avg_price.toLocaleString('fr-FR')} €`
-                    : <Text color="gray">—</Text>}
+                  {listing.market_avg_price != null
+                    ? `${listing.market_avg_price.toLocaleString('fr-FR')} EUR`
+                    : <Text color="gray">-</Text>}
                 </Table.Cell>
                 <Table.Cell>
-                  {l.km != null ? `${l.km.toLocaleString('fr-FR')} km` : '—'}
+                  {listing.km != null ? `${listing.km.toLocaleString('fr-FR')} km` : '-'}
                 </Table.Cell>
                 <Table.Cell>
-                  <Badge color={STATUS_COLOR[l.status] ?? 'gray'}>{l.status}</Badge>
+                  <Badge color={STATUS_COLOR[listing.status] ?? 'gray'}>{listing.status}</Badge>
                 </Table.Cell>
                 <Table.Cell>
                   <Flex gap="1">
                     <Button size="1" variant="soft" asChild>
-                      <a href={l.url} target="_blank" rel="noreferrer">
+                      <a href={listing.url} target="_blank" rel="noreferrer">
                         Voir
                       </a>
                     </Button>
-                    {l.price_score === null && (
-                      <Button size="1" variant="outline">
-                        Analyser
-                      </Button>
-                    )}
+                    {listing.price_score === null && <AnalyzeListingButton listingId={listing.id} />}
                   </Flex>
                 </Table.Cell>
               </Table.Row>

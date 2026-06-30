@@ -85,7 +85,11 @@ export type AnalyzerResult = {
   market_avg_price: number | null
   market_sample_size: number | null
   confidence: string | null
+  reliability_score: number | null
   ai_summary: string | null
+  known_issues: string[]
+  inspection_tips: string[]
+  negotiation_tip: string | null
 }
 
 export type ServiceBalance = {
