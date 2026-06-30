@@ -131,5 +131,11 @@ async def run_campaign(campaign_id: str) -> dict:
             .values(status=final_status, sent=sent, failed=failed)
         )
 
-    log.info("Campagne %s terminee - status=%s sent=%d failed=%d", campaign_id, result_status, sent, failed)
+    log.info(
+        "Campagne %s terminee - status=%s sent=%d failed=%d",
+        campaign_id,
+        result_status,
+        sent,
+        failed,
+    )
     return {"status": result_status, "sent": sent, "failed": failed}

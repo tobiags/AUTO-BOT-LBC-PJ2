@@ -3,7 +3,6 @@ import pytest
 
 from app.services.phone_extractor import extract_phone
 
-
 # ── PHONE EXTRACTOR (synchrone, pas de mock) ─────────────────────────────────
 
 def test_extract_phone_mobile_fr():

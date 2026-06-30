@@ -1,11 +1,10 @@
 """GET /api/v1/dashboard — stats globales pour le tableau de bord."""
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import func, select
-
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
@@ -71,7 +70,9 @@ async def get_dashboard():
         )).scalar() or 0
 
         # ── Comptes ──────────────────────────────────────────────────────────
-        accounts_total = (await db.execute(select(func.count()).select_from(PlatformAccount))).scalar() or 0
+        accounts_total = (
+            await db.execute(select(func.count()).select_from(PlatformAccount))
+        ).scalar() or 0
         accounts_active = (await db.execute(
             select(func.count()).select_from(PlatformAccount).where(
                 PlatformAccount.status.in_([AccountStatus.ACTIF, AccountStatus.EN_CHAUFFE])
@@ -145,8 +146,12 @@ async def update_balance(service: str, body: BalanceUpdate):
             )
             .on_conflict_do_update(
                 index_elements=["service"],
-                set_={"balance": body.balance, "currency": body.currency,
-                      "is_low": is_low, "last_updated": now},
+                set_={
+                    "balance": body.balance,
+                    "currency": body.currency,
+                    "is_low": is_low,
+                    "last_updated": now,
+                },
             )
         )
         await db.commit()

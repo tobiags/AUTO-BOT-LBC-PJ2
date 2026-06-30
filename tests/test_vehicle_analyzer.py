@@ -15,7 +15,6 @@ from app.services.vehicle_analyzer import (
     _MarketStats,
 )
 
-
 # ── Constantes de fenêtre ────────────────────────────────────────────────────
 
 @pytest.mark.unit

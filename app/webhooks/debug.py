@@ -1,5 +1,6 @@
 """Endpoint debug temporaire — capture le payload brut de SMSTools."""
 import logging
+
 from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])

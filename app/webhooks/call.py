@@ -84,6 +84,11 @@ async def receive_call(payload: list[CallToolsWebhookItem]):
     listing_data = await _find_listing_for_call(sim_id, from_number)
     event = IncomingCallEvent(caller=from_number, listing=listing_data)
     await ws_manager.broadcast(event.model_dump())
-    log.info("Appel entrant %s (SIM %s) - push WS (listing=%s)", from_number, sim_id, bool(listing_data))
+    log.info(
+        "Appel entrant %s (SIM %s) - push WS (listing=%s)",
+        from_number,
+        sim_id,
+        bool(listing_data),
+    )
 
     return {"ok": True}

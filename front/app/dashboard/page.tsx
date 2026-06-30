@@ -77,7 +77,7 @@ function CreditCard({ b }: { b: ServiceBalance }) {
       )}
       {!expiryWarning && expiresLabel && (
         <Text size="1" color="gray" as="div" mt="1">
-          Valide jusqu'au {expiresLabel}
+          Valide jusqu&apos;au {expiresLabel}
         </Text>
       )}
       {!isAnthropicCost && low && !expiryWarning && (
@@ -121,7 +121,7 @@ function StatCard({
         {total}
       </Text>
       <Text size="1" color="gray" as="div">
-        +{today} aujourd'hui
+        +{today} aujourd&apos;hui
       </Text>
     </Card>
   )
@@ -177,7 +177,7 @@ export default async function DashboardPage() {
                 Abonnement expirant dans moins de 7 jours
               </Text>
               <Text size="2" color="orange">
-                Renouvelez l'abonnement iProxy ou BrowserUse pour éviter toute coupure.
+                Renouvelez l&apos;abonnement iProxy ou BrowserUse pour éviter toute coupure.
               </Text>
             </Box>
           </Flex>

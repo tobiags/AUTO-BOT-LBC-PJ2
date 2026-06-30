@@ -8,7 +8,6 @@ import pytest
 from app.models import DatadomeTrustLevel
 from app.services.warm_up import _trust_ge_medium
 
-
 # ── _trust_ge_medium ─────────────────────────────────────────────────────────
 
 @pytest.mark.unit

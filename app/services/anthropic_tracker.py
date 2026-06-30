@@ -6,7 +6,6 @@ Tarifs claude-sonnet-4-6 (en vigueur juin 2026, $/M tokens) :
   input  : $3.00 / M tokens
   output : $15.00 / M tokens
 """
-import asyncio
 import logging
 from datetime import UTC, datetime
 

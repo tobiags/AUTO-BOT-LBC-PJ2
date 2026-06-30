@@ -50,8 +50,8 @@ def create_account_task(self, mode: str = "A"):
     """WF-01 — création d'un nouveau compte LBC."""
     from app.services.account_creation import (
         AccountCreationError,
-        create_lbc_account,
         ProxyUnavailableError,
+        create_lbc_account,
     )
     try:
         result = _run(create_lbc_account(mode=mode))

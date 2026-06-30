@@ -3,9 +3,10 @@ Polling automatique des soldes services externes.
 Tourne en background toutes les 30 minutes.
 
 Services couverts :
-- iProxy    : GET /api/console/v1/connections/{id} → balance + expires_at du plan
-- BrowserUse: GET /api/v2/billing/account          → totalCreditsBalanceUsd + subscriptionCurrentPeriodEnd
-- Anthropic : pas d'API publique — suivi via tokens dans anthropic_tracker.py
+- iProxy    : GET /api/console/v1/connections/{id} -> balance + expires_at du plan
+- BrowserUse: GET /api/v2/billing/account -> totalCreditsBalanceUsd +
+  subscriptionCurrentPeriodEnd
+- Anthropic : pas d'API publique - suivi via tokens dans anthropic_tracker.py
 """
 import asyncio
 import logging
@@ -62,22 +63,30 @@ async def _upsert_balance(
 
 async def _poll_iproxy(client: httpx.AsyncClient, api_key: str) -> None:
     try:
-        # /me → solde wallet
-        me = (await client.get(
-            "https://iproxy.online/api/console/v1/me",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=10,
-        )).raise_for_status().json()
+        # /me -> solde wallet
+        me = (
+            await client.get(
+                "https://iproxy.online/api/console/v1/me",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+        ).raise_for_status().json()
         balance = float(me.get("balance") or 0)
 
-        # /connections/{id} → date d'expiration du plan actif
-        conn = (await client.get(
-            f"https://iproxy.online/api/console/v1/connections/{_IPROXY_CONN_ID}",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=10,
-        )).raise_for_status().json()
+        # /connections/{id} -> date d'expiration du plan actif
+        conn = (
+            await client.get(
+                f"https://iproxy.online/api/console/v1/connections/{_IPROXY_CONN_ID}",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+        ).raise_for_status().json()
         expires_str = conn.get("plan_info", {}).get("active_plan", {}).get("expires_at")
-        expires_at = datetime.fromisoformat(expires_str.replace("Z", "+00:00")) if expires_str else None
+        expires_at = (
+            datetime.fromisoformat(expires_str.replace("Z", "+00:00"))
+            if expires_str
+            else None
+        )
 
         await _upsert_balance("iproxy", "iProxy SIMs", balance, "USD", 5.0, expires_at)
     except Exception as exc:
@@ -116,8 +125,8 @@ async def _poll_once() -> None:
 
 
 async def start_balance_poller() -> None:
-    """Lance la boucle de polling en arrière-plan."""
-    log.info("Balance poller démarré (intervalle %ds)", _INTERVAL)
+    """Lance la boucle de polling en arriere-plan."""
+    log.info("Balance poller demarre (intervalle %ds)", _INTERVAL)
     await _poll_once()
     while True:
         await asyncio.sleep(_INTERVAL)

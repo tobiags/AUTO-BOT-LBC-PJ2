@@ -110,13 +110,20 @@ async def test_run_campaign_pauses_when_no_sim_quota():
 
     with (
         patch("app.services.campaign_runner.is_within_sms_window", return_value=True),
-        patch("app.services.campaign_runner.get_db", side_effect=[_Ctx(initial_db), _Ctx(final_db)]),
+        patch(
+            "app.services.campaign_runner.get_db",
+            side_effect=[_Ctx(initial_db), _Ctx(final_db)],
+        ),
         patch(
             "app.services.campaign_runner.boundaries.get_sim_list",
             new_callable=AsyncMock,
             return_value=[{"id": "sim_01", "status": "active", "quota_remaining": 0}],
         ),
-        patch("app.services.campaign_runner.is_blacklisted", new_callable=AsyncMock, return_value=False),
+        patch(
+            "app.services.campaign_runner.is_blacklisted",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
     ):
         result = await run_campaign("11111111-1111-1111-1111-111111111111")
 

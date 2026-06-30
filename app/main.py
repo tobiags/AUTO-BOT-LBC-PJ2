@@ -11,8 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import accounts, analyzer, campaigns, dashboard, health, listings
 from app.config import get_settings
 from app.db import engine
-from app.services.balance_poller import start_balance_poller
 from app.schema_sync import ensure_runtime_schema
+from app.services.balance_poller import start_balance_poller
 from app.webhooks import call, debug, email, funds, sms
 from app.ws import ws_manager
 
