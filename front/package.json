@@ -16,6 +16,10 @@
     "react-dom": "^19.0.0",
     "@radix-ui/themes": "^3.2.1"
   },
+  "optionalDependencies": {
+    "@emnapi/core": "1.11.1",
+    "@emnapi/runtime": "1.11.1"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
