@@ -4,7 +4,7 @@ SQLAlchemy ORM tables sont dans app/tables.py.
 """
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -85,27 +85,6 @@ class HealthResponse(BaseModel):
     db: bool
     redis: bool
     ts: int              # unix timestamp
-
-
-class HealthCheckComponent(BaseModel):
-    name: str
-    status: Literal["ok", "degraded", "down", "disabled", "misconfigured"]
-    required: bool = False
-    configured: bool = False
-    latency_ms: int | None = None
-    details: dict[str, Any] = {}
-    error: str | None = None
-
-
-class AdminHealthResponse(BaseModel):
-    status: Literal["ok", "degraded"]
-    env: str
-    app: str
-    version: str
-    ts: int
-    external_checks: bool = False
-    checks: list[HealthCheckComponent]
-    summary: dict[str, int]
 
 
 class ListingOut(BaseModel):
