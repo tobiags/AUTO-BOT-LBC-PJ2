@@ -37,5 +37,4 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN pip install --no-cache-dir .
 
 # Default: migrate then start (Celery worker overrides CMD via Coolify start_command)
-RUN chmod +x scripts/start.sh
-CMD ["scripts/start.sh"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]
