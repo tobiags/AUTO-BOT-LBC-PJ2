@@ -81,7 +81,7 @@ class Settings(BaseSettings):
 
         if self.strict_validation_enabled():
             self._validate_partial_integrations()
-        self._validate_production_requirements()
+            self._validate_production_requirements()
         return self
 
     def _validate_partial_integrations(self) -> None:
