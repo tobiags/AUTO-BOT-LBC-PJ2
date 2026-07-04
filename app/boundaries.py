@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 # ── SMSTOOLS ─────────────────────────────────────────────────────────────────
 
-_SMSTOOLS_BASE = "https://api.smstools.org/v1"
+_SMSTOOLS_BASE = "https://api.smstools.online/v1"
 
 
 class InsufficientCreditError(RuntimeError):
@@ -76,6 +76,7 @@ async def send_sms(sim_id: str, to: str, body: str) -> SmsResult:
                     exc,
                 )
                 await asyncio.sleep(backoff)
+        raise RuntimeError(f"SMSTools: échec envoi après 3 tentatives (SIM {sim_id})")
 
 
 async def get_sim_list() -> list[dict]:
@@ -91,7 +92,7 @@ async def get_sim_list() -> list[dict]:
 
 # ── IPROXY.ONLINE ────────────────────────────────────────────────────────────
 
-_IPROXY_BASE = "https://iproxy.online/api/cn/v1"
+_IPROXY_BASE = "https://iproxy.online/api/console/v1"
 
 
 async def get_4g_proxy() -> ProxyInfo:

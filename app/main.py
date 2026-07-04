@@ -1,8 +1,10 @@
 """
-FastAPI app — AutoTransfert SAS P2 (Acquisition Véhicules).
+FastAPI app - AutoTransfert SAS P2 (Acquisition Vehicules).
 """
 import asyncio
+import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -13,28 +15,36 @@ from app.config import get_settings
 from app.db import engine
 from app.schema_sync import ensure_runtime_schema
 from app.services.balance_poller import start_balance_poller
-from app.webhooks import call, debug, email, funds, sms
+from app.webhooks import call, email, funds, sms
 from app.ws import ws_manager
 
 settings = get_settings()
+log = logging.getLogger(__name__)
+
+
+def validate_startup_or_raise() -> None:
+    Path(settings.sessions_dir).mkdir(parents=True, exist_ok=True)
+    if settings.is_production_like() and not settings.admin_health_token:
+        log.warning("admin_health_token is not configured; admin health endpoint is unprotected")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_startup_or_raise()
     await ensure_runtime_schema()
-    # Polling automatique des soldes iProxy + BrowserUse
     poller_task = asyncio.create_task(start_balance_poller())
-    yield
-    # Shutdown
-    poller_task.cancel()
-    await engine.dispose()
+    try:
+        yield
+    finally:
+        poller_task.cancel()
+        await engine.dispose()
 
 
 if settings.sentry_dsn:
     sentry_sdk.init(dsn=settings.sentry_dsn, environment=settings.env, traces_sample_rate=0.1)
 
 app = FastAPI(
-    title="AutoTransfert P2 — Acquisition Véhicules",
+    title="AutoTransfert P2 - Acquisition Vehicules",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -46,7 +56,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
 app.include_router(health.router)
 app.include_router(accounts.router)
 app.include_router(campaigns.router)
@@ -56,16 +65,14 @@ app.include_router(sms.router)
 app.include_router(email.router)
 app.include_router(call.router)
 app.include_router(funds.router)
-app.include_router(debug.router)
 app.include_router(dashboard.router)
 
 
-# WebSocket — back-office temps réel
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep-alive
+            await websocket.receive_text()
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
