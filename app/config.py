@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     # Pool comptes LBC (règle — minimum à maintenir)
     lbc_accounts_min_active: int = 3
 
+    # Admin health token (optionnel)
+    admin_health_token: str = ""
+
+    def is_production_like(self) -> bool:
+        return self.env in ("production", "staging")
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
