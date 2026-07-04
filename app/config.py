@@ -79,7 +79,7 @@ class Settings(BaseSettings):
         if not self._is_absolute_path(self.sessions_dir):
             raise ValueError("sessions_dir must be an absolute path")
 
-        if self.strict_validation_enabled():
+        if self.strict_startup_validation:
             self._validate_partial_integrations()
             self._validate_production_requirements()
         return self
