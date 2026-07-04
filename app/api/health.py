@@ -1,45 +1,42 @@
 import time
 
-import redis.asyncio as aioredis
-from fastapi import APIRouter
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from app.config import get_settings
-from app.db import engine
-from app.models import HealthResponse
+from app.models import AdminHealthResponse, HealthResponse
+from app.services.integration_health import check_database, check_redis, collect_admin_health
 
 router = APIRouter()
-settings = get_settings()
+
+
+def _require_admin_token(x_admin_health_token: str | None = Header(default=None)) -> None:
+    settings = get_settings()
+    if not settings.admin_health_token:
+        return
+    if x_admin_health_token != settings.admin_health_token:
+        raise HTTPException(status_code=401, detail="Invalid admin health token")
 
 
 @router.get("/health", response_model=HealthResponse, tags=["ops"])
-async def health_check():
+async def health_check() -> HealthResponse:
     """
-    Vérifie la connectivité DB + Redis.
-    Retourne status="ok" si tout est up, "degraded" sinon.
-    Toujours HTTP 200 — le client lit le champ status.
+    Verification minimale pour probes liveness/readiness.
+    Retourne toujours HTTP 200; le client lit le champ status.
     """
-    db_ok = False
-    redis_ok = False
-
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        db_ok = True
-    except Exception:
-        pass
-
-    try:
-        r = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
-        await r.ping()
-        await r.aclose()
-        redis_ok = True
-    except Exception:
-        pass
+    db_check = await check_database()
+    redis_check = await check_redis(get_settings())
 
     return HealthResponse(
-        status="ok" if (db_ok and redis_ok) else "degraded",
-        db=db_ok,
-        redis=redis_ok,
+        status="ok" if (db_check.status == "ok" and redis_check.status == "ok") else "degraded",
+        db=db_check.status == "ok",
+        redis=redis_check.status == "ok",
         ts=int(time.time()),
     )
+
+
+@router.get("/api/v1/admin/health", response_model=AdminHealthResponse, tags=["ops"])
+async def admin_health_check(
+    include_external: bool = Query(default=False),
+    _: None = Depends(_require_admin_token),
+) -> AdminHealthResponse:
+    return await collect_admin_health(include_external=include_external)

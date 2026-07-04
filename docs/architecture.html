@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoTransfert P2 — Architecture Système</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    color: #e0e0f0;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 2.5rem 1rem 1.2rem;
+    position: relative;
+    z-index: 10;
+  }
+
+  header h1 {
+    font-size: clamp(1.3rem, 3vw, 2rem);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(120,200,255,0.5);
+  }
+
+  header p {
+    margin-top: 0.4rem;
+    font-size: 0.78rem;
+    color: #7090a0;
+    letter-spacing: 0.12em;
+  }
+
+  /* ── CANVAS ────────────────────────────────────────────────── */
+  .canvas {
+    width: 100%;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 1rem 1.5rem 3rem;
+    position: relative;
+  }
+
+  /* ── LAYER LABELS ─────────────────────────────────────────── */
+  .layer {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    margin-bottom: 2.4rem;
+  }
+
+  .layer-label {
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+    font-size: 0.6rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #445566;
+    min-width: 1.2rem;
+    padding: 0.5rem 0;
+    border-left: 1px solid #223344;
+    padding-left: 0.3rem;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    align-items: flex-start;
+    flex: 1;
+  }
+
+  /* ── NODE ─────────────────────────────────────────────────── */
+  .node {
+    position: relative;
+    border-radius: 6px;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    cursor: default;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    animation: nodePulse 4s ease-in-out infinite;
+  }
+
+  .node:hover {
+    transform: translateY(-3px) scale(1.04);
+  }
+
+  .node-title {
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .node-sub {
+    font-size: 0.64rem;
+    opacity: 0.65;
+    line-height: 1.4;
+  }
+
+  .icon { font-size: 1rem; }
+
+  /* COLOUR THEMES */
+  .node--blue {
+    background: #0a1525;
+    border: 1px solid #1a4a7a;
+    box-shadow: 0 0 12px rgba(30,100,200,0.25), inset 0 0 20px rgba(10,60,130,0.15);
+    animation-delay: calc(var(--i, 0) * 0.4s);
+  }
+  .node--blue:hover { box-shadow: 0 0 24px rgba(30,140,255,0.5); }
+
+  .node--teal {
+    background: #081a18;
+    border: 1px solid #0f5045;
+    box-shadow: 0 0 12px rgba(10,140,110,0.25), inset 0 0 20px rgba(5,80,60,0.15);
+    animation-delay: calc(var(--i, 0) * 0.4s + 0.2s);
+  }
+  .node--teal:hover { box-shadow: 0 0 24px rgba(10,200,160,0.5); }
+
+  .node--purple {
+    background: #130a22;
+    border: 1px solid #4a1a7a;
+    box-shadow: 0 0 12px rgba(120,40,200,0.25), inset 0 0 20px rgba(80,20,140,0.15);
+    animation-delay: calc(var(--i, 0) * 0.4s + 0.6s);
+  }
+  .node--purple:hover { box-shadow: 0 0 24px rgba(160,80,255,0.5); }
+
+  .node--orange {
+    background: #1a0f05;
+    border: 1px solid #6a3010;
+    box-shadow: 0 0 12px rgba(200,100,20,0.25), inset 0 0 20px rgba(140,60,10,0.15);
+    animation-delay: calc(var(--i, 0) * 0.4s + 0.8s);
+  }
+  .node--orange:hover { box-shadow: 0 0 24px rgba(255,140,40,0.5); }
+
+  .node--red {
+    background: #1a0808;
+    border: 1px solid #7a1515;
+    box-shadow: 0 0 12px rgba(200,30,30,0.25), inset 0 0 20px rgba(140,15,15,0.15);
+    animation-delay: calc(var(--i, 0) * 0.4s + 1s);
+  }
+  .node--red:hover { box-shadow: 0 0 24px rgba(255,60,60,0.5); }
+
+  .node--gray {
+    background: #0e0e14;
+    border: 1px solid #2a2a3a;
+    box-shadow: 0 0 8px rgba(80,80,120,0.2);
+  }
+  .node--gray:hover { box-shadow: 0 0 20px rgba(120,120,180,0.4); }
+
+  @keyframes nodePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.88; }
+  }
+
+  /* ── FLOW ARROWS (SVG overlay) ────────────────────────────── */
+  .flow-svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 5;
+  }
+
+  .flow-path {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    animation: dashMove 1.8s linear infinite;
+  }
+
+  .flow-path--blue   { stroke: #2a80ff; }
+  .flow-path--teal   { stroke: #10c090; }
+  .flow-path--purple { stroke: #9040ff; }
+  .flow-path--orange { stroke: #ff8020; }
+
+  @keyframes dashMove {
+    to { stroke-dashoffset: -20; }
+  }
+
+  /* ── CONNECTOR SECTION ────────────────────────────────────── */
+  .connectors {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: center;
+    padding: 0.8rem 0;
+    position: relative;
+  }
+
+  .connector-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.64rem;
+    color: #445566;
+    letter-spacing: 0.08em;
+  }
+
+  .connector-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    animation: dotPulse 1.5s ease-in-out infinite;
+  }
+  .connector-dot--blue   { background: #2a80ff; box-shadow: 0 0 6px #2a80ff; }
+  .connector-dot--teal   { background: #10c090; box-shadow: 0 0 6px #10c090; }
+  .connector-dot--purple { background: #9040ff; box-shadow: 0 0 6px #9040ff; }
+  .connector-dot--orange { background: #ff8020; box-shadow: 0 0 6px #ff8020; }
+  .connector-dot--red    { background: #ff4040; box-shadow: 0 0 6px #ff4040; }
+
+  @keyframes dotPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.6); opacity: 0.6; }
+  }
+
+  /* ── FLOW SECTION (between layers) ───────────────────────── */
+  .flow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    padding: 0.6rem 0 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  .flow-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.62rem;
+    color: #607080;
+    letter-spacing: 0.1em;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid #1a2a3a;
+    border-radius: 20px;
+    background: #080c12;
+  }
+
+  .arrow-down {
+    display: flex;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: #223344;
+    animation: arrowBlink 2s ease-in-out infinite;
+    padding: 0.1rem 0;
+  }
+
+  @keyframes arrowBlink {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; color: #4488aa; }
+  }
+
+  /* ── LEGEND ──────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1.5rem 0 0.5rem;
+    border-top: 1px solid #151525;
+    margin-top: 1rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.62rem;
+    color: #607080;
+  }
+
+  .legend-line {
+    width: 24px;
+    height: 2px;
+    border-top: 2px dashed;
+    animation: dashMove 1.8s linear infinite;
+  }
+  .legend-line--blue   { border-color: #2a80ff; }
+  .legend-line--teal   { border-color: #10c090; }
+  .legend-line--orange { border-color: #ff8020; }
+  .legend-line--purple { border-color: #9040ff; }
+
+  /* ── PARTICLE DOTS ───────────────────────────────────────── */
+  .particle {
+    position: absolute;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    animation: particleFlow 3s ease-in-out infinite;
+  }
+
+  @keyframes particleFlow {
+    0%   { opacity: 0; transform: translate(0, 0); }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)); }
+  }
+
+  /* ── BADGE COUNT ─────────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    font-size: 0.55rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    vertical-align: middle;
+  }
+
+  .badge--teal   { background: #0f5045; color: #10c090; }
+  .badge--blue   { background: #1a3a6a; color: #60b0ff; }
+  .badge--orange { background: #5a2508; color: #ff9040; }
+  .badge--red    { background: #5a1010; color: #ff6060; }
+
+  /* ── NODE GROUP ──────────────────────────────────────────── */
+  .node-group {
+    border: 1px solid #1a2030;
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem 0.8rem;
+    background: #080c14;
+    position: relative;
+  }
+
+  .node-group-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #445566;
+    margin-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .node-group-label::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 1px;
+    background: #334455;
+  }
+
+  .node-group .nodes { gap: 0.6rem; }
+
+  /* ── RESPONSIVE ──────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .layer { flex-direction: column; }
+    .layer-label { writing-mode: horizontal-tb; transform: none; min-width: auto; border-left: none; border-top: 1px solid #223344; padding: 0.2rem 0; }
+    .node { font-size: 0.68rem; padding: 0.5rem 0.7rem; }
+  }
+
+  /* ── GLOW SWEEP ──────────────────────────────────────────── */
+  @keyframes glowSweep {
+    0%   { box-shadow: 0 0 8px rgba(30,100,200,0.2); }
+    33%  { box-shadow: 0 0 18px rgba(30,200,140,0.3); }
+    66%  { box-shadow: 0 0 18px rgba(140,60,240,0.3); }
+    100% { box-shadow: 0 0 8px rgba(30,100,200,0.2); }
+  }
+
+  .node-group { animation: glowSweep 8s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ AutoTransfert P2 — Architecture Système</h1>
+  <p>Acquisition automatisée de véhicules · FastAPI · Celery · PostgreSQL · Coolify</p>
+</header>
+
+<div class="canvas">
+
+  <!-- ══════════════════════════════════════════════════════════
+       LAYER 0 — SOURCES EXTERNES
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="layer">
+    <div class="layer-label">Sources</div>
+    <div class="nodes">
+
+      <div class="node node--blue" style="--i:0">
+        <div class="node-title"><span class="icon">🏷️</span> LeBonCoin</div>
+        <div class="node-sub">Scraping annonces auto<br>Patchright + 4G Proxy</div>
+      </div>
+
+      <div class="node node--blue" style="--i:1">
+        <div class="node-title"><span class="icon">🚗</span> La Centrale</div>
+        <div class="node-sub">Scraping annonces auto<br>crawl4ai + Scrapling</div>
+      </div>
+
+      <div class="node node--teal" style="--i:2">
+        <div class="node-title"><span class="icon">📡</span> iProxy 4G</div>
+        <div class="node-sub">Proxy mobile FR<br>Rotation IP · iproxy.online</div>
+      </div>
+
+      <div class="node node--orange" style="--i:3">
+        <div class="node-title"><span class="icon">💬</span> SMSTools</div>
+        <div class="node-sub">8 SIMs FR physiques<br>Envoi SMS vendeurs</div>
+      </div>
+
+      <div class="node node--orange" style="--i:4">
+        <div class="node-title"><span class="icon">📲</span> SmsApp.io</div>
+        <div class="node-sub">OTP jetable pay/delivery<br>Création comptes LBC</div>
+      </div>
+
+      <div class="node node--orange" style="--i:5">
+        <div class="node-title"><span class="icon">📧</span> Mailgun</div>
+        <div class="node-sub">Catch-all domaine dédié<br>Webhooks email entrants</div>
+      </div>
+
+      <div class="node node--purple" style="--i:6">
+        <div class="node-title"><span class="icon">🤖</span> Anthropic Claude</div>
+        <div class="node-sub">claude-sonnet-4-6<br>Analyse véhicule IA</div>
+      </div>
+
+      <div class="node node--purple" style="--i:7">
+        <div class="node-title"><span class="icon">🌐</span> BrowserUse Cloud</div>
+        <div class="node-sub">Anti-détection browser<br>Dev tier fallback</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FLOW DOWN -->
+  <div class="flow-row">
+    <div class="flow-badge"><span class="connector-dot connector-dot--blue"></span> scraping HTTPS</div>
+    <div class="flow-badge"><span class="connector-dot connector-dot--teal"></span> proxy 4G FR</div>
+    <div class="flow-badge"><span class="connector-dot connector-dot--orange"></span> SMS / OTP / email</div>
+    <div class="flow-badge"><span class="connector-dot connector-dot--purple"></span> API IA</div>
+  </div>
+  <div class="arrow-down">↓↓↓</div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LAYER 1 — BOUNDARIES (seul point de sortie réseau)
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="layer">
+    <div class="layer-label">Boundaries</div>
+    <div class="nodes">
+      <div class="node-group" style="flex:1;min-width:280px">
+        <div class="node-group-label">app/boundaries.py — seul fichier autorisé à appeler des APIs externes</div>
+        <div class="nodes">
+          <div class="node node--teal" style="--i:0">
+            <div class="node-title"><span class="icon">🔀</span> get_4g_proxy()</div>
+            <div class="node-sub">iProxy /proxy-access<br>ProxyInfo URL retournée</div>
+          </div>
+          <div class="node node--teal" style="--i:1">
+            <div class="node-title"><span class="icon">🔄</span> rotate_4g_ip()</div>
+            <div class="node-sub">iProxy /command-push<br>action: changeip</div>
+          </div>
+          <div class="node node--orange" style="--i:2">
+            <div class="node-title"><span class="icon">📨</span> send_sms()</div>
+            <div class="node-sub">SMSTools /messages<br>retry ×3 · 402=InsufficientCredit</div>
+          </div>
+          <div class="node node--orange" style="--i:3">
+            <div class="node-title"><span class="icon">📋</span> get_sim_list()</div>
+            <div class="node-sub">SMSTools /sims<br>quotas SIM actives</div>
+          </div>
+          <div class="node node--orange" style="--i:4">
+            <div class="node-title"><span class="icon">🔢</span> buy_number() / poll_sms()</div>
+            <div class="node-sub">SmsApp.io OTP<br>poll 120s · cancel si timeout</div>
+          </div>
+          <div class="node node--gray" style="--i:5">
+            <div class="node-title"><span class="icon">✉️</span> generate_email()</div>
+            <div class="node-sub">contact.{hex4}@domain<br>Mailgun catch-all</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓↓↓</div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LAYER 2 — FASTAPI APP
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="layer">
+    <div class="layer-label">FastAPI</div>
+    <div class="nodes">
+
+      <div class="node-group" style="min-width:220px">
+        <div class="node-group-label">API Routes · /api/v1/</div>
+        <div class="nodes">
+          <div class="node node--blue" style="--i:0">
+            <div class="node-title"><span class="icon">📊</span> dashboard</div>
+            <div class="node-sub">DashboardStats<br>balances services</div>
+          </div>
+          <div class="node node--blue" style="--i:1">
+            <div class="node-title"><span class="icon">👤</span> accounts</div>
+            <div class="node-sub">Pool comptes LBC<br>score santé</div>
+          </div>
+          <div class="node node--blue" style="--i:2">
+            <div class="node-title"><span class="icon">📢</span> campaigns</div>
+            <div class="node-sub">SMS direct<br>lbc_message</div>
+          </div>
+          <div class="node node--blue" style="--i:3">
+            <div class="node-title"><span class="icon">🏷️</span> listings</div>
+            <div class="node-sub">Annonces scrapées<br>filtres + pagination</div>
+          </div>
+          <div class="node node--blue" style="--i:4">
+            <div class="node-title"><span class="icon">🔍</span> analyzer</div>
+            <div class="node-sub">Analyse IA véhicule<br>Claude → scoring</div>
+          </div>
+          <div class="node node--gray" style="--i:5">
+            <div class="node-title"><span class="icon">❤️</span> health</div>
+            <div class="node-sub">/health · /admin/health<br>DB + Redis checks</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="node-group" style="min-width:200px">
+        <div class="node-group-label">Webhooks entrants</div>
+        <div class="nodes">
+          <div class="node node--orange" style="--i:0">
+            <div class="node-title"><span class="icon">📩</span> /webhooks/sms</div>
+            <div class="node-sub">INBOX_MESSAGE<br>STOP → blacklist</div>
+          </div>
+          <div class="node node--orange" style="--i:1">
+            <div class="node-title"><span class="icon">📧</span> /webhooks/email</div>
+            <div class="node-sub">Mailgun inbound<br>réponse vendeur</div>
+          </div>
+          <div class="node node--orange" style="--i:2">
+            <div class="node-title"><span class="icon">📞</span> /webhooks/call</div>
+            <div class="node-sub">Appel entrant SIM<br>→ WS broadcast</div>
+          </div>
+          <div class="node node--orange" style="--i:3">
+            <div class="node-title"><span class="icon">💰</span> /webhooks/funds</div>
+            <div class="node-sub">insufficient_funds<br>funds_purchased</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="node node--teal" style="--i:0;align-self:flex-start">
+        <div class="node-title"><span class="icon">⚡</span> WebSocket /ws</div>
+        <div class="node-sub">Dashboard temps réel<br>balance_update · call · alert<br>ws_manager.broadcast()</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓↓↓</div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LAYER 3 — SERVICES MÉTIER
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="layer">
+    <div class="layer-label">Services</div>
+    <div class="nodes">
+
+      <div class="node node--purple" style="--i:0">
+        <div class="node-title"><span class="icon">🔬</span> vehicle_analyzer.py</div>
+        <div class="node-sub">AsyncAnthropic + tool_choice<br>reliability_score 0-100<br>asyncio.create_task(track_usage)</div>
+      </div>
+
+      <div class="node node--blue" style="--i:1">
+        <div class="node-title"><span class="icon">💹</span> balance_poller.py</div>
+        <div class="node-sub">Polling 30 min<br>iProxy · BrowserUse<br>pg_insert upsert → WS</div>
+      </div>
+
+      <div class="node node--purple" style="--i:2">
+        <div class="node-title"><span class="icon">📊</span> anthropic_tracker.py</div>
+        <div class="node-sub">Coût tokens Anthropic<br>upsert service_balance<br>service="anthropic"</div>
+      </div>
+
+      <div class="node node--orange" style="--i:3">
+        <div class="node-title"><span class="icon">📤</span> campaign_runner.py</div>
+        <div class="node-sub">Fenêtre 08h–20h Paris<br>inter-SMS delay calc<br>blacklist check avant envoi</div>
+      </div>
+
+      <div class="node node--gray" style="--i:4">
+        <div class="node-title"><span class="icon">📵</span> blacklist.py</div>
+        <div class="node-sub">STOP keyword → ajout<br>vérifié avant chaque SMS</div>
+      </div>
+
+      <div class="node node--gray" style="--i:5">
+        <div class="node-title"><span class="icon">📱</span> phone_extractor.py</div>
+        <div class="node-sub">Extraction numéro<br>depuis page annonce</div>
+      </div>
+
+      <div class="node node--gray" style="--i:6">
+        <div class="node-title"><span class="icon">🏥</span> integration_health.py</div>
+        <div class="node-sub">check_database()<br>check_redis()<br>collect_admin_health()</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓↓↓</div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LAYER 4 — WORKERS CELERY
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="layer">
+    <div class="layer-label">Workers</div>
+    <div class="nodes">
+
+      <div class="node-group" style="flex:1;min-width:260px">
+        <div class="node-group-label">app/tasks.py — Celery Beat Schedule</div>
+        <div class="nodes">
+          <div class="node node--teal" style="--i:0">
+            <div class="node-title"><span class="icon">🕕</span> scrape_listings</div>
+            <div class="node-sub">Cron 06:00 quotidien<br>LBC + La Centrale<br>asyncio.run(coro) depuis sync</div>
+          </div>
+          <div class="node node--teal" style="--i:1">
+            <div class="node-title"><span class="icon">🔁</span> check_account_pool</div>
+            <div class="node-sub">Toutes les heures<br>Créer comptes si &lt; min_active</div>
+          </div>
+          <div class="node node--orange" style="--i:2">
+            <div class="node-title"><span class="icon">📬</span> run_campaign</div>
+            <div class="node-sub">Déclenché manuellement<br>SMS/lbc_message par batch</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="node node--gray" style="--i:0;align-self:flex-start">
+        <div class="node-title"><span class="icon">⚙️</span> Celery + Redis</div>
+        <div class="node-sub">Broker: redis://…/0<br>Backend: redis://…/1<br>WORKERS=1 (→ Redis multi later)</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓↓↓</div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LAYER 5 — INFRASTRUCTURE
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="layer">
+    <div class="layer-label">Infra</div>
+    <div class="nodes">
+
+      <div class="node node--blue" style="--i:0">
+        <div class="node-title"><span class="icon">🗄️</span> PostgreSQL 16</div>
+        <div class="node-sub">asyncpg + SQLAlchemy 2 async<br>6 tables · Alembic migrations<br>service_balance · listings · campaigns…</div>
+      </div>
+
+      <div class="node node--teal" style="--i:1">
+        <div class="node-title"><span class="icon">⚡</span> Redis</div>
+        <div class="node-sub">Celery broker + backend<br>Cache sessions éventuel</div>
+      </div>
+
+      <div class="node node--gray" style="--i:2">
+        <div class="node-title"><span class="icon">🐳</span> Docker / Coolify</div>
+        <div class="node-sub">VPS OVH · api.ecovente.com<br>start: alembic upgrade head<br>&amp;&amp; uvicorn …</div>
+      </div>
+
+      <div class="node node--red" style="--i:3">
+        <div class="node-title"><span class="icon">🛡️</span> Sentry</div>
+        <div class="node-sub">capture_exception(exc)<br>Low balance alerts<br>traces_sample_rate=0.1</div>
+      </div>
+
+      <div class="node node--gray" style="--i:4">
+        <div class="node-title"><span class="icon">🔐</span> CORS + Auth</div>
+        <div class="node-sub">origins=[] en prod<br>X-Admin-Health-Token<br>smstools_webhook_secret</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       LÉGENDE
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-line legend-line--blue"></div>
+      Flux scraping / données
+    </div>
+    <div class="legend-item">
+      <div class="legend-line legend-line--teal"></div>
+      Flux proxy / polling balances
+    </div>
+    <div class="legend-item">
+      <div class="legend-line legend-line--orange"></div>
+      Flux SMS / Email / OTP
+    </div>
+    <div class="legend-item">
+      <div class="legend-line legend-line--purple"></div>
+      Flux IA / Anthropic
+    </div>
+    <div class="legend-item">
+      <span class="connector-dot connector-dot--red" style="position:static;animation-delay:0.3s"></span>
+      Alerte Sentry (low balance / exception)
+    </div>
+    <div class="legend-item">
+      <span class="connector-dot connector-dot--teal" style="position:static"></span>
+      WebSocket temps réel → Dashboard
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       FLOWS PRINCIPAUX (texte)
+  ═══════════════════════════════════════════════════════════ -->
+  <div style="margin-top:2rem;border-top:1px solid #151525;padding-top:1.5rem">
+    <div style="font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:#445566;margin-bottom:1rem;text-align:center">Flux principaux</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.8rem">
+
+      <div style="background:#080d14;border:1px solid #1a2a3a;border-radius:6px;padding:0.8rem;font-size:0.68rem;line-height:1.8">
+        <div style="color:#2a80ff;font-weight:700;margin-bottom:0.4rem">🔵 Scraping → DB</div>
+        Celery beat (06h) → scraper<br>
+        → boundaries.get_4g_proxy()<br>
+        → Patchright / crawl4ai → LBC<br>
+        → INSERT listing → PostgreSQL
+      </div>
+
+      <div style="background:#080d14;border:1px solid #1a2a3a;border-radius:6px;padding:0.8rem;font-size:0.68rem;line-height:1.8">
+        <div style="color:#ff8020;font-weight:700;margin-bottom:0.4rem">🟠 Campagne SMS</div>
+        POST /campaigns → Celery task<br>
+        → campaign_runner → blacklist check<br>
+        → boundaries.send_sms(sim_id, to, body)<br>
+        → SMSTools /messages → SIM FR → vendeur
+      </div>
+
+      <div style="background:#080d14;border:1px solid #1a2a3a;border-radius:6px;padding:0.8rem;font-size:0.68rem;line-height:1.8">
+        <div style="color:#10c090;font-weight:700;margin-bottom:0.4rem">🟢 Balance Polling</div>
+        FastAPI lifespan → asyncio.create_task()<br>
+        → balance_poller (30 min)<br>
+        → iProxy /me + /connections/{id}<br>
+        → BrowserUse /billing/account<br>
+        → pg_insert upsert → ws broadcast
+      </div>
+
+      <div style="background:#080d14;border:1px solid #1a2a3a;border-radius:6px;padding:0.8rem;font-size:0.68rem;line-height:1.8">
+        <div style="color:#9040ff;font-weight:700;margin-bottom:0.4rem">🟣 Analyse IA Véhicule</div>
+        GET /analyzer/{id} → vehicle_analyzer<br>
+        → AsyncAnthropic().messages.create()<br>
+        → tool_choice="vehicle_analysis_result"<br>
+        → asyncio.create_task(track_usage())<br>
+        → anthropic_tracker → service_balance
+      </div>
+
+      <div style="background:#080d14;border:1px solid #1a2a3a;border-radius:6px;padding:0.8rem;font-size:0.68rem;line-height:1.8">
+        <div style="color:#ff8020;font-weight:700;margin-bottom:0.4rem">🟠 Webhook SMS entrant</div>
+        SMSTools POST /webhooks/sms<br>
+        → SmsToolsWebhookItem (Pydantic)<br>
+        → STOP? → blacklist.add() + désinscription<br>
+        → INBOX_MESSAGE → campaign reply log
+      </div>
+
+      <div style="background:#080d14;border:1px solid #1a2a3a;border-radius:6px;padding:0.8rem;font-size:0.68rem;line-height:1.8">
+        <div style="color:#2a80ff;font-weight:700;margin-bottom:0.4rem">🔵 Création compte LBC</div>
+        boundaries.generate_email()<br>
+        + boundaries.get_4g_proxy() (R07)<br>
+        + boundaries.buy_number() → OTP SmsApp<br>
+        → poll_sms(120s) → code → LBC signup
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /canvas -->
+
+<footer style="text-align:center;padding:1.5rem;font-size:0.6rem;color:#334455;letter-spacing:0.1em">
+  AutoTransfert SAS P2 · api.ecovente.com · Coolify · VPS OVH
+</footer>
+
+</body>
+</html>
