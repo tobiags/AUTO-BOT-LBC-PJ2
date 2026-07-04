@@ -15,12 +15,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('listings', sa.Column('reliability_score', sa.Integer(), nullable=True))
-    op.add_column('listings', sa.Column('known_issues_json', sa.Text(), nullable=True))
-    op.add_column('listings', sa.Column('inspection_tips_json', sa.Text(), nullable=True))
-    op.add_column('listings', sa.Column('negotiation_tip', sa.Text(), nullable=True))
-    op.add_column('sms_log', sa.Column('listing_id', postgresql.UUID(as_uuid=True), nullable=True))
-    op.create_index('ix_sms_log_listing_id', 'sms_log', ['listing_id'])
+    op.execute(sa.text("ALTER TABLE listings ADD COLUMN IF NOT EXISTS reliability_score INTEGER"))
+    op.execute(sa.text("ALTER TABLE listings ADD COLUMN IF NOT EXISTS known_issues_json TEXT"))
+    op.execute(sa.text("ALTER TABLE listings ADD COLUMN IF NOT EXISTS inspection_tips_json TEXT"))
+    op.execute(sa.text("ALTER TABLE listings ADD COLUMN IF NOT EXISTS negotiation_tip TEXT"))
+    op.execute(sa.text("ALTER TABLE sms_log ADD COLUMN IF NOT EXISTS listing_id UUID"))
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_sms_log_listing_id ON sms_log (listing_id)"))
 
 
 def downgrade() -> None:

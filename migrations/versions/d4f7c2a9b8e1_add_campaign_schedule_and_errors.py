@@ -14,8 +14,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("campaigns", sa.Column("scheduled_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("campaigns", sa.Column("last_error", sa.Text(), nullable=True))
+    op.execute(sa.text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ"))
+    op.execute(sa.text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_error TEXT"))
 
 
 def downgrade() -> None:

@@ -15,20 +15,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'service_balance',
-        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('service', sa.String(50), nullable=False),
-        sa.Column('label', sa.String(100), nullable=False),
-        sa.Column('balance', sa.Float, nullable=True),
-        sa.Column('currency', sa.String(10), nullable=False, server_default='EUR'),
-        sa.Column('is_low', sa.Boolean, nullable=False, server_default='false'),
-        sa.Column('low_threshold', sa.Float, nullable=False, server_default='10.0'),
-        sa.Column('last_updated', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('service'),
-    )
+    op.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS service_balance (
+            id UUID NOT NULL,
+            service VARCHAR(50) NOT NULL,
+            label VARCHAR(100) NOT NULL,
+            balance DOUBLE PRECISION,
+            currency VARCHAR(10) NOT NULL DEFAULT 'EUR',
+            is_low BOOLEAN NOT NULL DEFAULT false,
+            low_threshold DOUBLE PRECISION NOT NULL DEFAULT 10.0,
+            last_updated TIMESTAMPTZ,
+            expires_at TIMESTAMPTZ,
+            PRIMARY KEY (id),
+            UNIQUE (service)
+        )
+    """))
 
 
 def downgrade() -> None:
