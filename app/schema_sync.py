@@ -16,6 +16,8 @@ _DDL = [
     "ALTER TABLE sms_log ADD COLUMN IF NOT EXISTS listing_id UUID",
     "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ",
     "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS last_error TEXT",
+    # service_balance existait en prod sans expires_at
+    "ALTER TABLE service_balance ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
 ]
 
 
