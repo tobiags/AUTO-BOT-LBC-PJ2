@@ -30,6 +30,10 @@ def upgrade() -> None:
             UNIQUE (service)
         )
     """))
+    # Si la table existait déjà sans expires_at, on l'ajoute
+    op.execute(sa.text(
+        "ALTER TABLE service_balance ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ"
+    ))
 
 
 def downgrade() -> None:
