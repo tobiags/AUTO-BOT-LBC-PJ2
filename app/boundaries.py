@@ -101,9 +101,12 @@ async def get_4g_proxy() -> ProxyInfo:
     RÈGLE R07 : cette fonction est le seul endroit autorisé pour obtenir
     l'IP 4G. Ne jamais passer l'IP VPS comme proxy LBC.
     """
+    if not settings.iproxy_connection_id:
+        raise ValueError("IPROXY_CONNECTION_ID is required")
+
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
-            f"{_IPROXY_BASE}/proxy-access",
+            f"{_IPROXY_BASE}/connection/{settings.iproxy_connection_id}/proxy-access",
             headers={"Authorization": f"Bearer {settings.iproxy_api_key}"},
         )
         resp.raise_for_status()
@@ -120,9 +123,12 @@ async def get_4g_proxy() -> ProxyInfo:
 
 async def rotate_4g_ip() -> bool:
     """Demande une rotation d'IP — attendre 30–60s avant de réutiliser."""
+    if not settings.iproxy_connection_id:
+        raise ValueError("IPROXY_CONNECTION_ID is required")
+
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            f"{_IPROXY_BASE}/command-push",
+            f"{_IPROXY_BASE}/connection/{settings.iproxy_connection_id}/command-push",
             headers={"Authorization": f"Bearer {settings.iproxy_api_key}"},
             json={"action": "changeip"},
         )

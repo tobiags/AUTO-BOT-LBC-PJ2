@@ -1,4 +1,5 @@
 """Tests unitaires boundaries — couvrent les wrappers API externes."""
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -135,3 +136,82 @@ async def test_send_sms_raises_insufficient_credit_on_402():
     with patch("app.boundaries.httpx.AsyncClient", return_value=client):
         with pytest.raises(boundaries.InsufficientCreditError):
             await boundaries.send_sms("sim_01", "+33612345678", "Bonjour")
+
+
+@pytest.mark.asyncio
+async def test_get_4g_proxy_uses_connection_scoped_endpoint():
+    from app import boundaries
+
+    response = Mock()
+    response.json.return_value = {
+        "proxy_accesses": [{
+            "id": "proxy-7",
+            "auth": {"login": "user", "password": "pass"},
+            "listen_service": "http",
+            "hostname": "proxy.example",
+            "port": 9000,
+        }]
+    }
+    response.raise_for_status.return_value = None
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.get = AsyncMock(return_value=response)
+    settings = SimpleNamespace(
+        iproxy_api_key="api-key",
+        iproxy_connection_id="connection-3",
+        iproxy_proxy_id="proxy-7",
+    )
+
+    with (
+        patch("app.boundaries.httpx.AsyncClient", return_value=client),
+        patch.object(boundaries, "settings", settings),
+    ):
+        proxy = await boundaries.get_4g_proxy()
+
+    client.get.assert_awaited_once_with(
+        "https://iproxy.online/api/console/v1/connection/connection-3/proxy-access",
+        headers={"Authorization": "Bearer api-key"},
+    )
+    assert proxy.url == "http://user:pass@proxy.example:9000"
+
+
+@pytest.mark.asyncio
+async def test_rotate_4g_ip_uses_connection_scoped_endpoint():
+    from app import boundaries
+
+    response = Mock(status_code=200)
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.post = AsyncMock(return_value=response)
+    settings = SimpleNamespace(
+        iproxy_api_key="api-key",
+        iproxy_connection_id="connection-3",
+    )
+
+    with (
+        patch("app.boundaries.httpx.AsyncClient", return_value=client),
+        patch.object(boundaries, "settings", settings),
+    ):
+        assert await boundaries.rotate_4g_ip() is True
+
+    client.post.assert_awaited_once_with(
+        "https://iproxy.online/api/console/v1/connection/connection-3/command-push",
+        headers={"Authorization": "Bearer api-key"},
+        json={"action": "changeip"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_4g_proxy_rejects_missing_connection_id():
+    from app import boundaries
+
+    settings = SimpleNamespace(
+        iproxy_api_key="api-key",
+        iproxy_connection_id="",
+        iproxy_proxy_id="proxy-7",
+    )
+    with patch.object(boundaries, "settings", settings):
+        with pytest.raises(ValueError, match="IPROXY_CONNECTION_ID"):
+            await boundaries.get_4g_proxy()

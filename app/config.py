@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     secret_key: str = "change-me"
+    strict_startup_validation: bool = False
 
     # Database
     database_url: str = "postgresql+asyncpg://autotransfert:password@localhost:5432/autotransfert_p2"
@@ -24,6 +26,7 @@ class Settings(BaseSettings):
 
     # iproxy.online
     iproxy_api_key: str = ""
+    iproxy_connection_id: str = ""
     iproxy_proxy_id: str = ""
 
     # SmsApp.io
@@ -42,7 +45,7 @@ class Settings(BaseSettings):
     browser_use_api_key: str = ""
 
     # Patchright sessions — répertoire des profils persistants
-    sessions_dir: str = "/tmp/lbc_sessions"
+    sessions_dir: str = "runtime/modules/patchright/sessions"
     patchright_channel: str = "chrome"
     patchright_headless: bool = True
     patchright_no_viewport: bool = True
@@ -58,6 +61,39 @@ class Settings(BaseSettings):
 
     # Admin health token (optionnel)
     admin_health_token: str = ""
+
+    @model_validator(mode="after")
+    def validate_startup_settings(self):
+        unsafe_secret = self.secret_key in {"change-me", "change-me-in-production"}
+        if self.is_production_like() and unsafe_secret:
+            raise ValueError("secret_key must be changed in production-like environments")
+
+        if self.strict_startup_validation:
+            self._require_all_or_none(
+                "SMSTools",
+                self.smstools_api_key,
+                self.smstools_webhook_secret,
+            )
+            self._require_all_or_none(
+                "iproxy.online",
+                self.iproxy_api_key,
+                self.iproxy_connection_id,
+                self.iproxy_proxy_id,
+            )
+            self._require_all_or_none(
+                "Mailgun",
+                self.mailgun_api_key,
+                self.mailgun_domain,
+                self.mailgun_webhook_signing_key,
+                self.operational_domain,
+            )
+        return self
+
+    @staticmethod
+    def _require_all_or_none(service: str, *values: str) -> None:
+        configured = [bool(value) for value in values]
+        if any(configured) and not all(configured):
+            raise ValueError(f"{service} configuration is incomplete")
 
     def is_production_like(self) -> bool:
         return self.env in ("production", "staging")
