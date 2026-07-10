@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import '@radix-ui/themes/styles.css'
+import './globals.css'
 import { Theme } from '@radix-ui/themes'
 import { NavLinks } from '@/components/NavLinks'
 
@@ -13,9 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body style={{ margin: 0 }}>
         <Theme accentColor="blue" grayColor="slate" radius="medium" scaling="100%">
-          <div style={{ display: 'flex', minHeight: '100vh' }}>
+          <div className="app-shell">
             <NavLinks />
-            <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>{children}</main>
+            <main className="app-main">{children}</main>
           </div>
         </Theme>
       </body>

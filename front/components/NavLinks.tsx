@@ -1,55 +1,60 @@
 'use client'
-import { Box, Flex, Text } from '@radix-ui/themes'
+
+import { Flex, Text } from '@radix-ui/themes'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Tableau de bord' },
-  { href: '/listings', label: 'Annonces' },
-  { href: '/campaigns', label: 'Campagnes' },
-  { href: '/accounts', label: 'Comptes LBC' },
-  { href: '/analyzer', label: 'Analyste prix' },
+  { href: '/dashboard', label: 'Tableau de bord', compact: 'Dashboard' },
+  { href: '/listings', label: 'Annonces', compact: 'Annonces' },
+  { href: '/campaigns', label: 'Campagnes', compact: 'Campagnes' },
+  { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes' },
+  { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
 ]
 
-export function NavLinks() {
+function NavItem({ href, label }: { href: string; label: string }) {
   const pathname = usePathname()
+  const active = pathname === href
 
   return (
-    <Box
+    <Link
+      href={href}
       style={{
-        width: 220,
-        borderRight: '1px solid var(--gray-4)',
-        padding: '24px 16px',
-        minHeight: '100vh',
+        display: 'block',
         flexShrink: 0,
+        padding: '8px 10px',
+        borderRadius: 6,
+        textDecoration: 'none',
+        whiteSpace: 'nowrap',
+        backgroundColor: active ? 'var(--blue-3)' : 'transparent',
+        color: active ? 'var(--blue-11)' : 'var(--gray-11)',
+        fontSize: 14,
+        fontWeight: active ? 600 : 400,
       }}
     >
-      <Text size="4" weight="bold" as="div" mb="6" color="blue">
-        AutoTransfert
-      </Text>
-      <Flex direction="column" gap="1">
+      {label}
+    </Link>
+  )
+}
+
+export function NavLinks() {
+  return (
+    <>
+      <nav className="desktop-nav" aria-label="Navigation principale">
+        <Text size="4" weight="bold" as="div" mb="6" color="blue">
+          AutoTransfert
+        </Text>
+        <Flex direction="column" gap="1">
+          {NAV_ITEMS.map((item) => (
+            <NavItem key={item.href} href={item.href} label={item.label} />
+          ))}
+        </Flex>
+      </nav>
+      <nav className="mobile-nav" aria-label="Navigation mobile">
         {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                textDecoration: 'none',
-                padding: '8px 12px',
-                borderRadius: 6,
-                backgroundColor: active ? 'var(--blue-3)' : 'transparent',
-                color: active ? 'var(--blue-11)' : 'var(--gray-11)',
-                fontWeight: active ? 600 : 400,
-                fontSize: 14,
-                display: 'block',
-              }}
-            >
-              {item.label}
-            </Link>
-          )
+          return <NavItem key={item.href} href={item.href} label={item.compact} />
         })}
-      </Flex>
-    </Box>
+      </nav>
+    </>
   )
 }

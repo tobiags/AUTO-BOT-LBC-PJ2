@@ -105,6 +105,46 @@ export type ServiceBalance = {
   expires_at: string | null
 }
 
+export type ConnectorState =
+  | 'disabled'
+  | 'unverified'
+  | 'ok'
+  | 'degraded'
+  | 'down'
+  | 'misconfigured'
+
+export type DashboardConnector = {
+  name: string
+  status: ConnectorState
+  configured: boolean
+  latency_ms: number | null
+  last_success_at: string | null
+  last_checked_at: string | null
+  error_code: string | null
+  error_summary: string | null
+  details: Record<string, unknown> | null
+}
+
+export type DashboardActionItem = {
+  code: string
+  severity: 'critical' | 'warning' | 'info'
+  title: string
+  detail: string
+  target: string
+}
+
+export type DashboardWorkflow = {
+  id: string
+  workflow_type: string
+  status: 'PENDING' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+  progress_current: number
+  progress_total: number | null
+  batch_number: number
+  batch_size: number | null
+  last_error: string | null
+  updated_at: string
+}
+
 export type DashboardStats = {
   listings_total: number
   listings_today: number
@@ -118,6 +158,16 @@ export type DashboardStats = {
   accounts_total: number
   campaigns_running: number
   balances: ServiceBalance[]
+  lbc_messages_sent_total: number
+  lbc_messages_sent_today: number
+  lbc_messages_received_total: number
+  lbc_messages_received_today: number
+  phones_extracted_total: number
+  phones_extracted_today: number
+  connectors: DashboardConnector[]
+  actions_required: DashboardActionItem[]
+  workflows: DashboardWorkflow[]
+  generated_at: string
 }
 
 export const api = {

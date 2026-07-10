@@ -14,6 +14,7 @@ import {
   type IncomingCallEvent,
   useBackofficeEvents,
 } from '@/lib/websocket'
+import { ControlTowerOverview } from '@/components/ControlTowerOverview'
 import { IncomingCallAlert } from '@/components/IncomingCallAlert'
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -136,34 +137,6 @@ function CreditCard({ b }: { b: ServiceBalance }) {
   )
 }
 
-function StatCard({
-  label,
-  total,
-  today,
-  icon,
-  alertWhen,
-}: {
-  label: string
-  total: number
-  today: number
-  icon: string
-  alertWhen?: boolean
-}) {
-  return (
-    <Card style={{ flex: 1, minWidth: 160 }}>
-      <Text size="2" color="gray" as="div" mb="1">
-        {icon} {label}
-      </Text>
-      <Text size="7" weight="bold" color={alertWhen ? 'red' : undefined}>
-        {total}
-      </Text>
-      <Text size="1" color="gray" as="div">
-        +{today} aujourd&apos;hui
-      </Text>
-    </Card>
-  )
-}
-
 export function DashboardRealtime({ initialStats }: { initialStats: DashboardStats | null }) {
   const [stats, setStats] = useState(initialStats)
   const [calls, setCalls] = useState<IncomingCallEvent[]>([])
@@ -242,13 +215,7 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
         )}
       </Flex>
 
-      <Text size="3" weight="bold" as="div" mb="2">Activite</Text>
-      <Flex gap="3" wrap="wrap" mb="5">
-        <StatCard label="Annonces collectees" icon="AUTO" total={stats?.listings_total ?? 0} today={stats?.listings_today ?? 0} />
-        <StatCard label="SMS envoyes" icon="SMS" total={stats?.sms_sent_total ?? 0} today={stats?.sms_sent_today ?? 0} />
-        <StatCard label="SMS recus" icon="REP" total={stats?.sms_received_total ?? 0} today={stats?.sms_received_today ?? 0} />
-        <StatCard label="Appels recus" icon="CALL" total={stats?.calls_total ?? 0} today={stats?.calls_today ?? 0} />
-      </Flex>
+      {stats && <ControlTowerOverview stats={stats} />}
 
       <Text size="3" weight="bold" as="div" mb="2">Comptes et campagnes</Text>
       <Flex gap="3" wrap="wrap">
