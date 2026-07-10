@@ -1,7 +1,7 @@
 """Tests campaign_runner - fenetre horaire, blacklist, quotas."""
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -285,6 +285,126 @@ async def test_run_campaign_fails_on_insufficient_credit():
     assert any(
         getattr(value, "value", None) == CampaignStatus.FAILED
         for value in captured_updates[-1]._values.values()
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_campaign_keeps_running_when_more_listings_remain_in_backlog():
+    from app.models import CampaignStatus, ListingStatus, SmsStatus
+    from app.services.campaign_runner import run_campaign
+
+    batch_size = 200
+
+    campaign = SimpleNamespace(
+        id="camp-1",
+        status=CampaignStatus.PENDING,
+        sent=3,
+        failed=1,
+        message_template="Bonjour {title}",
+    )
+    listings = [
+        SimpleNamespace(
+            id=f"listing-{idx}",
+            phone=f"+3360000{idx:04d}",
+            status=ListingStatus.NOUVELLE,
+            title=f"Voiture {idx}",
+            url=f"https://example.com/listing/{idx}",
+        )
+        for idx in range(batch_size + 1)
+    ]
+    captured_updates: list = []
+
+    class _Ctx:
+        def __init__(self, db):
+            self.db = db
+
+        async def __aenter__(self):
+            return self.db
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    initial_db = AsyncMock()
+    initial_db.get = AsyncMock(return_value=campaign)
+    initial_db.flush = AsyncMock()
+    initial_db.execute = AsyncMock(
+        side_effect=[
+            SimpleNamespace(scalar=lambda: 0),
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: listings)),
+        ]
+    )
+
+    write_db = AsyncMock()
+    write_db.add = lambda obj: None
+    write_db.execute = AsyncMock(return_value=SimpleNamespace())
+
+    final_db = AsyncMock()
+
+    async def _capture(stmt):
+        captured_updates.append(stmt)
+        return SimpleNamespace()
+
+    final_db.execute = AsyncMock(side_effect=_capture)
+
+    with (
+        patch("app.services.campaign_runner.is_within_sms_window", return_value=True),
+        patch(
+            "app.services.campaign_runner.get_db",
+            side_effect=[_Ctx(initial_db)]
+            + [_Ctx(write_db) for _ in range(batch_size)]
+            + [_Ctx(final_db)],
+        ),
+        patch(
+            "app.services.campaign_runner.boundaries.get_sim_list",
+            new_callable=AsyncMock,
+            return_value=[
+                {"id": "sim_01", "status": "active", "quota_remaining": batch_size}
+            ],
+        ),
+        patch(
+            "app.services.campaign_runner.is_blacklisted",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "app.services.campaign_runner._compute_inter_sms_delay_seconds",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch("app.services.campaign_runner.asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "app.services.campaign_runner.boundaries.send_sms",
+            new_callable=AsyncMock,
+            return_value=SimpleNamespace(status=SmsStatus.SENT, cost=0.04),
+        ),
+    ):
+        result = await run_campaign("11111111-1111-1111-1111-111111111111")
+
+    assert result == {"status": "running", "sent": batch_size, "failed": 0}
+    assert any(
+        getattr(value, "value", None) == CampaignStatus.RUNNING
+        for value in captured_updates[-1]._values.values()
+    )
+    update_params = captured_updates[-1].compile().params
+    assert update_params["sent"] == campaign.sent + batch_size
+    assert update_params["failed"] == campaign.failed
+
+
+def test_run_campaign_task_requeues_next_backlog_batch():
+    from app.tasks import run_campaign_task
+
+    result = {"status": "running", "sent": 200, "failed": 0}
+
+    with (
+        patch("app.services.campaign_runner.run_campaign", new=Mock(return_value=result)),
+        patch("app.tasks._run", return_value=result),
+        patch("app.tasks.run_campaign_task.apply_async") as apply_async,
+    ):
+        returned = run_campaign_task.run("11111111-1111-1111-1111-111111111111")
+
+    assert returned == result
+    apply_async.assert_called_once_with(
+        args=["11111111-1111-1111-1111-111111111111"]
     )
 
 

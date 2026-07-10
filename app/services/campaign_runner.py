@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 settings = get_settings()
 PARIS_TZ = ZoneInfo("Europe/Paris")
 STOP_NOTICE = "STOP au {stop_number} pour ne plus recevoir de SMS"
+CAMPAIGN_BATCH_SIZE = 200
 
 
 def is_within_sms_window() -> bool:
@@ -116,6 +117,8 @@ async def run_campaign(campaign_id: str) -> dict:
         campaign.status = CampaignStatus.RUNNING
         campaign.scheduled_at = None
         campaign.last_error = None
+        previous_sent = campaign.sent or 0
+        previous_failed = campaign.failed or 0
         await db.flush()
 
         assigned_count_result = await db.execute(
@@ -130,8 +133,10 @@ async def run_campaign(campaign_id: str) -> dict:
         if has_assigned:
             listing_q = listing_q.where(Listing.campaign_id == campaign_uuid)
 
-        result = await db.execute(listing_q.limit(200))
-        listings = result.scalars().all()
+        result = await db.execute(listing_q.limit(CAMPAIGN_BATCH_SIZE + 1))
+        fetched_listings = result.scalars().all()
+        has_more_backlog = len(fetched_listings) > CAMPAIGN_BATCH_SIZE
+        listings = fetched_listings[:CAMPAIGN_BATCH_SIZE]
 
     sent = 0
     failed = 0
@@ -204,6 +209,9 @@ async def run_campaign(campaign_id: str) -> dict:
     elif paused_for_quota:
         final_status = CampaignStatus.PAUSED
         result_status = "paused"
+    elif has_more_backlog:
+        final_status = CampaignStatus.RUNNING
+        result_status = "running"
     else:
         final_status = CampaignStatus.COMPLETED
         result_status = "completed"
@@ -214,8 +222,8 @@ async def run_campaign(campaign_id: str) -> dict:
             .where(Campaign.id == campaign_uuid)
             .values(
                 status=final_status,
-                sent=sent,
-                failed=failed,
+                sent=previous_sent + sent,
+                failed=previous_failed + failed,
                 scheduled_at=None,
                 last_error=last_error,
             )
