@@ -37,6 +37,10 @@ celery_app.conf.update(
             "task": "app.tasks.check_account_pool_task",
             "schedule": 3600.0,
         },
+        "refresh-connector-status": {
+            "task": "app.tasks.refresh_connector_status_task",
+            "schedule": 60.0,
+        },
     },
 )
 
@@ -77,6 +81,9 @@ def run_campaign_task(self, campaign_id: str):
         eta = datetime.fromisoformat(scheduled_for)
         log.info("Campagne %s requeuee pour %s", campaign_id, scheduled_for)
         run_campaign_task.apply_async(args=[campaign_id], eta=eta)
+    elif result.get("status") == "running":
+        log.info("Campagne %s - lot termine, relance du lot suivant", campaign_id)
+        run_campaign_task.apply_async(args=[campaign_id])
     return result
 
 
@@ -138,3 +145,12 @@ def check_account_pool_task():
         log.info("Pool comptes sous le minimum — déclenchement création Mode A")
         create_account_task.delay(mode="A")
     return {"warmup": warmup_result, "triggered": needs_account}
+
+
+@celery_app.task(name="app.tasks.refresh_connector_status_task")
+def refresh_connector_status_task():
+    """Actualise les checks read-only affiches dans le dashboard."""
+    from app.services.connector_monitor import refresh_connector_statuses
+
+    results = _run(refresh_connector_statuses())
+    return [result.model_dump(mode="json") for result in results]

@@ -109,6 +109,16 @@ class ProxyInfo(BaseModel):
     country: str = "FR"
 
 
+class ConnectorProbeResult(BaseModel):
+    name: str
+    status: ConnectorState
+    configured: bool
+    latency_ms: int | None = None
+    error_code: str | None = None
+    error_summary: str | None = None
+    details: dict[str, Any] | None = None
+
+
 # ── API REQUEST / RESPONSE ─────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):
