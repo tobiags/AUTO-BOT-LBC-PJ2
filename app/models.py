@@ -53,6 +53,37 @@ class CampaignStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class WorkflowStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ConnectorState(StrEnum):
+    DISABLED = "disabled"
+    UNVERIFIED = "unverified"
+    OK = "ok"
+    DEGRADED = "degraded"
+    DOWN = "down"
+    MISCONFIGURED = "misconfigured"
+
+
+class LbcMessageDirection(StrEnum):
+    INBOUND = "inbound"
+    OUTBOUND = "outbound"
+
+
+class LbcMessageStatus(StrEnum):
+    QUEUED = "queued"
+    SENT = "sent"
+    RECEIVED = "received"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
 # ── BOUNDARIES RETURN TYPES ────────────────────────────────────────────────────
 
 class SmsResult(BaseModel):
@@ -85,6 +116,26 @@ class HealthResponse(BaseModel):
     db: bool
     redis: bool
     ts: int              # unix timestamp
+
+
+class HealthCheckComponent(BaseModel):
+    name: str
+    status: str          #  ok | degraded | down | disabled | misconfigured
+    required: bool
+    configured: bool
+    latency_ms: int | None = None
+    error: str | None = None
+
+
+class AdminHealthResponse(BaseModel):
+    status: str
+    env: str
+    app: str
+    version: str
+    ts: int
+    external_checks: bool
+    checks: list[HealthCheckComponent]
+    summary: dict[str, int]
 
 
 class ListingOut(BaseModel):

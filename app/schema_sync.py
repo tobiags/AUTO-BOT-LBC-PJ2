@@ -6,7 +6,7 @@ strictement necessaires de maniere idempotente au demarrage.
 """
 from sqlalchemy import text
 
-from app.db import engine
+from app.db import Base, engine
 
 _DDL = [
     "ALTER TABLE listings ADD COLUMN IF NOT EXISTS reliability_score INTEGER",
@@ -23,5 +23,6 @@ _DDL = [
 
 async def ensure_runtime_schema() -> None:
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
         for statement in _DDL:
             await conn.execute(text(statement))

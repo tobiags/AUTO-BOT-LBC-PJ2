@@ -6,10 +6,12 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Enum,
     Float,
+    ForeignKey,
     Integer,
     LargeBinary,
     String,
@@ -23,10 +25,14 @@ from app.db import Base
 from app.models import (
     AccountStatus,
     CampaignStatus,
+    ConnectorState,
     DatadomeTrustLevel,
+    LbcMessageDirection,
+    LbcMessageStatus,
     ListingSource,
     ListingStatus,
     SmsStatus,
+    WorkflowStatus,
 )
 
 
@@ -178,6 +184,130 @@ class WebhookEvent(Base):
     event_key: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     processed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class WorkflowRun(Base):
+    """Etat persistant d'un workflow pilotable depuis le dashboard."""
+
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    workflow_type: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
+    target_type: Mapped[str | None] = mapped_column(String(50))
+    target_id: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[WorkflowStatus] = mapped_column(
+        Enum(WorkflowStatus, name="workflow_status"),
+        default=WorkflowStatus.PENDING,
+        nullable=False,
+    )
+    progress_current: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    progress_total: Mapped[int | None] = mapped_column(Integer)
+    batch_number: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    batch_size: Mapped[int | None] = mapped_column(Integer)
+    celery_task_id: Mapped[str | None] = mapped_column(String(100))
+    checkpoint: Mapped[dict | None] = mapped_column(JSON)
+    last_error_code: Mapped[str | None] = mapped_column(String(80))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    initiated_by: Mapped[str | None] = mapped_column(String(100))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ConnectorStatus(Base):
+    """Dernier etat verifie d'un connecteur externe."""
+
+    __tablename__ = "connector_status"
+
+    name: Mapped[str] = mapped_column(String(50), primary_key=True)
+    status: Mapped[ConnectorState] = mapped_column(
+        Enum(
+            ConnectorState,
+            name="connector_state",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
+    )
+    configured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    error_summary: Mapped[str | None] = mapped_column(String(300))
+    details: Mapped[dict | None] = mapped_column(JSON)
+
+
+class AuditEvent(Base):
+    """Trace sans secret des commandes operateur."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    actor: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(String(30), nullable=False)
+    action: Mapped[str] = mapped_column(String(80), index=True, nullable=False)
+    target_type: Mapped[str | None] = mapped_column(String(50))
+    target_id: Mapped[str | None] = mapped_column(String(100))
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), index=True)
+    input_summary: Mapped[dict | None] = mapped_column(JSON)
+    result_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    workflow_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_runs.id"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class LbcMessageLog(Base):
+    """Journal minimal des messages LBC sans contenu prive complet."""
+
+    __tablename__ = "lbc_message_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    external_key: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
+    listing_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("listings.id"), index=True
+    )
+    account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("platform_accounts.id"), index=True
+    )
+    direction: Mapped[LbcMessageDirection] = mapped_column(
+        Enum(
+            LbcMessageDirection,
+            name="lbc_message_direction",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
+    )
+    status: Mapped[LbcMessageStatus] = mapped_column(
+        Enum(
+            LbcMessageStatus,
+            name="lbc_message_status",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
+    )
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    preview: Mapped[str | None] = mapped_column(String(160))
+    phone_extracted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
