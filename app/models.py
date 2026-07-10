@@ -288,6 +288,42 @@ class ServiceBalanceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DashboardConnector(BaseModel):
+    name: str
+    status: ConnectorState
+    configured: bool
+    latency_ms: int | None = None
+    last_success_at: datetime | None = None
+    last_checked_at: datetime | None = None
+    error_code: str | None = None
+    error_summary: str | None = None
+    details: dict[str, Any] | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class DashboardActionItem(BaseModel):
+    code: str
+    severity: str
+    title: str
+    detail: str
+    target: str
+
+
+class DashboardWorkflow(BaseModel):
+    id: UUID
+    workflow_type: str
+    status: WorkflowStatus
+    progress_current: int
+    progress_total: int | None
+    batch_number: int
+    batch_size: int | None
+    last_error: str | None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class DashboardStats(BaseModel):
     listings_total: int
     listings_today: int
@@ -301,6 +337,16 @@ class DashboardStats(BaseModel):
     accounts_total: int
     campaigns_running: int
     balances: list[ServiceBalanceOut]
+    lbc_messages_sent_total: int = 0
+    lbc_messages_sent_today: int = 0
+    lbc_messages_received_total: int = 0
+    lbc_messages_received_today: int = 0
+    phones_extracted_total: int = 0
+    phones_extracted_today: int = 0
+    connectors: list[DashboardConnector] = Field(default_factory=list)
+    actions_required: list[DashboardActionItem] = Field(default_factory=list)
+    workflows: list[DashboardWorkflow] = Field(default_factory=list)
+    generated_at: datetime
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────

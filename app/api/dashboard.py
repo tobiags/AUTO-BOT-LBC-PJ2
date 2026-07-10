@@ -8,21 +8,32 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from app.config import get_settings
 from app.db import get_db
 from app.models import (
     AccountStatus,
     BalanceUpdateEvent,
     CampaignStatus,
+    ConnectorState,
+    DashboardActionItem,
+    DashboardConnector,
     DashboardStats,
+    DashboardWorkflow,
+    LbcMessageDirection,
+    LbcMessageStatus,
     ServiceBalanceOut,
+    WorkflowStatus,
 )
 from app.tables import (
     Campaign,
+    ConnectorStatus,
+    LbcMessageLog,
     Listing,
     PlatformAccount,
     ServiceBalance,
     SmsLog,
     WebhookEvent,
+    WorkflowRun,
 )
 from app.ws import ws_manager
 
@@ -40,6 +51,52 @@ _SERVICES_DEFAULT = [
 class BalanceUpdate(BaseModel):
     balance: float
     currency: str = "EUR"
+
+
+def build_action_items(
+    connectors: list[ConnectorStatus],
+    *,
+    accounts_active: int,
+    accounts_minimum: int,
+) -> list[DashboardActionItem]:
+    actions: list[DashboardActionItem] = []
+    for connector in connectors:
+        if connector.status in (
+            ConnectorState.DOWN,
+            ConnectorState.MISCONFIGURED,
+        ):
+            severity = "critical"
+        elif connector.status == ConnectorState.DEGRADED:
+            severity = "warning"
+        else:
+            continue
+
+        code = connector.error_code or connector.status
+        actions.append(
+            DashboardActionItem(
+                code=f"connector.{connector.name}.{code}",
+                severity=severity,
+                title=f"Connecteur {connector.name} indisponible",
+                detail=connector.error_summary or "Verification requise",
+                target=connector.name,
+            )
+        )
+
+    if accounts_active < accounts_minimum:
+        actions.append(
+            DashboardActionItem(
+                code="accounts.pool_below_minimum",
+                severity="warning",
+                title="Pool de comptes insuffisant",
+                detail=(
+                    f"{accounts_active} actifs pour un minimum de "
+                    f"{accounts_minimum}"
+                ),
+                target="accounts",
+            )
+        )
+
+    return sorted(actions, key=lambda item: item.severity != "critical")
 
 
 @router.get("/dashboard", response_model=DashboardStats)
@@ -77,6 +134,45 @@ async def get_dashboard():
             .where(WebhookEvent.source == "sms", WebhookEvent.created_at >= today_start)
         )).scalar() or 0
 
+        # -- Messagerie LBC ---------------------------------------------------
+        lbc_messages_sent_total = (await db.execute(
+            select(func.count()).select_from(LbcMessageLog).where(
+                LbcMessageLog.direction == LbcMessageDirection.OUTBOUND,
+                LbcMessageLog.status == LbcMessageStatus.SENT,
+            )
+        )).scalar() or 0
+        lbc_messages_sent_today = (await db.execute(
+            select(func.count()).select_from(LbcMessageLog).where(
+                LbcMessageLog.direction == LbcMessageDirection.OUTBOUND,
+                LbcMessageLog.status == LbcMessageStatus.SENT,
+                LbcMessageLog.created_at >= today_start,
+            )
+        )).scalar() or 0
+        lbc_messages_received_total = (await db.execute(
+            select(func.count()).select_from(LbcMessageLog).where(
+                LbcMessageLog.direction == LbcMessageDirection.INBOUND,
+                LbcMessageLog.status == LbcMessageStatus.RECEIVED,
+            )
+        )).scalar() or 0
+        lbc_messages_received_today = (await db.execute(
+            select(func.count()).select_from(LbcMessageLog).where(
+                LbcMessageLog.direction == LbcMessageDirection.INBOUND,
+                LbcMessageLog.status == LbcMessageStatus.RECEIVED,
+                LbcMessageLog.created_at >= today_start,
+            )
+        )).scalar() or 0
+        phones_extracted_total = (await db.execute(
+            select(func.count()).select_from(LbcMessageLog).where(
+                LbcMessageLog.phone_extracted.is_(True)
+            )
+        )).scalar() or 0
+        phones_extracted_today = (await db.execute(
+            select(func.count()).select_from(LbcMessageLog).where(
+                LbcMessageLog.phone_extracted.is_(True),
+                LbcMessageLog.created_at >= today_start,
+            )
+        )).scalar() or 0
+
         # ── Comptes ──────────────────────────────────────────────────────────
         accounts_total = (
             await db.execute(select(func.count()).select_from(PlatformAccount))
@@ -93,6 +189,34 @@ async def get_dashboard():
                 Campaign.status == CampaignStatus.RUNNING
             )
         )).scalar() or 0
+
+        connector_rows = (
+            await db.execute(select(ConnectorStatus).order_by(ConnectorStatus.name))
+        ).scalars().all()
+        workflow_rows = (
+            await db.execute(
+                select(WorkflowRun)
+                .where(WorkflowRun.status.in_([
+                    WorkflowStatus.PENDING,
+                    WorkflowStatus.RUNNING,
+                    WorkflowStatus.PAUSED,
+                    WorkflowStatus.FAILED,
+                ]))
+                .order_by(WorkflowRun.updated_at.desc())
+                .limit(10)
+            )
+        ).scalars().all()
+        connectors = [
+            DashboardConnector.model_validate(row) for row in connector_rows
+        ]
+        workflows = [
+            DashboardWorkflow.model_validate(row) for row in workflow_rows
+        ]
+        actions_required = build_action_items(
+            connector_rows,
+            accounts_active=accounts_active,
+            accounts_minimum=get_settings().lbc_accounts_min_active,
+        )
 
         # ── Soldes services ──────────────────────────────────────────────────
         existing = (await db.execute(select(ServiceBalance))).scalars().all()
@@ -126,6 +250,16 @@ async def get_dashboard():
         accounts_total=accounts_total,
         campaigns_running=campaigns_running,
         balances=balances,
+        lbc_messages_sent_total=lbc_messages_sent_total,
+        lbc_messages_sent_today=lbc_messages_sent_today,
+        lbc_messages_received_total=lbc_messages_received_total,
+        lbc_messages_received_today=lbc_messages_received_today,
+        phones_extracted_total=phones_extracted_total,
+        phones_extracted_today=phones_extracted_today,
+        connectors=connectors,
+        actions_required=actions_required,
+        workflows=workflows,
+        generated_at=datetime.now(UTC),
     )
 
 
