@@ -71,19 +71,20 @@ def create_account_task(self, mode: str = "A"):
 
 
 @celery_app.task(name="app.tasks.run_campaign_task", bind=True)
-def run_campaign_task(self, campaign_id: str):
+def run_campaign_task(self, campaign_id: str, workflow_id: str | None = None):
     """WF-02 — exécution d'une campagne SMS."""
     from app.services.campaign_runner import run_campaign
 
-    result = _run(run_campaign(campaign_id))
+    result = _run(run_campaign(campaign_id, workflow_id))
+    task_args = [campaign_id, workflow_id] if workflow_id else [campaign_id]
     scheduled_for = result.get("scheduled_for")
     if result.get("status") == "deferred" and scheduled_for:
         eta = datetime.fromisoformat(scheduled_for)
         log.info("Campagne %s requeuee pour %s", campaign_id, scheduled_for)
-        run_campaign_task.apply_async(args=[campaign_id], eta=eta)
+        run_campaign_task.apply_async(args=task_args, eta=eta)
     elif result.get("status") == "running":
         log.info("Campagne %s - lot termine, relance du lot suivant", campaign_id)
-        run_campaign_task.apply_async(args=[campaign_id])
+        run_campaign_task.apply_async(args=task_args)
     return result
 
 

@@ -1,6 +1,6 @@
 import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
 
-import { CampaignStartButton } from '@/components/CampaignStartButton'
+import { CampaignControls } from '@/components/CampaignControls'
 import { api, type Campaign } from '@/lib/api'
 
 export const revalidate = 0
@@ -11,6 +11,7 @@ const STATUS_COLOR: Record<string, 'blue' | 'green' | 'orange' | 'gray' | 'red'>
   PAUSED: 'orange',
   COMPLETED: 'blue',
   FAILED: 'red',
+  CANCELLED: 'gray',
 }
 
 function formatDateTime(value: string | null) {
@@ -94,13 +95,7 @@ export default async function CampaignsPage() {
                   </Text>
                 </Table.Cell>
                 <Table.Cell>
-                  {campaign.status === 'PENDING' ? (
-                    <CampaignStartButton campaignId={campaign.id} />
-                  ) : (
-                    <Text size="1" color="gray">
-                      Aucune action
-                    </Text>
-                  )}
+                  <CampaignControls campaignId={campaign.id} status={campaign.status} />
                 </Table.Cell>
               </Table.Row>
             ))

@@ -51,6 +51,7 @@ class CampaignStatus(StrEnum):
     PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 class WorkflowStatus(StrEnum):
@@ -389,6 +390,18 @@ class BrowserUseTaskView(BaseModel):
     last_error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class CampaignCommandRequest(BaseModel):
+    action: Literal["start", "pause", "resume", "cancel", "retry"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class CampaignCommandResponse(BaseModel):
+    campaign_id: UUID
+    workflow_id: UUID | None
+    status: CampaignStatus
+    action: str
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────

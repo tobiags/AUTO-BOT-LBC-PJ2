@@ -17,7 +17,13 @@ export type AccountStatus =
   | 'RALENTI'
   | 'BLOQUÉ'
   | 'QUARANTAINE'
-export type CampaignStatus = 'PENDING' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'FAILED'
+export type CampaignStatus =
+  | 'PENDING'
+  | 'RUNNING'
+  | 'PAUSED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
 export type DatadomeTrustLevel = 'LOW' | 'MEDIUM' | 'HIGH'
 
 export type Listing = {

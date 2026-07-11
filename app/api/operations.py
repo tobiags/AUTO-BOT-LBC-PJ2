@@ -9,6 +9,8 @@ from app.models import (
     BrowserUseTaskCreated,
     BrowserUseTaskRequest,
     BrowserUseTaskView,
+    CampaignCommandRequest,
+    CampaignCommandResponse,
     ConnectorCommandRequest,
     ConnectorCommandResponse,
 )
@@ -17,6 +19,7 @@ from app.services.browser_use_workflows import (
     list_browser_use_workflows,
     stop_browser_use_workflow,
 )
+from app.services.campaign_control import execute_campaign_command
 from app.services.operations import execute_connector_command
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
@@ -127,4 +130,32 @@ async def stop_browser_use_task(
         raise HTTPException(
             status_code=502,
             detail={"code": "BROWSER_USE_STOP_FAILED", "message": str(exc)[:300]},
+        ) from exc
+
+
+@router.post(
+    "/campaigns/{campaign_id}/commands", response_model=CampaignCommandResponse
+)
+async def campaign_command(
+    campaign_id: UUID,
+    command: CampaignCommandRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    try:
+        return await execute_campaign_command(
+            campaign_id=campaign_id,
+            action=command.action,
+            idempotency_key=command.idempotency_key,
+            actor=x_operator_id[:100],
+            role=role,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "CAMPAIGN_NOT_FOUND"}) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "INVALID_CAMPAIGN_TRANSITION", "message": str(exc)},
         ) from exc
