@@ -17,6 +17,7 @@ import {
 import { ControlTowerOverview } from '@/components/ControlTowerOverview'
 import { IncomingCallAlert } from '@/components/IncomingCallAlert'
 import { DashboardRefreshButton } from '@/components/DashboardRefreshButton'
+import { CampaignCreateControl } from '@/components/CampaignCreateControl'
 
 const SERVICE_ICONS: Record<string, string> = {
   smstools: 'SMS',
@@ -183,6 +184,8 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
       </Flex>
 
       <IncomingCallAlert calls={calls} connected={connected} />
+
+      <CampaignCreateControl />
 
       {anyLowBalance && (
         <Card mb="3" style={{ background: 'var(--red-2)', border: '1px solid var(--red-6)' }}>

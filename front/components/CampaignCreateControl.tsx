@@ -9,6 +9,11 @@ export function CampaignCreateControl() {
   const router = useRouter()
   const [type, setType] = useState('lbc_message')
   const [messageTemplate, setMessageTemplate] = useState('Bonjour, votre vehicule est-il toujours disponible ?')
+  const [brandModel, setBrandModel] = useState('')
+  const [vehicleType, setVehicleType] = useState('')
+  const [region, setRegion] = useState('')
+  const [budgetMin, setBudgetMin] = useState('')
+  const [budgetMax, setBudgetMax] = useState('')
   const [quota, setQuota] = useState(15)
   const [pending, setPending] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -21,7 +26,18 @@ export function CampaignCreateControl() {
       const response = await fetch('/api/operations/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, message_template: messageTemplate, quota_per_sim: quota }),
+        body: JSON.stringify({
+          type,
+          message_template: messageTemplate,
+          quota_per_sim: quota,
+          search_criteria: {
+            brand_model: brandModel || null,
+            vehicle_type: vehicleType || null,
+            region: region || null,
+            budget_min: budgetMin ? Number(budgetMin) : null,
+            budget_max: budgetMax ? Number(budgetMax) : null,
+          },
+        }),
       })
       if (!response.ok) throw new Error('Creation de campagne impossible')
       setFeedback('Campagne creee. Elle traitera les annonces eligibles par lots apres demarrage.')
@@ -37,6 +53,53 @@ export function CampaignCreateControl() {
     <Box mb="5" p="3" style={{ border: '1px solid var(--gray-5)' }}>
       <form onSubmit={submit}>
         <Flex gap="3" wrap="wrap" align="end">
+          <Box style={{ flex: 1, minWidth: 210 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Marque / modele</Text>
+            <TextField.Root
+              value={brandModel}
+              onChange={(event) => setBrandModel(event.target.value)}
+              placeholder="Renault Clio"
+              aria-label="Marque et modele"
+            />
+          </Box>
+          <Box style={{ flex: 1, minWidth: 180 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Type de vehicule</Text>
+            <TextField.Root
+              value={vehicleType}
+              onChange={(event) => setVehicleType(event.target.value)}
+              placeholder="Citadine, SUV..."
+              aria-label="Type de vehicule"
+            />
+          </Box>
+          <Box style={{ flex: 1, minWidth: 180 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Region ou departement</Text>
+            <TextField.Root
+              value={region}
+              onChange={(event) => setRegion(event.target.value)}
+              placeholder="Ile-de-France ou 75"
+              aria-label="Region ou departement"
+            />
+          </Box>
+          <Box style={{ width: 130 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Budget minimum</Text>
+            <TextField.Root
+              type="number"
+              min="0"
+              value={budgetMin}
+              onChange={(event) => setBudgetMin(event.target.value)}
+              aria-label="Budget minimum"
+            />
+          </Box>
+          <Box style={{ width: 130 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Budget maximum</Text>
+            <TextField.Root
+              type="number"
+              min="0"
+              value={budgetMax}
+              onChange={(event) => setBudgetMax(event.target.value)}
+              aria-label="Budget maximum"
+            />
+          </Box>
           <Box>
             <Text size="2" weight="bold" as="div" mb="1">Canal</Text>
             <Select.Root value={type} onValueChange={setType}>
@@ -48,8 +111,13 @@ export function CampaignCreateControl() {
             </Select.Root>
           </Box>
           <Box style={{ flex: 1, minWidth: 280 }}>
-            <Text size="2" weight="bold" as="div" mb="1">Message</Text>
-            <TextArea required value={messageTemplate} onChange={(event) => setMessageTemplate(event.target.value)} />
+            <Text size="2" weight="bold" as="div" mb="1">Message a envoyer</Text>
+            <TextArea
+              required
+              value={messageTemplate}
+              onChange={(event) => setMessageTemplate(event.target.value)}
+              aria-label="Message a envoyer"
+            />
           </Box>
           <Box style={{ width: 110 }}>
             <Text size="2" weight="bold" as="div" mb="1">Quota</Text>

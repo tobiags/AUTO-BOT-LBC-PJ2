@@ -136,12 +136,20 @@ async def test_operator_can_create_audited_campaign(client):
                 "type": "lbc_message",
                 "message_template": "Bonjour",
                 "quota_per_sim": 15,
+                "search_criteria": {
+                    "brand_model": "Renault Clio",
+                    "vehicle_type": "Citadine",
+                    "region": "75",
+                    "budget_min": 3000,
+                    "budget_max": 9000,
+                },
                 "idempotency_key": "campaign-create-001",
             },
         )
 
     assert response.status_code == 201
     create_campaign.assert_awaited_once()
+    assert create_campaign.call_args.kwargs["search_criteria"].brand_model == "Renault Clio"
 
 
 @pytest.mark.asyncio

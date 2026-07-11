@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 import phonenumbers
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import get_settings
@@ -16,6 +16,7 @@ from app.models import (
     LbcMessageStatus,
     LbcMessageView,
     ListingSource,
+    VehicleSearchCriteria,
     WorkflowStatus,
 )
 from app.services.browser_use_cloud import BrowserUseCloudClient
@@ -86,6 +87,7 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
         )
         if assigned:
             eligible = eligible.where(Listing.campaign_id == campaign_uuid)
+        eligible = _apply_vehicle_criteria(eligible, campaign.search_criteria or {})
         listings = (await db.scalars(eligible.limit(LBC_MESSAGE_BATCH_SIZE + 1))).all()
         has_more = len(listings) > LBC_MESSAGE_BATCH_SIZE
         listings = listings[:LBC_MESSAGE_BATCH_SIZE]
@@ -170,6 +172,27 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
         if workflow.status in {WorkflowStatus.COMPLETED, WorkflowStatus.CANCELLED}:
             workflow.finished_at = datetime.now(UTC)
     return {"status": final_status.value.lower(), "sent": sent, "failed": failed}
+
+
+def _apply_vehicle_criteria(query, raw_criteria: dict):
+    criteria = VehicleSearchCriteria.model_validate(raw_criteria)
+    if criteria.brand_model:
+        for term in criteria.brand_model.split():
+            pattern = f"%{term}%"
+            query = query.where(or_(
+                Listing.title.ilike(pattern),
+                Listing.make.ilike(pattern),
+                Listing.model.ilike(pattern),
+            ))
+    if criteria.vehicle_type:
+        query = query.where(Listing.title.ilike(f"%{criteria.vehicle_type}%"))
+    if criteria.region:
+        query = query.where(Listing.location.ilike(f"%{criteria.region}%"))
+    if criteria.budget_min is not None:
+        query = query.where(Listing.price >= criteria.budget_min)
+    if criteria.budget_max is not None:
+        query = query.where(Listing.price <= criteria.budget_max)
+    return query
 
 
 async def sync_lbc_inbox(workflow_id: str | None = None) -> dict:

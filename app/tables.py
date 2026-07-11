@@ -149,6 +149,7 @@ class Campaign(Base):
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     message_template: Mapped[str] = mapped_column(Text, nullable=False)
     quota_per_sim: Mapped[int] = mapped_column(Integer, default=15)
+    search_criteria: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     status: Mapped[str] = mapped_column(
         Enum(CampaignStatus, name="campaign_status"), default=CampaignStatus.PENDING
     )

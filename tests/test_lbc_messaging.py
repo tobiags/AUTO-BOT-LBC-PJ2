@@ -14,3 +14,32 @@ def test_message_key_is_stable_across_retries():
 
     assert first == second
     assert first.startswith("outbound:")
+
+
+def test_vehicle_criteria_validate_budget_and_keep_search_terms():
+    from app.models import VehicleSearchCriteria
+
+    criteria = VehicleSearchCriteria(
+        brand_model="Renault Clio",
+        vehicle_type="Citadine",
+        region="75",
+        budget_min=3000,
+        budget_max=9000,
+    )
+
+    assert criteria.model_dump(exclude_none=True) == {
+        "brand_model": "Renault Clio",
+        "vehicle_type": "Citadine",
+        "region": "75",
+        "budget_min": 3000,
+        "budget_max": 9000,
+    }
+
+
+def test_vehicle_criteria_reject_inverted_budget():
+    import pytest
+
+    from app.models import VehicleSearchCriteria
+
+    with pytest.raises(ValueError, match="budget_min"):
+        VehicleSearchCriteria(budget_min=9000, budget_max=3000)

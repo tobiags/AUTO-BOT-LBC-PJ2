@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 # ── ENUMS ─────────────────────────────────────────────────────────────────────
 
@@ -410,10 +410,26 @@ class CampaignCommandRequest(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=100)
 
 
+class VehicleSearchCriteria(BaseModel):
+    brand_model: str | None = Field(default=None, max_length=120)
+    vehicle_type: str | None = Field(default=None, max_length=80)
+    region: str | None = Field(default=None, max_length=120)
+    budget_min: int | None = Field(default=None, ge=0, le=2_000_000)
+    budget_max: int | None = Field(default=None, ge=0, le=2_000_000)
+
+    @model_validator(mode="after")
+    def validate_budget(self):
+        if self.budget_min is not None and self.budget_max is not None:
+            if self.budget_min > self.budget_max:
+                raise ValueError("budget_min must be less than or equal to budget_max")
+        return self
+
+
 class CampaignCreateCommand(BaseModel):
     type: Literal["sms_direct", "lbc_message"]
     message_template: str = Field(min_length=1, max_length=2000)
     quota_per_sim: int = Field(15, ge=1, le=60)
+    search_criteria: VehicleSearchCriteria = Field(default_factory=VehicleSearchCriteria)
     idempotency_key: str = Field(min_length=8, max_length=100)
 
 

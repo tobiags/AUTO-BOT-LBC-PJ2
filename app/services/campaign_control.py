@@ -4,7 +4,13 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.db import get_db
-from app.models import CampaignCommandResponse, CampaignOut, CampaignStatus, WorkflowStatus
+from app.models import (
+    CampaignCommandResponse,
+    CampaignOut,
+    CampaignStatus,
+    VehicleSearchCriteria,
+    WorkflowStatus,
+)
 from app.tables import AuditEvent, Campaign, WorkflowRun
 
 _TRANSITIONS = {
@@ -20,6 +26,7 @@ _TRANSITIONS = {
 
 async def create_controlled_campaign(
     *, campaign_type: str, message_template: str, quota_per_sim: int,
+    search_criteria: VehicleSearchCriteria,
     idempotency_key: str, actor: str, role: str,
 ) -> CampaignOut:
     async with get_db() as db:
@@ -34,6 +41,7 @@ async def create_controlled_campaign(
             type=campaign_type,
             message_template=message_template,
             quota_per_sim=quota_per_sim,
+            search_criteria=search_criteria.model_dump(exclude_none=True),
         )
         db.add(campaign)
         await db.flush()
@@ -44,7 +52,11 @@ async def create_controlled_campaign(
             target_type="campaign",
             target_id=str(campaign.id),
             idempotency_key=idempotency_key,
-            input_summary={"type": campaign_type, "quota_per_sim": quota_per_sim},
+            input_summary={
+                "type": campaign_type,
+                "quota_per_sim": quota_per_sim,
+                "search_criteria": search_criteria.model_dump(exclude_none=True),
+            },
             result_status="created",
         ))
         return CampaignOut.model_validate(campaign)

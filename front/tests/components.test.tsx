@@ -4,7 +4,12 @@ import userEvent from '@testing-library/user-event'
 import { Theme } from '@radix-ui/themes'
 import { AnalyzeListingButton } from '@/components/AnalyzeListingButton'
 import { CampaignStartButton } from '@/components/CampaignStartButton'
+import { CampaignCreateControl } from '@/components/CampaignCreateControl'
 import { PriceScoreBadge } from '@/components/PriceScoreBadge'
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}))
 
 function Wrap({ children }: { children: React.ReactNode }) {
   return <Theme>{children}</Theme>
@@ -53,6 +58,24 @@ describe('CampaignStartButton', () => {
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('CampaignCreateControl', () => {
+  it('expose les criteres automobiles de recherche', () => {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as typeof ResizeObserver
+    render(<Wrap><CampaignCreateControl /></Wrap>)
+
+    expect(screen.getByLabelText(/marque.*modele/i)).toBeTruthy()
+    expect(screen.getByLabelText(/type de vehicule/i)).toBeTruthy()
+    expect(screen.getByLabelText(/region ou departement/i)).toBeTruthy()
+    expect(screen.getByLabelText(/budget minimum/i)).toBeTruthy()
+    expect(screen.getByLabelText(/budget maximum/i)).toBeTruthy()
+    expect(screen.getByLabelText(/message/i)).toBeTruthy()
   })
 })
 
