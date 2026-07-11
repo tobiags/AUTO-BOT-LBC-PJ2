@@ -4,6 +4,7 @@ import { Flex, Text } from '@radix-ui/themes'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogoutButton } from './LogoutButton'
+import { OperatorStatus } from './OperatorStatus'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Tableau de bord', compact: 'Dashboard' },
@@ -57,6 +58,7 @@ export function NavLinks() {
             <NavItem key={item.href} href={item.href} label={item.label} />
           ))}
         </Flex>
+        <OperatorStatus />
         <LogoutButton />
       </nav>
       <nav className="mobile-nav" aria-label="Navigation mobile">

@@ -74,6 +74,20 @@ export function ControlTowerOverview({ stats }: { stats: DashboardStats }) {
         ))}
       </Grid>
 
+      <Text size="3" weight="bold" as="div" mb="2">Performance</Text>
+      <Grid columns={{ initial: '1', xs: '3' }} gap="3" mb="5">
+        {[
+          ['Reponse LBC', stats.lbc_response_rate ?? 0],
+          ['Extraction telephone', stats.phone_extraction_rate ?? 0],
+          ['Reponse SMS', stats.sms_response_rate ?? 0],
+        ].map(([label, value]) => (
+          <Box key={label as string} p="3" style={{ border: '1px solid var(--gray-5)' }}>
+            <Text size="2" color="gray" as="div">{label}</Text>
+            <Text size="5" weight="bold">{Number(value).toFixed(1)}%</Text>
+          </Box>
+        ))}
+      </Grid>
+
       <Text size="3" weight="bold" as="div" mb="2">Workflows</Text>
       <Box mb="5" style={{ borderTop: '1px solid var(--gray-5)' }}>
         {workflows.length === 0 && (

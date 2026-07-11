@@ -38,7 +38,11 @@ from app.services.workflow_control import command_workflow, list_workflows
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
 
 
-def _authorize(token: str | None, role: str) -> Literal["operator", "admin"]:
+def _authorize(
+    token: str | None,
+    role: str,
+    minimum: Literal["viewer", "operator", "admin"] = "operator",
+) -> Literal["viewer", "operator", "admin"]:
     expected = get_settings().control_tower_token
     if not expected:
         raise HTTPException(
@@ -46,8 +50,11 @@ def _authorize(token: str | None, role: str) -> Literal["operator", "admin"]:
         )
     if token is None or not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED"})
-    if role not in {"operator", "admin"}:
+    if role not in {"viewer", "operator", "admin"}:
         raise HTTPException(status_code=403, detail={"code": "INVALID_ROLE"})
+    rank = {"viewer": 0, "operator": 1, "admin": 2}
+    if rank[role] < rank[minimum]:
+        raise HTTPException(status_code=403, detail={"code": "INSUFFICIENT_ROLE"})
     return role
 
 
@@ -97,7 +104,7 @@ async def browser_use_tasks(
     x_control_tower_token: Annotated[str | None, Header()] = None,
     x_operator_role: Annotated[str, Header()] = "operator",
 ):
-    _authorize(x_control_tower_token, x_operator_role)
+    _authorize(x_control_tower_token, x_operator_role, "viewer")
     return await list_browser_use_workflows()
 
 
@@ -182,7 +189,7 @@ async def lab_runs(
     x_control_tower_token: Annotated[str | None, Header()] = None,
     x_operator_role: Annotated[str, Header()] = "operator",
 ):
-    _authorize(x_control_tower_token, x_operator_role)
+    _authorize(x_control_tower_token, x_operator_role, "viewer")
     return await list_lab_runs()
 
 
@@ -194,6 +201,8 @@ async def start_lab_run(
     x_operator_id: Annotated[str, Header()] = "dashboard",
 ):
     role = _authorize(x_control_tower_token, x_operator_role)
+    if role != "admin":
+        raise HTTPException(status_code=403, detail={"code": "ADMIN_REQUIRED"})
     try:
         return await create_lab_run(
             engine=request.engine,
@@ -214,7 +223,7 @@ async def stop_lab_run(
     x_control_tower_token: Annotated[str | None, Header()] = None,
     x_operator_role: Annotated[str, Header()] = "operator",
 ):
-    _authorize(x_control_tower_token, x_operator_role)
+    _authorize(x_control_tower_token, x_operator_role, "admin")
     try:
         return await cancel_lab_run(workflow_id)
     except LookupError as exc:
@@ -226,7 +235,7 @@ async def messaging_history(
     x_control_tower_token: Annotated[str | None, Header()] = None,
     x_operator_role: Annotated[str, Header()] = "operator",
 ):
-    _authorize(x_control_tower_token, x_operator_role)
+    _authorize(x_control_tower_token, x_operator_role, "viewer")
     return await list_lbc_messages()
 
 
@@ -297,7 +306,7 @@ async def workflow_history(
     x_control_tower_token: Annotated[str | None, Header()] = None,
     x_operator_role: Annotated[str, Header()] = "operator",
 ):
-    _authorize(x_control_tower_token, x_operator_role)
+    _authorize(x_control_tower_token, x_operator_role, "viewer")
     return await list_workflows()
 
 

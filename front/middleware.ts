@@ -7,7 +7,19 @@ export async function middleware(request: NextRequest) {
     request.cookies.get('control_session')?.value,
     controlSessionSecret(),
   )
-  if (session) return NextResponse.next()
+  if (session) {
+    if (
+      request.nextUrl.pathname.startsWith('/api/operations')
+      && session.role === 'viewer'
+      && request.method !== 'GET'
+    ) {
+      return NextResponse.json({ error: 'Role operateur requis' }, { status: 403 })
+    }
+    const headers = new Headers(request.headers)
+    headers.set('x-control-role', session.role)
+    headers.set('x-control-user', session.sub)
+    return NextResponse.next({ request: { headers } })
+  }
   if (request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
   }

@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { controlApiHeaders } from '@/lib/control-api'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ workflowId: string }> },
 ) {
   const { workflowId } = await context.params
@@ -11,11 +12,7 @@ export async function POST(
     `${API_URL}/api/v1/operations/browser-use/tasks/${encodeURIComponent(workflowId)}/stop`,
     {
       method: 'POST',
-      headers: {
-        'X-Control-Tower-Token': process.env.CONTROL_TOWER_TOKEN ?? '',
-        'X-Operator-Role': 'operator',
-        'X-Operator-Id': 'dashboard',
-      },
+      headers: controlApiHeaders(request),
       cache: 'no-store',
     },
   )

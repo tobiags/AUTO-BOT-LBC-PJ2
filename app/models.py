@@ -338,6 +338,10 @@ class DashboardStats(BaseModel):
     sms_received_today: int
     accounts_active: int
     accounts_total: int
+    accounts_warming: int = 0
+    accounts_slowed: int = 0
+    accounts_blocked: int = 0
+    accounts_quarantined: int = 0
     campaigns_running: int
     balances: list[ServiceBalanceOut]
     lbc_messages_sent_total: int = 0
@@ -346,6 +350,9 @@ class DashboardStats(BaseModel):
     lbc_messages_received_today: int = 0
     phones_extracted_total: int = 0
     phones_extracted_today: int = 0
+    phone_extraction_rate: float = 0
+    sms_response_rate: float = 0
+    lbc_response_rate: float = 0
     connectors: list[DashboardConnector] = Field(default_factory=list)
     actions_required: list[DashboardActionItem] = Field(default_factory=list)
     workflows: list[DashboardWorkflow] = Field(default_factory=list)

@@ -13,20 +13,37 @@ function constantTimeEqual(left: string, right: string): boolean {
 
 export async function POST(request: NextRequest) {
   const { username, password } = await request.json()
-  const expectedUser = process.env.CONTROL_TOWER_ADMIN_USER ?? 'admin'
-  const expectedPassword = process.env.CONTROL_TOWER_ADMIN_PASSWORD ?? ''
   const secret = controlSessionSecret()
-  if (!expectedPassword || !secret) {
+  const users = [
+    {
+      username: process.env.CONTROL_TOWER_ADMIN_USER ?? 'admin',
+      password: process.env.CONTROL_TOWER_ADMIN_PASSWORD ?? '',
+      role: 'admin' as const,
+    },
+    {
+      username: process.env.CONTROL_TOWER_OPERATOR_USER ?? 'operator',
+      password: process.env.CONTROL_TOWER_OPERATOR_PASSWORD ?? '',
+      role: 'operator' as const,
+    },
+    {
+      username: process.env.CONTROL_TOWER_VIEWER_USER ?? 'viewer',
+      password: process.env.CONTROL_TOWER_VIEWER_PASSWORD ?? '',
+      role: 'viewer' as const,
+    },
+  ]
+  if (!users.some((user) => user.password) || !secret) {
     return NextResponse.json({ error: 'Authentification non configuree' }, { status: 503 })
   }
-  if (
-    !constantTimeEqual(String(username), expectedUser)
-    || !constantTimeEqual(String(password), expectedPassword)
-  ) {
+  const user = users.find((candidate) => (
+    candidate.password
+    && constantTimeEqual(String(username), candidate.username)
+    && constantTimeEqual(String(password), candidate.password)
+  ))
+  if (!user) {
     return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 })
   }
-  const token = await createControlSession(expectedUser, 'admin', secret)
-  const response = NextResponse.json({ ok: true, role: 'admin' })
+  const token = await createControlSession(user.username, user.role, secret)
+  const response = NextResponse.json({ ok: true, role: user.role })
   response.cookies.set('control_session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

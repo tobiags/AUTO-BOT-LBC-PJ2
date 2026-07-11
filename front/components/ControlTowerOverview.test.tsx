@@ -16,6 +16,10 @@ const stats = {
   sms_received_today: 3,
   accounts_active: 2,
   accounts_total: 3,
+  accounts_warming: 1,
+  accounts_slowed: 0,
+  accounts_blocked: 0,
+  accounts_quarantined: 0,
   campaigns_running: 1,
   balances: [],
   lbc_messages_sent_total: 318,
@@ -24,6 +28,9 @@ const stats = {
   lbc_messages_received_today: 7,
   phones_extracted_total: 94,
   phones_extracted_today: 5,
+  phone_extraction_rate: 89.5,
+  sms_response_rate: 11.1,
+  lbc_response_rate: 33,
   connectors: [{
     name: 'iproxy',
     status: 'misconfigured',
@@ -52,6 +59,7 @@ describe('ControlTowerOverview', () => {
 
     expect(screen.getByText('Messages LBC envoyes')).toBeTruthy()
     expect(screen.getByText('Numeros extraits')).toBeTruthy()
+    expect(screen.getByText('89.5%')).toBeTruthy()
     expect(screen.getByText('Connecteur iproxy indisponible')).toBeTruthy()
     expect(screen.getAllByText('HTTP_401')).toHaveLength(2)
   })

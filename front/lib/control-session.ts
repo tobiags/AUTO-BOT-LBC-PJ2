@@ -1,4 +1,4 @@
-export type ControlRole = 'operator' | 'admin'
+export type ControlRole = 'viewer' | 'operator' | 'admin'
 
 export type ControlSession = {
   sub: string
@@ -66,7 +66,7 @@ export async function verifyControlSession(
       new TextDecoder().decode(decodeBase64url(payload)),
     ) as ControlSession
     if (session.exp <= Math.floor(Date.now() / 1000)) return null
-    if (!['operator', 'admin'].includes(session.role)) return null
+    if (!['viewer', 'operator', 'admin'].includes(session.role)) return null
     return session
   } catch {
     return null

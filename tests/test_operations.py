@@ -63,3 +63,43 @@ async def test_connector_probe_dispatches_typed_command(client):
     assert response.status_code == 200
     execute.assert_awaited_once()
     assert response.json()["detail"] == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_viewer_can_read_workflow_history(client):
+    with (
+        patch("app.api.operations.get_settings") as settings,
+        patch(
+            "app.api.operations.list_workflows",
+            new_callable=AsyncMock,
+        ) as list_history,
+    ):
+        settings.return_value.control_tower_token = "secret-token"
+        list_history.return_value = []
+        response = await client.get(
+            "/api/v1/operations/workflows",
+            headers={
+                "X-Control-Tower-Token": "secret-token",
+                "X-Operator-Role": "viewer",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_run_connector_command(client):
+    with patch("app.api.operations.get_settings") as settings:
+        settings.return_value.control_tower_token = "secret-token"
+        response = await client.post(
+            "/api/v1/operations/connectors/iproxy/commands",
+            headers={
+                "X-Control-Tower-Token": "secret-token",
+                "X-Operator-Role": "viewer",
+            },
+            json={"action": "probe", "idempotency_key": "probe-viewer"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "INSUFFICIENT_ROLE"

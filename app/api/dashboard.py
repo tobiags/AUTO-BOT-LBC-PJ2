@@ -182,6 +182,13 @@ async def get_dashboard():
                 PlatformAccount.status.in_([AccountStatus.ACTIF, AccountStatus.EN_CHAUFFE])
             )
         )).scalar() or 0
+        account_status_counts = dict((await db.execute(
+            select(PlatformAccount.status, func.count()).group_by(PlatformAccount.status)
+        )).all())
+        accounts_warming = account_status_counts.get(AccountStatus.EN_CHAUFFE, 0)
+        accounts_slowed = account_status_counts.get(AccountStatus.RALENTI, 0)
+        accounts_blocked = account_status_counts.get(AccountStatus.BLOQUE, 0)
+        accounts_quarantined = account_status_counts.get(AccountStatus.QUARANTAINE, 0)
 
         # ── Campagnes ────────────────────────────────────────────────────────
         campaigns_running = (await db.execute(
@@ -248,6 +255,10 @@ async def get_dashboard():
         sms_received_today=sms_received_today,
         accounts_active=accounts_active,
         accounts_total=accounts_total,
+        accounts_warming=accounts_warming,
+        accounts_slowed=accounts_slowed,
+        accounts_blocked=accounts_blocked,
+        accounts_quarantined=accounts_quarantined,
         campaigns_running=campaigns_running,
         balances=balances,
         lbc_messages_sent_total=lbc_messages_sent_total,
@@ -256,6 +267,15 @@ async def get_dashboard():
         lbc_messages_received_today=lbc_messages_received_today,
         phones_extracted_total=phones_extracted_total,
         phones_extracted_today=phones_extracted_today,
+        phone_extraction_rate=(
+            phones_extracted_total / lbc_messages_received_total * 100
+            if lbc_messages_received_total else 0
+        ),
+        sms_response_rate=(sms_received_total / sms_total * 100 if sms_total else 0),
+        lbc_response_rate=(
+            lbc_messages_received_total / lbc_messages_sent_total * 100
+            if lbc_messages_sent_total else 0
+        ),
         connectors=connectors,
         actions_required=actions_required,
         workflows=workflows,

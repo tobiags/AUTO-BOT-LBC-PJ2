@@ -164,6 +164,10 @@ export type DashboardStats = {
   sms_received_today: number
   accounts_active: number
   accounts_total: number
+  accounts_warming: number
+  accounts_slowed: number
+  accounts_blocked: number
+  accounts_quarantined: number
   campaigns_running: number
   balances: ServiceBalance[]
   lbc_messages_sent_total: number
@@ -172,6 +176,9 @@ export type DashboardStats = {
   lbc_messages_received_today: number
   phones_extracted_total: number
   phones_extracted_today: number
+  phone_extraction_rate: number
+  sms_response_rate: number
+  lbc_response_rate: number
   connectors: DashboardConnector[]
   actions_required: DashboardActionItem[]
   workflows: DashboardWorkflow[]
