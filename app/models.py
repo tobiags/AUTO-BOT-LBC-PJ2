@@ -417,6 +417,10 @@ class CampaignCreateCommand(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=100)
 
 
+class AnalyzerCommandRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
 class CampaignCommandResponse(BaseModel):
     campaign_id: UUID
     workflow_id: UUID | None

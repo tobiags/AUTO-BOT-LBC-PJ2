@@ -9,6 +9,7 @@ from app.models import (
     AccountCommandRequest,
     AccountCommandResponse,
     AccountCreateCommandRequest,
+    AnalyzerCommandRequest,
     BrowserUseTaskCreated,
     BrowserUseTaskRequest,
     BrowserUseTaskView,
@@ -26,6 +27,7 @@ from app.models import (
     WorkflowRunView,
 )
 from app.services.account_control import create_account_command, execute_account_command
+from app.services.analyzer_control import queue_listing_analysis
 from app.services.browser_use_workflows import (
     create_browser_use_workflow,
     list_browser_use_workflows,
@@ -38,6 +40,26 @@ from app.services.operations import execute_connector_command
 from app.services.workflow_control import command_workflow, list_workflows
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
+
+
+@router.post("/analyzer/listings/{listing_id}", response_model=WorkflowRunView)
+async def analyze_listing_command(
+    listing_id: UUID,
+    command: AnalyzerCommandRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    try:
+        return await queue_listing_analysis(
+            listing_id=listing_id,
+            idempotency_key=command.idempotency_key,
+            actor=x_operator_id[:100],
+            role=role,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "LISTING_NOT_FOUND"}) from exc
 
 
 def _authorize(

@@ -95,6 +95,7 @@ export const handlers = [
   http.get(`${BASE}/analyzer/stats`, () => HttpResponse.json(mockAnalyzerStats)),
   http.get(`${BASE}/analyzer/results`, () => HttpResponse.json([mockAnalyzerResult])),
   http.post(`${BASE}/analyzer/run/:id`, () => HttpResponse.json({ ok: true })),
+  http.post('/api/operations/analyzer/listings/:id', () => HttpResponse.json({ status: 'PENDING' })),
   http.post(`${BASE}/analyzer/run/batch`, () => HttpResponse.json({ ok: true })),
 ]
 

@@ -142,3 +142,46 @@ async def test_operator_can_create_audited_campaign(client):
 
     assert response.status_code == 201
     create_campaign.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_operator_can_queue_audited_listing_analysis(client):
+    with (
+        patch("app.api.operations.get_settings") as settings,
+        patch(
+            "app.api.operations.queue_listing_analysis",
+            new_callable=AsyncMock,
+        ) as queue_analysis,
+    ):
+        settings.return_value.control_tower_token = "secret-token"
+        queue_analysis.return_value = {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "workflow_type": "analyzer.listing",
+            "target_type": "listing",
+            "target_id": "22222222-2222-2222-2222-222222222222",
+            "status": "PENDING",
+            "progress_current": 0,
+            "progress_total": 1,
+            "batch_number": 0,
+            "batch_size": 1,
+            "checkpoint": None,
+            "last_error_code": None,
+            "last_error": None,
+            "initiated_by": "tests",
+            "started_at": None,
+            "finished_at": None,
+            "created_at": "2026-07-11T12:00:00Z",
+            "updated_at": "2026-07-11T12:00:00Z",
+        }
+        response = await client.post(
+            "/api/v1/operations/analyzer/listings/22222222-2222-2222-2222-222222222222",
+            headers={
+                "X-Control-Tower-Token": "secret-token",
+                "X-Operator-Role": "operator",
+                "X-Operator-Id": "tests",
+            },
+            json={"idempotency_key": "analyzer-listing-001"},
+        )
+
+    assert response.status_code == 200
+    queue_analysis.assert_awaited_once()
