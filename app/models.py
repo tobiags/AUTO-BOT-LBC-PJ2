@@ -210,6 +210,7 @@ class CampaignOut(BaseModel):
     failed: int = 0
     scheduled_at: datetime | None = None
     last_error: str | None = None
+    search_criteria: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -52,6 +52,13 @@ export const mockCampaign: Campaign = {
   failed: 1,
   scheduled_at: null,
   last_error: null,
+  search_criteria: {
+    brand_model: null,
+    vehicle_type: null,
+    region: null,
+    budget_min: null,
+    budget_max: null,
+  },
   created_at: '2026-06-15T00:00:00Z',
 }
 

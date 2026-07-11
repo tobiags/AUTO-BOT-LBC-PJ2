@@ -72,6 +72,15 @@ export default async function CampaignsPage() {
                   <Text weight="bold" style={{ fontFamily: 'monospace', fontSize: 12 }}>
                     {campaign.type}
                   </Text>
+                  {campaign.search_criteria && (
+                    <Text size="1" color="gray" as="div">
+                      {campaign.search_criteria.brand_model || 'Tous modeles'}
+                      {' / '}{campaign.search_criteria.vehicle_type || 'Tous types'}
+                      {' / '}{campaign.search_criteria.region || 'Toutes regions'}
+                      {' / '}{campaign.search_criteria.budget_min ?? 0}
+                      {'-' }{campaign.search_criteria.budget_max ?? 'sans plafond'} EUR
+                    </Text>
+                  )}
                 </Table.Cell>
                 <Table.Cell>
                   <Badge color={STATUS_COLOR[campaign.status] ?? 'gray'}>{campaign.status}</Badge>

@@ -123,6 +123,13 @@ async def test_operator_can_create_audited_campaign(client):
             "failed": 0,
             "scheduled_at": None,
             "last_error": None,
+            "search_criteria": {
+                "brand_model": "Renault Clio",
+                "vehicle_type": "Citadine",
+                "region": "75",
+                "budget_min": 3000,
+                "budget_max": 9000,
+            },
             "created_at": "2026-07-11T12:00:00Z",
         }
         response = await client.post(
