@@ -36,5 +36,19 @@ services:
       timeout: 3s
       retries: 5
 
+  experimental_lab:
+    build:
+      context: .
+      dockerfile: lab/Dockerfile
+    profiles: ["lab"]
+    environment:
+      LAB_API_TOKEN: ${LAB_API_TOKEN:-change-me}
+      LAB_ALLOWED_DOMAINS: ${LAB_ALLOWED_DOMAINS:-leboncoin.fr,www.leboncoin.fr}
+    ports:
+      - "8010:8010"
+    volumes:
+      - lab_reports:/runtime/reports
+
 volumes:
   postgres_data:
+  lab_reports:

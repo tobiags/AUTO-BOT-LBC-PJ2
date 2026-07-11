@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     # Experimental engines remain isolated and opt-in.
     camoufox_enabled: bool = False
     obscura_enabled: bool = False
+    lab_service_url: str = "http://experimental_lab:8010"
+    lab_api_token: str = ""
 
     # Patchright sessions — répertoire des profils persistants
     sessions_dir: str = "runtime/modules/patchright/sessions"

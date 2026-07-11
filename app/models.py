@@ -404,6 +404,23 @@ class CampaignCommandResponse(BaseModel):
     action: str
 
 
+class LabRunRequest(BaseModel):
+    engine: Literal["camoufox", "obscura", "both"]
+    target_url: HttpUrl
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class LabRunView(BaseModel):
+    workflow_id: UUID
+    engine: str
+    target_url: str | None
+    status: WorkflowStatus
+    result: dict[str, Any] = Field(default_factory=dict)
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────
 
 class IncomingCallEvent(BaseModel):

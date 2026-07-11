@@ -178,3 +178,12 @@ def run_browser_use_task(
         ))
     except (httpx.TimeoutException, httpx.NetworkError) as exc:
         raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+
+
+@celery_app.task(name="app.tasks.run_experimental_lab_task")
+def run_experimental_lab_task(workflow_id: str, engine: str, target_url: str):
+    from uuid import UUID
+
+    from app.services.experimental_lab import execute_lab_run
+
+    return _run(execute_lab_run(UUID(workflow_id), engine, target_url))

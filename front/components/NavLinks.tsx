@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
   { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs' },
   { href: '/browser-use', label: 'Browser Use', compact: 'Browser Use' },
+  { href: '/lab', label: 'Laboratoire', compact: 'Lab' },
 ]
 
 function NavItem({ href, label }: { href: string; label: string }) {

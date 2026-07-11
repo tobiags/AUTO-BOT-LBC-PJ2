@@ -25,6 +25,7 @@ export const config = {
     '/analyzer/:path*',
     '/connectors/:path*',
     '/browser-use/:path*',
+    '/lab/:path*',
     '/api/operations/:path*',
   ],
 }

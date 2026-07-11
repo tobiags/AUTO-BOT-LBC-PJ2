@@ -13,6 +13,8 @@ from app.models import (
     CampaignCommandResponse,
     ConnectorCommandRequest,
     ConnectorCommandResponse,
+    LabRunRequest,
+    LabRunView,
 )
 from app.services.browser_use_workflows import (
     create_browser_use_workflow,
@@ -20,6 +22,7 @@ from app.services.browser_use_workflows import (
     stop_browser_use_workflow,
 )
 from app.services.campaign_control import execute_campaign_command
+from app.services.experimental_lab import cancel_lab_run, create_lab_run, list_lab_runs
 from app.services.operations import execute_connector_command
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
@@ -162,3 +165,47 @@ async def campaign_command(
             status_code=409,
             detail={"code": "INVALID_CAMPAIGN_TRANSITION", "message": str(exc)},
         ) from exc
+
+
+@router.get("/lab/runs", response_model=list[LabRunView])
+async def lab_runs(
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+):
+    _authorize(x_control_tower_token, x_operator_role)
+    return await list_lab_runs()
+
+
+@router.post("/lab/runs", response_model=LabRunView)
+async def start_lab_run(
+    request: LabRunRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    try:
+        return await create_lab_run(
+            engine=request.engine,
+            target_url=str(request.target_url),
+            idempotency_key=request.idempotency_key,
+            actor=x_operator_id[:100],
+            role=role,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "LAB_RUN_REJECTED", "message": str(exc)}
+        ) from exc
+
+
+@router.post("/lab/runs/{workflow_id}/stop", response_model=LabRunView)
+async def stop_lab_run(
+    workflow_id: UUID,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+):
+    _authorize(x_control_tower_token, x_operator_role)
+    try:
+        return await cancel_lab_run(workflow_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "LAB_RUN_NOT_FOUND"}) from exc
