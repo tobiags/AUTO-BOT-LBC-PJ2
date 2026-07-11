@@ -7,6 +7,7 @@ import { LogoutButton } from './LogoutButton'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Tableau de bord', compact: 'Dashboard' },
+  { href: '/workflows', label: 'Workflows', compact: 'Workflows' },
   { href: '/listings', label: 'Annonces', compact: 'Annonces' },
   { href: '/campaigns', label: 'Campagnes', compact: 'Campagnes' },
   { href: '/messaging', label: 'Messagerie LBC', compact: 'Messages' },

@@ -20,6 +20,8 @@ from app.models import (
     LabRunRequest,
     LabRunView,
     LbcMessageView,
+    WorkflowCommandRequest,
+    WorkflowRunView,
 )
 from app.services.account_control import create_account_command, execute_account_command
 from app.services.browser_use_workflows import (
@@ -31,6 +33,7 @@ from app.services.campaign_control import execute_campaign_command
 from app.services.experimental_lab import cancel_lab_run, create_lab_run, list_lab_runs
 from app.services.lbc_messaging import list_lbc_messages, queue_inbox_sync
 from app.services.operations import execute_connector_command
+from app.services.workflow_control import command_workflow, list_workflows
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
 
@@ -286,4 +289,39 @@ async def account_operation(
         raise HTTPException(
             status_code=409,
             detail={"code": "INVALID_ACCOUNT_COMMAND", "message": str(exc)},
+        ) from exc
+
+
+@router.get("/workflows", response_model=list[WorkflowRunView])
+async def workflow_history(
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+):
+    _authorize(x_control_tower_token, x_operator_role)
+    return await list_workflows()
+
+
+@router.post("/workflows/{workflow_id}/commands", response_model=WorkflowRunView)
+async def workflow_operation(
+    workflow_id: UUID,
+    command: WorkflowCommandRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    try:
+        return await command_workflow(
+            workflow_id=workflow_id,
+            action=command.action,
+            idempotency_key=command.idempotency_key,
+            actor=x_operator_id[:100],
+            role=role,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "WORKFLOW_NOT_FOUND"}) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "INVALID_WORKFLOW_COMMAND", "message": str(exc)},
         ) from exc

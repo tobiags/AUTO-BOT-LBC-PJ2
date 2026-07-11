@@ -459,6 +459,33 @@ class AccountCommandResponse(BaseModel):
     status: str
 
 
+class WorkflowRunView(BaseModel):
+    id: UUID
+    workflow_type: str
+    target_type: str | None
+    target_id: str | None
+    status: WorkflowStatus
+    progress_current: int
+    progress_total: int | None
+    batch_number: int
+    batch_size: int | None
+    checkpoint: dict[str, Any] | None
+    last_error_code: str | None
+    last_error: str | None
+    initiated_by: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowCommandRequest(BaseModel):
+    action: Literal["pause", "resume", "cancel", "retry"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────
 
 class IncomingCallEvent(BaseModel):
