@@ -56,12 +56,13 @@ export default async function AccountsPage() {
             <Table.ColumnHeaderCell>Quota</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Erreurs 24h</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>DataDome</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Browser Use</Table.ColumnHeaderCell>
           </Table.Row>
         </Table.Header>
         <Table.Body>
           {accounts.length === 0 ? (
             <Table.Row>
-              <Table.Cell colSpan={6}>
+              <Table.Cell colSpan={7}>
                 <Text color="gray">Aucun compte dans le pool</Text>
               </Table.Cell>
             </Table.Row>
@@ -99,6 +100,15 @@ export default async function AccountsPage() {
                 <Table.Cell>
                   <Badge color={TRUST_COLOR[a.datadome_trust_level] ?? 'gray'}>
                     {a.datadome_trust_level}
+                  </Badge>
+                </Table.Cell>
+                <Table.Cell>
+                  <Badge color={a.browser_use_profile_id ? 'green' : 'gray'}>
+                    {a.browser_use_session_id
+                      ? 'Session active'
+                      : a.browser_use_profile_id
+                        ? 'Profil configure'
+                        : 'Non configure'}
                   </Badge>
                 </Table.Cell>
               </Table.Row>

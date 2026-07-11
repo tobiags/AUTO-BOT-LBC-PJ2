@@ -40,6 +40,8 @@ export const mockAccount: PlatformAccount = {
   datadome_trust_level: 'HIGH',
   date_creation: '2026-06-01T00:00:00Z',
   derniere_action: '2026-06-19T09:00:00Z',
+  browser_use_profile_id: 'profile-test',
+  browser_use_session_id: null,
 }
 
 export const mockCampaign: Campaign = {

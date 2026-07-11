@@ -21,6 +21,7 @@ export const config = {
     '/dashboard/:path*',
     '/listings/:path*',
     '/campaigns/:path*',
+    '/messaging/:path*',
     '/accounts/:path*',
     '/analyzer/:path*',
     '/connectors/:path*',

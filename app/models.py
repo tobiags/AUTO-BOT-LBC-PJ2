@@ -224,6 +224,8 @@ class AccountOut(BaseModel):
     erreurs_24h: int
     date_creation: datetime
     derniere_action: datetime | None = None
+    browser_use_profile_id: str | None = None
+    browser_use_session_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -419,6 +421,25 @@ class LabRunView(BaseModel):
     last_error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class LbcMessageView(BaseModel):
+    id: UUID
+    external_key: str
+    listing_id: UUID | None
+    account_id: UUID | None
+    direction: LbcMessageDirection
+    status: LbcMessageStatus
+    preview: str | None
+    phone_extracted: bool
+    error_code: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class InboxSyncRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=100)
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────

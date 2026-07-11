@@ -41,6 +41,10 @@ celery_app.conf.update(
             "task": "app.tasks.refresh_connector_status_task",
             "schedule": 60.0,
         },
+        "sync-lbc-inbox": {
+            "task": "app.tasks.sync_lbc_inbox_task",
+            "schedule": 600.0,
+        },
     },
 )
 
@@ -187,3 +191,22 @@ def run_experimental_lab_task(workflow_id: str, engine: str, target_url: str):
     from app.services.experimental_lab import execute_lab_run
 
     return _run(execute_lab_run(UUID(workflow_id), engine, target_url))
+
+
+@celery_app.task(name="app.tasks.run_lbc_message_campaign_task")
+def run_lbc_message_campaign_task(campaign_id: str, workflow_id: str):
+    """Traite toutes les annonces LBC eligibles par lots bornes."""
+    from app.services.lbc_messaging import run_lbc_message_campaign
+
+    result = _run(run_lbc_message_campaign(campaign_id, workflow_id))
+    if result.get("status") == "running":
+        run_lbc_message_campaign_task.apply_async(args=[campaign_id, workflow_id])
+    return result
+
+
+@celery_app.task(name="app.tasks.sync_lbc_inbox_task")
+def sync_lbc_inbox_task(workflow_id: str | None = None):
+    """Synchronise periodiquement les messages entrants Leboncoin."""
+    from app.services.lbc_messaging import sync_lbc_inbox
+
+    return _run(sync_lbc_inbox(workflow_id))

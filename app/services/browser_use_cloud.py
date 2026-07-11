@@ -57,6 +57,8 @@ class BrowserUseCloudClient:
         metadata: dict[str, str] | None = None,
         allowed_domains: tuple[str, ...] = (),
         session_id: str | None = None,
+        session_settings: dict[str, Any] | None = None,
+        structured_output: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"task": task}
         if metadata:
@@ -65,6 +67,10 @@ class BrowserUseCloudClient:
             payload["allowedDomains"] = list(allowed_domains)
         if session_id:
             payload["sessionId"] = session_id
+        if session_settings:
+            payload["sessionSettings"] = session_settings
+        if structured_output:
+            payload["structuredOutput"] = structured_output
         return await self._request("POST", "/tasks", json=payload)
 
     async def get_task_status(self, task_id: str) -> dict[str, Any]:

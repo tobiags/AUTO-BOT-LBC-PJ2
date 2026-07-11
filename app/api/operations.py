@@ -13,8 +13,10 @@ from app.models import (
     CampaignCommandResponse,
     ConnectorCommandRequest,
     ConnectorCommandResponse,
+    InboxSyncRequest,
     LabRunRequest,
     LabRunView,
+    LbcMessageView,
 )
 from app.services.browser_use_workflows import (
     create_browser_use_workflow,
@@ -23,6 +25,7 @@ from app.services.browser_use_workflows import (
 )
 from app.services.campaign_control import execute_campaign_command
 from app.services.experimental_lab import cancel_lab_run, create_lab_run, list_lab_runs
+from app.services.lbc_messaging import list_lbc_messages, queue_inbox_sync
 from app.services.operations import execute_connector_command
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
@@ -209,3 +212,28 @@ async def stop_lab_run(
         return await cancel_lab_run(workflow_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail={"code": "LAB_RUN_NOT_FOUND"}) from exc
+
+
+@router.get("/messaging", response_model=list[LbcMessageView])
+async def messaging_history(
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+):
+    _authorize(x_control_tower_token, x_operator_role)
+    return await list_lbc_messages()
+
+
+@router.post("/messaging/sync")
+async def synchronize_messaging(
+    request: InboxSyncRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    workflow_id = await queue_inbox_sync(
+        idempotency_key=request.idempotency_key,
+        actor=x_operator_id[:100],
+        role=role,
+    )
+    return {"workflow_id": workflow_id, "status": "queued"}

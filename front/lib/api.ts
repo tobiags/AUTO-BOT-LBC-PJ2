@@ -55,6 +55,8 @@ export type PlatformAccount = {
   datadome_trust_level: DatadomeTrustLevel
   date_creation: string
   derniere_action: string | null
+  browser_use_profile_id: string | null
+  browser_use_session_id: string | null
 }
 
 export type Campaign = {

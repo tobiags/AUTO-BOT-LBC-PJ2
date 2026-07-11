@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Tableau de bord', compact: 'Dashboard' },
   { href: '/listings', label: 'Annonces', compact: 'Annonces' },
   { href: '/campaigns', label: 'Campagnes', compact: 'Campagnes' },
+  { href: '/messaging', label: 'Messagerie LBC', compact: 'Messages' },
   { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes' },
   { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
   { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs' },

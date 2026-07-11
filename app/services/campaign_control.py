@@ -54,13 +54,18 @@ async def execute_campaign_command(
         if campaign is None:
             raise LookupError("Campaign not found")
         next_status = campaign_transition(campaign.status, action)
+        workflow_type = (
+            "campaign.lbc_message"
+            if campaign.type == "lbc_message"
+            else "campaign.sms"
+        )
         campaign.status = next_status
         campaign.last_error = None
 
         active = await db.scalar(
             select(WorkflowRun)
             .where(
-                WorkflowRun.workflow_type == "campaign.sms",
+                WorkflowRun.workflow_type == workflow_type,
                 WorkflowRun.target_id == str(campaign_id),
                 WorkflowRun.status.in_([
                     WorkflowStatus.PENDING,
@@ -74,7 +79,7 @@ async def execute_campaign_command(
         if action in {"start", "retry"} or workflow is None:
             workflow = WorkflowRun(
                 idempotency_key=idempotency_key,
-                workflow_type="campaign.sms",
+                workflow_type=workflow_type,
                 target_type="campaign",
                 target_id=str(campaign_id),
                 status=WorkflowStatus.PENDING,
@@ -107,11 +112,18 @@ async def execute_campaign_command(
         workflow_id = workflow.id
 
     if dispatch_workflow_id is not None:
-        from app.tasks import run_campaign_task
+        if workflow_type == "campaign.lbc_message":
+            from app.tasks import run_lbc_message_campaign_task
 
-        task = run_campaign_task.apply_async(
-            args=[str(campaign_id), str(dispatch_workflow_id)]
-        )
+            task = run_lbc_message_campaign_task.apply_async(
+                args=[str(campaign_id), str(dispatch_workflow_id)]
+            )
+        else:
+            from app.tasks import run_campaign_task
+
+            task = run_campaign_task.apply_async(
+                args=[str(campaign_id), str(dispatch_workflow_id)]
+            )
         async with get_db() as db:
             workflow = await db.get(WorkflowRun, dispatch_workflow_id)
             workflow.celery_task_id = task.id
