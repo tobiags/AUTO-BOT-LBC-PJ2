@@ -4,7 +4,7 @@ SQLAlchemy ORM tables sont dans app/tables.py.
 """
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -347,6 +347,20 @@ class DashboardStats(BaseModel):
     actions_required: list[DashboardActionItem] = Field(default_factory=list)
     workflows: list[DashboardWorkflow] = Field(default_factory=list)
     generated_at: datetime
+
+
+class ConnectorCommandRequest(BaseModel):
+    action: Literal["probe", "rotate_ip"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+    confirmed: bool = False
+
+
+class ConnectorCommandResponse(BaseModel):
+    command_id: UUID
+    status: str
+    connector: str
+    action: str
+    detail: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────

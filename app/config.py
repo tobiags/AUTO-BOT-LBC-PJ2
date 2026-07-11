@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     secret_key: str = "change-me"
+    control_tower_token: str = ""
     strict_startup_validation: bool = False
 
     # Database

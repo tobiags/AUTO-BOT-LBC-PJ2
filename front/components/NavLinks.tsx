@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/campaigns', label: 'Campagnes', compact: 'Campagnes' },
   { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes' },
   { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
+  { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs' },
 ]
 
 function NavItem({ href, label }: { href: string; label: string }) {
