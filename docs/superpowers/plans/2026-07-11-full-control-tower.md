@@ -65,4 +65,3 @@
 - Code review against both validated source documents.
 - Sequential production deployment and public endpoint/browser verification.
 - Revoke the temporary Coolify token after final production acceptance.
-
