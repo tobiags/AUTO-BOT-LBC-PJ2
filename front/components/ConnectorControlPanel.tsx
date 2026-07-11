@@ -7,6 +7,9 @@ import { RefreshCw, RotateCw } from 'lucide-react'
 import type { DashboardConnector } from '@/lib/api'
 
 const CONNECTORS = [
+  ['database', 'PostgreSQL'],
+  ['redis', 'Redis'],
+  ['celery', 'Celery'],
   ['iproxy', 'iProxy 4G'],
   ['smstools', 'SMSTools'],
   ['smsapp', 'SmsApp'],
@@ -46,7 +49,6 @@ export function ConnectorControlPanel({ connectors }: { connectors: DashboardCon
         {CONNECTORS.map(([name, label]) => {
           const connector = connectors.find((item) => item.name === name)
           const status = connector?.status ?? 'unverified'
-          const canProbe = name === 'iproxy' || name === 'smstools'
           return (
             <Box key={name} p="3" style={{ border: '1px solid var(--gray-5)' }}>
               <Flex justify="between" align="center" gap="3" mb="2">
@@ -62,7 +64,7 @@ export function ConnectorControlPanel({ connectors }: { connectors: DashboardCon
                 <Button
                   size="1"
                   variant="soft"
-                  disabled={!canProbe || pending !== null}
+                  disabled={pending !== null}
                   onClick={() => runCommand(name, 'probe')}
                   aria-label={`Tester ${label}`}
                   title={`Tester ${label}`}

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     mailgun_domain: str = ""
     mailgun_webhook_signing_key: str = ""
     operational_domain: str = ""
+    mailgun_api_base_url: str = "https://api.eu.mailgun.net"
 
     # Sentry
     sentry_dsn: str = ""
@@ -47,6 +48,10 @@ class Settings(BaseSettings):
     browser_use_task_cost_limit: float = 2.0
     browser_use_poll_interval_seconds: int = 5
     browser_use_task_timeout_seconds: int = 900
+
+    # Experimental engines remain isolated and opt-in.
+    camoufox_enabled: bool = False
+    obscura_enabled: bool = False
 
     # Patchright sessions — répertoire des profils persistants
     sessions_dir: str = "runtime/modules/patchright/sessions"

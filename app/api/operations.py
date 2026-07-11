@@ -54,7 +54,10 @@ async def connector_command(
             status_code=403,
             detail={"code": "ADMIN_CONFIRMATION_REQUIRED"},
         )
-    if connector not in {"iproxy", "smstools"}:
+    if connector not in {
+        "database", "redis", "celery", "iproxy", "smstools", "smsapp",
+        "mailgun", "browser_use", "sentry", "camoufox", "obscura",
+    }:
         raise HTTPException(status_code=404, detail={"code": "CONNECTOR_NOT_FOUND"})
     try:
         return await execute_connector_command(

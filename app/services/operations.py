@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from app import boundaries
 from app.db import get_db
 from app.models import ConnectorCommandResponse, WorkflowStatus
-from app.services.connector_monitor import probe_iproxy, probe_smstools
+from app.services.connector_monitor import probe_connector
 from app.tables import AuditEvent, WorkflowRun
 
 
@@ -66,12 +66,7 @@ async def execute_connector_command(
 
 async def _run_connector_action(connector: str, action: str) -> dict:
     if action == "probe":
-        if connector == "iproxy":
-            result = await probe_iproxy()
-        elif connector == "smstools":
-            result = await probe_smstools()
-        else:
-            raise ValueError(f"Unsupported connector: {connector}")
+        result = await probe_connector(connector)
         return result.model_dump(mode="json")
     if connector == "iproxy" and action == "rotate_ip":
         return {"rotated": await boundaries.rotate_4g_ip()}
