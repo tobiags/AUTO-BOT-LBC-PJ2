@@ -103,3 +103,42 @@ async def test_viewer_cannot_run_connector_command(client):
 
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "INSUFFICIENT_ROLE"
+
+
+@pytest.mark.asyncio
+async def test_operator_can_create_audited_campaign(client):
+    with (
+        patch("app.api.operations.get_settings") as settings,
+        patch(
+            "app.api.operations.create_controlled_campaign",
+            new_callable=AsyncMock,
+        ) as create_campaign,
+    ):
+        settings.return_value.control_tower_token = "secret-token"
+        create_campaign.return_value = {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "type": "lbc_message",
+            "status": "PENDING",
+            "sent": 0,
+            "failed": 0,
+            "scheduled_at": None,
+            "last_error": None,
+            "created_at": "2026-07-11T12:00:00Z",
+        }
+        response = await client.post(
+            "/api/v1/operations/campaigns",
+            headers={
+                "X-Control-Tower-Token": "secret-token",
+                "X-Operator-Role": "operator",
+                "X-Operator-Id": "tests",
+            },
+            json={
+                "type": "lbc_message",
+                "message_template": "Bonjour",
+                "quota_per_sim": 15,
+                "idempotency_key": "campaign-create-001",
+            },
+        )
+
+    assert response.status_code == 201
+    create_campaign.assert_awaited_once()

@@ -1,6 +1,7 @@
 'use client'
 
 import { Badge, Box, Flex, Grid, Heading, Text } from '@radix-ui/themes'
+import Link from 'next/link'
 
 import type { ConnectorState, DashboardStats } from '@/lib/api'
 
@@ -17,6 +18,12 @@ export function ControlTowerOverview({ stats }: { stats: DashboardStats }) {
   const actionsRequired = stats.actions_required ?? []
   const workflows = stats.workflows ?? []
   const connectors = stats.connectors ?? []
+  const actionTargets: Record<string, string> = {
+    accounts: '/accounts',
+    campaigns: '/campaigns',
+    browseruse: '/browser-use',
+    lab: '/lab',
+  }
   const metrics = [
     ['Annonces collectees', stats.listings_total ?? 0, stats.listings_today ?? 0],
     ['Messages LBC envoyes', stats.lbc_messages_sent_total ?? 0, stats.lbc_messages_sent_today ?? 0],
@@ -54,9 +61,12 @@ export function ControlTowerOverview({ stats }: { stats: DashboardStats }) {
                     {action.detail}
                   </Text>
                 </Box>
-                <Badge color={action.severity === 'critical' ? 'red' : 'orange'}>
-                  {action.code.split('.').at(-1)}
-                </Badge>
+                <Flex gap="2" align="center">
+                  <Badge color={action.severity === 'critical' ? 'red' : 'orange'}>
+                    {action.code.split('.').at(-1)}
+                  </Badge>
+                  <Link href={actionTargets[action.target] ?? '/connectors'}>Ouvrir</Link>
+                </Flex>
               </Flex>
             ))}
           </Flex>

@@ -1,6 +1,7 @@
 import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
 
 import { CampaignControls } from '@/components/CampaignControls'
+import { CampaignCreateControl } from '@/components/CampaignCreateControl'
 import { api, type Campaign } from '@/lib/api'
 
 export const revalidate = 0
@@ -41,6 +42,8 @@ export default async function CampaignsPage() {
           {campaigns.length} campagne(s)
         </Text>
       </Flex>
+
+      <CampaignCreateControl />
 
       <Table.Root variant="surface">
         <Table.Header>

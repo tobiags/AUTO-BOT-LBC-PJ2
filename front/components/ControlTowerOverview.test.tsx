@@ -62,5 +62,6 @@ describe('ControlTowerOverview', () => {
     expect(screen.getByText('89.5%')).toBeTruthy()
     expect(screen.getByText('Connecteur iproxy indisponible')).toBeTruthy()
     expect(screen.getAllByText('HTTP_401')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Ouvrir' }).getAttribute('href')).toBe('/connectors')
   })
 })

@@ -13,6 +13,8 @@ from app.models import (
     BrowserUseTaskRequest,
     BrowserUseTaskView,
     CampaignCommandRequest,
+    CampaignCreateCommand,
+    CampaignOut,
     CampaignCommandResponse,
     ConnectorCommandRequest,
     ConnectorCommandResponse,
@@ -29,7 +31,7 @@ from app.services.browser_use_workflows import (
     list_browser_use_workflows,
     stop_browser_use_workflow,
 )
-from app.services.campaign_control import execute_campaign_command
+from app.services.campaign_control import create_controlled_campaign, execute_campaign_command
 from app.services.experimental_lab import cancel_lab_run, create_lab_run, list_lab_runs
 from app.services.lbc_messaging import list_lbc_messages, queue_inbox_sync
 from app.services.operations import execute_connector_command
@@ -182,6 +184,24 @@ async def campaign_command(
             status_code=409,
             detail={"code": "INVALID_CAMPAIGN_TRANSITION", "message": str(exc)},
         ) from exc
+
+
+@router.post("/campaigns", response_model=CampaignOut, status_code=201)
+async def create_campaign_command(
+    command: CampaignCreateCommand,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    return await create_controlled_campaign(
+        campaign_type=command.type,
+        message_template=command.message_template,
+        quota_per_sim=command.quota_per_sim,
+        idempotency_key=command.idempotency_key,
+        actor=x_operator_id[:100],
+        role=role,
+    )
 
 
 @router.get("/lab/runs", response_model=list[LabRunView])

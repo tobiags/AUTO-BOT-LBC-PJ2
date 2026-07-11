@@ -183,6 +183,10 @@ def _task_view(workflow: WorkflowRun) -> BrowserUseTaskView:
         cost=checkpoint.get("cost"),
         output=checkpoint.get("output"),
         output_files=checkpoint.get("output_files") or [],
+        live_url=checkpoint.get("live_url"),
+        duration_seconds=checkpoint.get("duration_seconds"),
+        step_count=len(checkpoint.get("steps") or []),
+        screenshots=checkpoint.get("screenshots") or [],
         last_error=workflow.last_error,
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
@@ -190,12 +194,22 @@ def _task_view(workflow: WorkflowRun) -> BrowserUseTaskView:
 
 
 def _safe_task_detail(detail: dict) -> dict:
+    steps = detail.get("steps") or []
     return {
         "provider_status": detail.get("status"),
         "output": detail.get("output"),
         "is_success": detail.get("isSuccess"),
         "output_files": detail.get("outputFiles") or [],
-        "steps": detail.get("steps") or [],
+        "steps": steps,
+        "live_url": detail.get("liveUrl") or detail.get("liveURL"),
+        "duration_seconds": detail.get("duration") or detail.get("durationSeconds"),
+        "screenshots": [
+            screenshot
+            for step in steps
+            if isinstance(step, dict)
+            for screenshot in [step.get("screenshotUrl") or step.get("screenshot")]
+            if screenshot
+        ],
     }
 
 

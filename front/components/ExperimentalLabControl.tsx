@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { Badge, Box, Button, Flex, Select, Table, Text, TextField } from '@radix-ui/themes'
-import { FlaskConical, RefreshCw, Square } from 'lucide-react'
+import { Download, FlaskConical, RefreshCw, Square } from 'lucide-react'
 
 type LabRun = {
   workflow_id: string
@@ -58,6 +58,24 @@ export function ExperimentalLabControl() {
     }
   }
 
+  function downloadReport(run: LabRun) {
+    const blob = new Blob([JSON.stringify({
+      workflow_id: run.workflow_id,
+      engine: run.engine,
+      target_url: run.target_url,
+      status: run.status,
+      result: run.result,
+      error: run.last_error,
+      created_at: run.created_at,
+    }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `lab-report-${run.workflow_id}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <Box>
       <form onSubmit={submit}>
@@ -108,11 +126,16 @@ export function ExperimentalLabControl() {
                 <Text size="1">{run.last_error ?? JSON.stringify(run.result).slice(0, 180)}</Text>
               </Table.Cell>
               <Table.Cell>
-                {['PENDING', 'RUNNING'].includes(run.status) && (
+                  {['PENDING', 'RUNNING'].includes(run.status) && (
                   <Button size="1" color="red" variant="soft" onClick={() => stop(run.workflow_id)}>
                     <Square size={13} /> Arreter
                   </Button>
-                )}
+                  )}
+                  {Object.keys(run.result).length > 0 && (
+                    <Button size="1" variant="ghost" onClick={() => downloadReport(run)} title="Exporter le rapport">
+                      <Download size={13} /> Rapport
+                    </Button>
+                  )}
               </Table.Cell>
             </Table.Row>
           ))}

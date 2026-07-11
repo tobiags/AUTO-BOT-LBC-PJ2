@@ -14,6 +14,10 @@ type BrowserTask = {
   cost: number | null
   output: string | null
   output_files: Array<{ name?: string; url?: string }>
+  live_url: string | null
+  duration_seconds: number | null
+  step_count: number
+  screenshots: string[]
   last_error: string | null
   created_at: string
 }
@@ -132,6 +136,10 @@ export function BrowserUseControl() {
               <Table.Cell>
                 <Text size="2" weight="bold" as="div">{task.template_id}</Text>
                 <Text size="1" color="gray" as="div">{task.target_url}</Text>
+                <Text size="1" color="gray" as="div">
+                  {task.step_count} etape(s)
+                  {task.duration_seconds == null ? '' : ` / ${task.duration_seconds.toFixed(1)} s`}
+                </Text>
               </Table.Cell>
               <Table.Cell><Badge>{task.status}</Badge></Table.Cell>
               <Table.Cell>{task.cost == null ? '-' : `$${task.cost.toFixed(2)}`}</Table.Cell>
@@ -147,6 +155,20 @@ export function BrowserUseControl() {
                     <Button key={file.url} size="1" variant="ghost" asChild>
                       <a href={file.url} target="_blank" rel="noreferrer" title={file.name ?? 'Fichier'}>
                         <ExternalLink size={13} />
+                      </a>
+                    </Button>
+                  ))}
+                  {task.live_url && ['PENDING', 'RUNNING'].includes(task.status) && (
+                    <Button size="1" variant="ghost" asChild>
+                      <a href={task.live_url} target="_blank" rel="noreferrer" title="Session en direct">
+                        <ExternalLink size={13} /> Direct
+                      </a>
+                    </Button>
+                  )}
+                  {task.screenshots.map((screenshot, index) => (
+                    <Button key={screenshot} size="1" variant="ghost" asChild>
+                      <a href={screenshot} target="_blank" rel="noreferrer" title={`Capture ${index + 1}`}>
+                        <ExternalLink size={13} /> Capture
                       </a>
                     </Button>
                   ))}

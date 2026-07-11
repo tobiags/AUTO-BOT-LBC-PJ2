@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.db import get_db
-from app.models import CampaignCommandResponse, CampaignStatus, WorkflowStatus
+from app.models import CampaignCommandResponse, CampaignOut, CampaignStatus, WorkflowStatus
 from app.tables import AuditEvent, Campaign, WorkflowRun
 
 _TRANSITIONS = {
@@ -16,6 +16,38 @@ _TRANSITIONS = {
     (CampaignStatus.PENDING, "cancel"): CampaignStatus.CANCELLED,
     (CampaignStatus.FAILED, "retry"): CampaignStatus.RUNNING,
 }
+
+
+async def create_controlled_campaign(
+    *, campaign_type: str, message_template: str, quota_per_sim: int,
+    idempotency_key: str, actor: str, role: str,
+) -> CampaignOut:
+    async with get_db() as db:
+        duplicate = await db.scalar(
+            select(AuditEvent).where(AuditEvent.idempotency_key == idempotency_key)
+        )
+        if duplicate is not None and duplicate.target_id:
+            campaign = await db.get(Campaign, UUID(duplicate.target_id))
+            if campaign is not None:
+                return CampaignOut.model_validate(campaign)
+        campaign = Campaign(
+            type=campaign_type,
+            message_template=message_template,
+            quota_per_sim=quota_per_sim,
+        )
+        db.add(campaign)
+        await db.flush()
+        db.add(AuditEvent(
+            actor=actor,
+            role=role,
+            action="campaign.create",
+            target_type="campaign",
+            target_id=str(campaign.id),
+            idempotency_key=idempotency_key,
+            input_summary={"type": campaign_type, "quota_per_sim": quota_per_sim},
+            result_status="created",
+        ))
+        return CampaignOut.model_validate(campaign)
 
 
 def campaign_transition(current: str, action: str) -> CampaignStatus:

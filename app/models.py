@@ -396,6 +396,10 @@ class BrowserUseTaskView(BaseModel):
     cost: float | None
     output: str | None
     output_files: list[dict[str, Any]] = Field(default_factory=list)
+    live_url: str | None = None
+    duration_seconds: float | None = None
+    step_count: int = 0
+    screenshots: list[str] = Field(default_factory=list)
     last_error: str | None
     created_at: datetime
     updated_at: datetime
@@ -403,6 +407,13 @@ class BrowserUseTaskView(BaseModel):
 
 class CampaignCommandRequest(BaseModel):
     action: Literal["start", "pause", "resume", "cancel", "retry"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class CampaignCreateCommand(BaseModel):
+    type: Literal["sms_direct", "lbc_message"]
+    message_template: str = Field(min_length=1, max_length=2000)
+    quota_per_sim: int = Field(15, ge=1, le=60)
     idempotency_key: str = Field(min_length=8, max_length=100)
 
 
