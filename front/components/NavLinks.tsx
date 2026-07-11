@@ -3,6 +3,7 @@
 import { Flex, Text } from '@radix-ui/themes'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LogoutButton } from './LogoutButton'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Tableau de bord', compact: 'Dashboard' },
@@ -40,6 +41,8 @@ function NavItem({ href, label }: { href: string; label: string }) {
 }
 
 export function NavLinks() {
+  const pathname = usePathname()
+  if (pathname === '/login') return null
   return (
     <>
       <nav className="desktop-nav" aria-label="Navigation principale">
@@ -51,6 +54,7 @@ export function NavLinks() {
             <NavItem key={item.href} href={item.href} label={item.label} />
           ))}
         </Flex>
+        <LogoutButton />
       </nav>
       <nav className="mobile-nav" aria-label="Navigation mobile">
         {NAV_ITEMS.map((item) => {
