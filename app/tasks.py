@@ -154,3 +154,26 @@ def refresh_connector_status_task():
 
     results = _run(refresh_connector_statuses())
     return [result.model_dump(mode="json") for result in results]
+
+
+@celery_app.task(name="app.tasks.run_browser_use_task", bind=True, max_retries=2)
+def run_browser_use_task(
+    self,
+    workflow_id: str,
+    template_id: str,
+    target_url: str,
+    custom_prompt: str | None = None,
+):
+    """Execute une tache Browser Use bornee et persistante."""
+    from uuid import UUID
+
+    import httpx
+
+    from app.services.browser_use_workflows import execute_browser_use_workflow
+
+    try:
+        return _run(execute_browser_use_workflow(
+            UUID(workflow_id), template_id, target_url, custom_prompt
+        ))
+    except (httpx.TimeoutException, httpx.NetworkError) as exc:
+        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))

@@ -44,6 +44,9 @@ class Settings(BaseSettings):
 
     # browser-use Cloud (Mode B fallback)
     browser_use_api_key: str = ""
+    browser_use_task_cost_limit: float = 2.0
+    browser_use_poll_interval_seconds: int = 5
+    browser_use_task_timeout_seconds: int = 900
 
     # Patchright sessions — répertoire des profils persistants
     sessions_dir: str = "runtime/modules/patchright/sessions"

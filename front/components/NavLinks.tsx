@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes' },
   { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
   { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs' },
+  { href: '/browser-use', label: 'Browser Use', compact: 'Browser Use' },
 ]
 
 function NavItem({ href, label }: { href: string; label: string }) {

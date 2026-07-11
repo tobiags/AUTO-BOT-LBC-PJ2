@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 # ── ENUMS ─────────────────────────────────────────────────────────────────────
 
@@ -361,6 +361,34 @@ class ConnectorCommandResponse(BaseModel):
     connector: str
     action: str
     detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class BrowserUseTaskRequest(BaseModel):
+    template_id: str
+    target_url: HttpUrl
+    idempotency_key: str = Field(min_length=8, max_length=100)
+    custom_prompt: str | None = Field(default=None, max_length=4000)
+
+
+class BrowserUseTaskCreated(BaseModel):
+    workflow_id: UUID
+    status: WorkflowStatus
+    template_id: str
+
+
+class BrowserUseTaskView(BaseModel):
+    workflow_id: UUID
+    status: WorkflowStatus
+    template_id: str
+    target_url: str | None
+    provider_task_id: str | None
+    session_id: str | None
+    cost: float | None
+    output: str | None
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────
