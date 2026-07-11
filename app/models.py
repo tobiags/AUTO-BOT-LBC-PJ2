@@ -442,6 +442,23 @@ class InboxSyncRequest(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=100)
 
 
+class AccountCommandRequest(BaseModel):
+    action: Literal["inspect", "warm", "quarantine", "restore"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class AccountCreateCommandRequest(BaseModel):
+    mode: Literal["A", "B"] = "A"
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class AccountCommandResponse(BaseModel):
+    account_id: UUID | None
+    workflow_id: UUID
+    action: str
+    status: str
+
+
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────
 
 class IncomingCallEvent(BaseModel):

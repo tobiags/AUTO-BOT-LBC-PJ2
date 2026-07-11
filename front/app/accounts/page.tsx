@@ -1,5 +1,6 @@
 import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
 import { api, type PlatformAccount } from '@/lib/api'
+import { AccountControls, AccountCreateControl } from '@/components/AccountControls'
 
 export const revalidate = 30
 
@@ -44,6 +45,7 @@ export default async function AccountsPage() {
           <Text size="2" color="gray">
             {accounts.length} total
           </Text>
+          <AccountCreateControl />
         </Flex>
       </Flex>
 
@@ -57,12 +59,13 @@ export default async function AccountsPage() {
             <Table.ColumnHeaderCell>Erreurs 24h</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>DataDome</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Browser Use</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
           </Table.Row>
         </Table.Header>
         <Table.Body>
           {accounts.length === 0 ? (
             <Table.Row>
-              <Table.Cell colSpan={7}>
+              <Table.Cell colSpan={8}>
                 <Text color="gray">Aucun compte dans le pool</Text>
               </Table.Cell>
             </Table.Row>
@@ -110,6 +113,13 @@ export default async function AccountsPage() {
                         ? 'Profil configure'
                         : 'Non configure'}
                   </Badge>
+                </Table.Cell>
+                <Table.Cell>
+                  <AccountControls
+                    accountId={a.id}
+                    status={a.status}
+                    hasProfile={Boolean(a.browser_use_profile_id)}
+                  />
                 </Table.Cell>
               </Table.Row>
             ))

@@ -6,6 +6,9 @@ from fastapi import APIRouter, Header, HTTPException
 
 from app.config import get_settings
 from app.models import (
+    AccountCommandRequest,
+    AccountCommandResponse,
+    AccountCreateCommandRequest,
     BrowserUseTaskCreated,
     BrowserUseTaskRequest,
     BrowserUseTaskView,
@@ -18,6 +21,7 @@ from app.models import (
     LabRunView,
     LbcMessageView,
 )
+from app.services.account_control import create_account_command, execute_account_command
 from app.services.browser_use_workflows import (
     create_browser_use_workflow,
     list_browser_use_workflows,
@@ -237,3 +241,49 @@ async def synchronize_messaging(
         role=role,
     )
     return {"workflow_id": workflow_id, "status": "queued"}
+
+
+@router.post("/accounts/commands", response_model=AccountCommandResponse)
+async def create_account_operation(
+    command: AccountCreateCommandRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    if role != "admin":
+        raise HTTPException(status_code=403, detail={"code": "ADMIN_REQUIRED"})
+    return await create_account_command(
+        mode=command.mode,
+        idempotency_key=command.idempotency_key,
+        actor=x_operator_id[:100],
+        role=role,
+    )
+
+
+@router.post(
+    "/accounts/{account_id}/commands", response_model=AccountCommandResponse
+)
+async def account_operation(
+    account_id: UUID,
+    command: AccountCommandRequest,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    try:
+        return await execute_account_command(
+            account_id=account_id,
+            action=command.action,
+            idempotency_key=command.idempotency_key,
+            actor=x_operator_id[:100],
+            role=role,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "ACCOUNT_NOT_FOUND"}) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "INVALID_ACCOUNT_COMMAND", "message": str(exc)},
+        ) from exc

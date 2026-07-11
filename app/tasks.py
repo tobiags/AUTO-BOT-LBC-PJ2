@@ -55,7 +55,7 @@ def _run(coro):
 
 
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)
-def create_account_task(self, mode: str = "A"):
+def create_account_task(self, mode: str = "A", workflow_id: str | None = None):
     """WF-01 — création d'un nouveau compte LBC."""
     from app.services.account_creation import (
         AccountCreationError,
@@ -64,12 +64,24 @@ def create_account_task(self, mode: str = "A"):
     )
     try:
         result = _run(create_lbc_account(mode=mode))
+        if workflow_id:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, str(result.account_id)))
         log.info("Compte créé : %s", result.account_id)
         return {"account_id": result.account_id, "email": result.email}
     except ProxyUnavailableError as exc:
+        if workflow_id:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
         log.error("Proxy 4G indisponible : %s — pas de retry (règle R07)", exc)
         raise
     except AccountCreationError as exc:
+        if workflow_id and self.request.retries >= self.max_retries:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
         log.warning("Échec création compte : %s — retry %d/2", exc, self.request.retries)
         raise self.retry(countdown=60, exc=exc)
 
@@ -210,3 +222,12 @@ def sync_lbc_inbox_task(workflow_id: str | None = None):
     from app.services.lbc_messaging import sync_lbc_inbox
 
     return _run(sync_lbc_inbox(workflow_id))
+
+
+@celery_app.task(name="app.tasks.inspect_account_task")
+def inspect_account_task(workflow_id: str, account_id: str, profile_id: str):
+    from uuid import UUID
+
+    from app.services.account_control import inspect_account
+
+    return _run(inspect_account(UUID(workflow_id), UUID(account_id), profile_id))
