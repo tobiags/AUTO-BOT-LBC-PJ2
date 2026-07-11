@@ -53,6 +53,8 @@ class PlatformAccount(Base):
     datadome_cookie: Mapped[bytes | None] = mapped_column(LargeBinary)
     datadome_cookie_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     session_path: Mapped[str | None] = mapped_column(String(500))
+    browser_use_profile_id: Mapped[str | None] = mapped_column(String(100))
+    browser_use_session_id: Mapped[str | None] = mapped_column(String(100))
     score_sante: Mapped[int] = mapped_column(Integer, default=100)
     quota_actuel: Mapped[int] = mapped_column(Integer, default=10)
     erreurs_24h: Mapped[int] = mapped_column(Integer, default=0)

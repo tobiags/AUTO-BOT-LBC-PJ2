@@ -85,14 +85,9 @@ async def test_refresh_connector_statuses_persists_each_probe():
 
     with (
         patch(
-            "app.services.connector_monitor.probe_smstools",
+            "app.services.connector_monitor.collect_connector_probes",
             new_callable=AsyncMock,
-            return_value=smstools,
-        ),
-        patch(
-            "app.services.connector_monitor.probe_iproxy",
-            new_callable=AsyncMock,
-            return_value=iproxy,
+            return_value=[smstools, iproxy],
         ),
         patch("app.services.connector_monitor.get_db", return_value=_Context()),
     ):

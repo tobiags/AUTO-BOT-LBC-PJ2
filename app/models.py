@@ -4,10 +4,10 @@ SQLAlchemy ORM tables sont dans app/tables.py.
 """
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 # ── ENUMS ─────────────────────────────────────────────────────────────────────
 
@@ -51,6 +51,7 @@ class CampaignStatus(StrEnum):
     PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 class WorkflowStatus(StrEnum):
@@ -223,6 +224,8 @@ class AccountOut(BaseModel):
     erreurs_24h: int
     date_creation: datetime
     derniere_action: datetime | None = None
+    browser_use_profile_id: str | None = None
+    browser_use_session_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -335,6 +338,10 @@ class DashboardStats(BaseModel):
     sms_received_today: int
     accounts_active: int
     accounts_total: int
+    accounts_warming: int = 0
+    accounts_slowed: int = 0
+    accounts_blocked: int = 0
+    accounts_quarantined: int = 0
     campaigns_running: int
     balances: list[ServiceBalanceOut]
     lbc_messages_sent_total: int = 0
@@ -343,10 +350,162 @@ class DashboardStats(BaseModel):
     lbc_messages_received_today: int = 0
     phones_extracted_total: int = 0
     phones_extracted_today: int = 0
+    phone_extraction_rate: float = 0
+    sms_response_rate: float = 0
+    lbc_response_rate: float = 0
     connectors: list[DashboardConnector] = Field(default_factory=list)
     actions_required: list[DashboardActionItem] = Field(default_factory=list)
     workflows: list[DashboardWorkflow] = Field(default_factory=list)
     generated_at: datetime
+
+
+class ConnectorCommandRequest(BaseModel):
+    action: Literal["probe", "rotate_ip"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+    confirmed: bool = False
+
+
+class ConnectorCommandResponse(BaseModel):
+    command_id: UUID
+    status: str
+    connector: str
+    action: str
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class BrowserUseTaskRequest(BaseModel):
+    template_id: str
+    target_url: HttpUrl
+    idempotency_key: str = Field(min_length=8, max_length=100)
+    custom_prompt: str | None = Field(default=None, max_length=4000)
+
+
+class BrowserUseTaskCreated(BaseModel):
+    workflow_id: UUID
+    status: WorkflowStatus
+    template_id: str
+
+
+class BrowserUseTaskView(BaseModel):
+    workflow_id: UUID
+    status: WorkflowStatus
+    template_id: str
+    target_url: str | None
+    provider_task_id: str | None
+    session_id: str | None
+    cost: float | None
+    output: str | None
+    output_files: list[dict[str, Any]] = Field(default_factory=list)
+    live_url: str | None = None
+    duration_seconds: float | None = None
+    step_count: int = 0
+    screenshots: list[str] = Field(default_factory=list)
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CampaignCommandRequest(BaseModel):
+    action: Literal["start", "pause", "resume", "cancel", "retry"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class CampaignCreateCommand(BaseModel):
+    type: Literal["sms_direct", "lbc_message"]
+    message_template: str = Field(min_length=1, max_length=2000)
+    quota_per_sim: int = Field(15, ge=1, le=60)
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class AnalyzerCommandRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class CampaignCommandResponse(BaseModel):
+    campaign_id: UUID
+    workflow_id: UUID | None
+    status: CampaignStatus
+    action: str
+
+
+class LabRunRequest(BaseModel):
+    engine: Literal["camoufox", "obscura", "both"]
+    target_url: HttpUrl
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class LabRunView(BaseModel):
+    workflow_id: UUID
+    engine: str
+    target_url: str | None
+    status: WorkflowStatus
+    result: dict[str, Any] = Field(default_factory=dict)
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class LbcMessageView(BaseModel):
+    id: UUID
+    external_key: str
+    listing_id: UUID | None
+    account_id: UUID | None
+    direction: LbcMessageDirection
+    status: LbcMessageStatus
+    preview: str | None
+    phone_extracted: bool
+    error_code: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class InboxSyncRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class AccountCommandRequest(BaseModel):
+    action: Literal["inspect", "warm", "quarantine", "restore"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class AccountCreateCommandRequest(BaseModel):
+    mode: Literal["A", "B"] = "A"
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class AccountCommandResponse(BaseModel):
+    account_id: UUID | None
+    workflow_id: UUID
+    action: str
+    status: str
+
+
+class WorkflowRunView(BaseModel):
+    id: UUID
+    workflow_type: str
+    target_type: str | None
+    target_id: str | None
+    status: WorkflowStatus
+    progress_current: int
+    progress_total: int | None
+    batch_number: int
+    batch_size: int | None
+    checkpoint: dict[str, Any] | None
+    last_error_code: str | None
+    last_error: str | None
+    initiated_by: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class WorkflowCommandRequest(BaseModel):
+    action: Literal["pause", "resume", "cancel", "retry"]
+    idempotency_key: str = Field(min_length=8, max_length=100)
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ import {
 } from '@/lib/websocket'
 import { ControlTowerOverview } from '@/components/ControlTowerOverview'
 import { IncomingCallAlert } from '@/components/IncomingCallAlert'
+import { DashboardRefreshButton } from '@/components/DashboardRefreshButton'
 
 const SERVICE_ICONS: Record<string, string> = {
   smstools: 'SMS',
@@ -169,7 +170,17 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
 
   return (
     <Box>
-      <Heading size="6" mb="4">Tableau de bord</Heading>
+      <Flex justify="between" align="center" mb="4" wrap="wrap" gap="2">
+        <Box>
+          <Heading size="6">Tableau de bord</Heading>
+          {stats?.generated_at && (
+            <Text size="1" color="gray">
+              Donnees actualisees le {new Date(stats.generated_at).toLocaleString('fr-FR')}
+            </Text>
+          )}
+        </Box>
+        <DashboardRefreshButton />
+      </Flex>
 
       <IncomingCallAlert calls={calls} connected={connected} />
 
@@ -228,6 +239,10 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
           {(stats?.accounts_active ?? 0) < 3 && (
             <Text size="1" color="red" as="div">Pool insuffisant (min. 3)</Text>
           )}
+          <Text size="1" color="gray" as="div" mt="1">
+            Chauffe {stats?.accounts_warming ?? 0} / Ralentis {stats?.accounts_slowed ?? 0}
+            {' / '}Bloques {stats?.accounts_blocked ?? 0} / Quarantaine {stats?.accounts_quarantined ?? 0}
+          </Text>
         </Card>
 
         <Card style={{ flex: 1, minWidth: 160 }}>

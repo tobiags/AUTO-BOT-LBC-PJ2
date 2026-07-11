@@ -14,9 +14,9 @@ from sqlalchemy import func, select, update
 from app import boundaries
 from app.config import get_settings
 from app.db import get_db
-from app.models import CampaignStatus, ListingStatus, SmsStatus
+from app.models import CampaignStatus, ListingStatus, SmsStatus, WorkflowStatus
 from app.services.blacklist import is_blacklisted
-from app.tables import Campaign, Listing, SmsLog
+from app.tables import Campaign, Listing, SmsLog, WorkflowRun
 
 log = logging.getLogger(__name__)
 settings = get_settings()
@@ -84,7 +84,7 @@ async def _compute_inter_sms_delay_seconds(sim_id: str, now: datetime | None = N
     return max(0, target_gap_seconds - elapsed_seconds)
 
 
-async def run_campaign(campaign_id: str) -> dict:
+async def run_campaign(campaign_id: str, workflow_id: str | None = None) -> dict:
     if not is_within_sms_window():
         scheduled_for = next_sms_window_start()
         async with get_db() as db:
@@ -106,6 +106,7 @@ async def run_campaign(campaign_id: str) -> dict:
         }
 
     campaign_uuid = uuid.UUID(campaign_id)
+    workflow_uuid = uuid.UUID(workflow_id) if workflow_id else None
 
     async with get_db() as db:
         campaign = await db.get(Campaign, campaign_uuid)
@@ -137,16 +138,34 @@ async def run_campaign(campaign_id: str) -> dict:
         fetched_listings = result.scalars().all()
         has_more_backlog = len(fetched_listings) > CAMPAIGN_BATCH_SIZE
         listings = fetched_listings[:CAMPAIGN_BATCH_SIZE]
+        if workflow_uuid is not None:
+            workflow = await db.get(WorkflowRun, workflow_uuid)
+            if workflow is not None:
+                workflow.status = WorkflowStatus.RUNNING
+                workflow.started_at = workflow.started_at or datetime.now(UTC)
+                workflow.progress_total = await db.scalar(
+                    select(func.count()).select_from(Listing).where(
+                        Listing.phone.isnot(None),
+                        Listing.status == ListingStatus.NOUVELLE,
+                    )
+                )
 
     sent = 0
     failed = 0
     paused_for_quota = False
     failed_for_credit = False
+    interrupted_status: CampaignStatus | None = None
     last_error: str | None = None
     sims = await boundaries.get_sim_list()
     daily_quotas: dict[str, int] = {sim["id"]: sim.get("quota_remaining", 15) for sim in sims}
 
     for listing in listings:
+        if workflow_uuid is not None:
+            interrupted_status = await _interrupted_campaign_status(
+                campaign_uuid, workflow_uuid
+            )
+            if interrupted_status is not None:
+                break
         if await is_blacklisted(listing.phone):
             log.debug("Skipping blacklisted phone %s", listing.phone)
             continue
@@ -203,7 +222,10 @@ async def run_campaign(campaign_id: str) -> dict:
             failed += 1
             last_error = str(exc)
 
-    if failed_for_credit:
+    if interrupted_status is not None:
+        final_status = interrupted_status
+        result_status = interrupted_status.value.lower()
+    elif failed_for_credit:
         final_status = CampaignStatus.FAILED
         result_status = "failed"
     elif paused_for_quota:
@@ -228,6 +250,24 @@ async def run_campaign(campaign_id: str) -> dict:
                 last_error=last_error,
             )
         )
+        if workflow_uuid is not None:
+            workflow = await db.get(WorkflowRun, workflow_uuid)
+            if workflow is not None:
+                workflow.progress_current += sent + failed
+                workflow.batch_number += 1
+                workflow.checkpoint = {
+                    "campaign_id": campaign_id,
+                    "last_batch_sent": sent,
+                    "last_batch_failed": failed,
+                    "has_more_backlog": has_more_backlog,
+                }
+                workflow.status = _campaign_to_workflow_status(final_status)
+                if workflow.status in {
+                    WorkflowStatus.COMPLETED,
+                    WorkflowStatus.FAILED,
+                    WorkflowStatus.CANCELLED,
+                }:
+                    workflow.finished_at = datetime.now(UTC)
 
     log.info(
         "Campagne %s terminee - status=%s sent=%d failed=%d",
@@ -237,3 +277,33 @@ async def run_campaign(campaign_id: str) -> dict:
         failed,
     )
     return {"status": result_status, "sent": sent, "failed": failed}
+
+
+async def _interrupted_campaign_status(
+    campaign_id: uuid.UUID, workflow_id: uuid.UUID
+) -> CampaignStatus | None:
+    async with get_db() as db:
+        campaign = await db.get(Campaign, campaign_id)
+        workflow = await db.get(WorkflowRun, workflow_id)
+    if campaign is None or workflow is None:
+        return CampaignStatus.CANCELLED
+    if campaign.status in {CampaignStatus.PAUSED, CampaignStatus.CANCELLED}:
+        return campaign.status
+    if workflow.status in {WorkflowStatus.PAUSED, WorkflowStatus.CANCELLED}:
+        return (
+            CampaignStatus.PAUSED
+            if workflow.status == WorkflowStatus.PAUSED
+            else CampaignStatus.CANCELLED
+        )
+    return None
+
+
+def _campaign_to_workflow_status(status: CampaignStatus) -> WorkflowStatus:
+    return {
+        CampaignStatus.PENDING: WorkflowStatus.PENDING,
+        CampaignStatus.RUNNING: WorkflowStatus.RUNNING,
+        CampaignStatus.PAUSED: WorkflowStatus.PAUSED,
+        CampaignStatus.COMPLETED: WorkflowStatus.COMPLETED,
+        CampaignStatus.FAILED: WorkflowStatus.FAILED,
+        CampaignStatus.CANCELLED: WorkflowStatus.CANCELLED,
+    }[status]

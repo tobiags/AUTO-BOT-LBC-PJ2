@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # App
     env: str = "development"
     secret_key: str = "change-me"
+    control_tower_token: str = ""
     strict_startup_validation: bool = False
 
     # Database
@@ -37,12 +38,22 @@ class Settings(BaseSettings):
     mailgun_domain: str = ""
     mailgun_webhook_signing_key: str = ""
     operational_domain: str = ""
+    mailgun_api_base_url: str = "https://api.eu.mailgun.net"
 
     # Sentry
     sentry_dsn: str = ""
 
     # browser-use Cloud (Mode B fallback)
     browser_use_api_key: str = ""
+    browser_use_task_cost_limit: float = 2.0
+    browser_use_poll_interval_seconds: int = 5
+    browser_use_task_timeout_seconds: int = 900
+
+    # Experimental engines remain isolated and opt-in.
+    camoufox_enabled: bool = False
+    obscura_enabled: bool = False
+    lab_service_url: str = "http://experimental_lab:8010"
+    lab_api_token: str = ""
 
     # Patchright sessions — répertoire des profils persistants
     sessions_dir: str = "runtime/modules/patchright/sessions"

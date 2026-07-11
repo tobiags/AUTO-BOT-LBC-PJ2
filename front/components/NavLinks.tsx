@@ -3,13 +3,20 @@
 import { Flex, Text } from '@radix-ui/themes'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LogoutButton } from './LogoutButton'
+import { OperatorStatus } from './OperatorStatus'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Tableau de bord', compact: 'Dashboard' },
+  { href: '/workflows', label: 'Workflows', compact: 'Workflows' },
   { href: '/listings', label: 'Annonces', compact: 'Annonces' },
   { href: '/campaigns', label: 'Campagnes', compact: 'Campagnes' },
+  { href: '/messaging', label: 'Messagerie LBC', compact: 'Messages' },
   { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes' },
   { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
+  { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs' },
+  { href: '/browser-use', label: 'Browser Use', compact: 'Browser Use' },
+  { href: '/lab', label: 'Laboratoire', compact: 'Lab' },
 ]
 
 function NavItem({ href, label }: { href: string; label: string }) {
@@ -38,6 +45,8 @@ function NavItem({ href, label }: { href: string; label: string }) {
 }
 
 export function NavLinks() {
+  const pathname = usePathname()
+  if (pathname === '/login') return null
   return (
     <>
       <nav className="desktop-nav" aria-label="Navigation principale">
@@ -49,6 +58,8 @@ export function NavLinks() {
             <NavItem key={item.href} href={item.href} label={item.label} />
           ))}
         </Flex>
+        <OperatorStatus />
+        <LogoutButton />
       </nav>
       <nav className="mobile-nav" aria-label="Navigation mobile">
         {NAV_ITEMS.map((item) => {

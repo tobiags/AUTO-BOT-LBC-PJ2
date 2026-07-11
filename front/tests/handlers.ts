@@ -40,6 +40,8 @@ export const mockAccount: PlatformAccount = {
   datadome_trust_level: 'HIGH',
   date_creation: '2026-06-01T00:00:00Z',
   derniere_action: '2026-06-19T09:00:00Z',
+  browser_use_profile_id: 'profile-test',
+  browser_use_session_id: null,
 }
 
 export const mockCampaign: Campaign = {
@@ -93,6 +95,7 @@ export const handlers = [
   http.get(`${BASE}/analyzer/stats`, () => HttpResponse.json(mockAnalyzerStats)),
   http.get(`${BASE}/analyzer/results`, () => HttpResponse.json([mockAnalyzerResult])),
   http.post(`${BASE}/analyzer/run/:id`, () => HttpResponse.json({ ok: true })),
+  http.post('/api/operations/analyzer/listings/:id', () => HttpResponse.json({ status: 'PENDING' })),
   http.post(`${BASE}/analyzer/run/batch`, () => HttpResponse.json({ ok: true })),
 ]
 

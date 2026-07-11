@@ -1,6 +1,7 @@
 'use client'
 
 import { Badge, Box, Flex, Grid, Heading, Text } from '@radix-ui/themes'
+import Link from 'next/link'
 
 import type { ConnectorState, DashboardStats } from '@/lib/api'
 
@@ -17,6 +18,12 @@ export function ControlTowerOverview({ stats }: { stats: DashboardStats }) {
   const actionsRequired = stats.actions_required ?? []
   const workflows = stats.workflows ?? []
   const connectors = stats.connectors ?? []
+  const actionTargets: Record<string, string> = {
+    accounts: '/accounts',
+    campaigns: '/campaigns',
+    browseruse: '/browser-use',
+    lab: '/lab',
+  }
   const metrics = [
     ['Annonces collectees', stats.listings_total ?? 0, stats.listings_today ?? 0],
     ['Messages LBC envoyes', stats.lbc_messages_sent_total ?? 0, stats.lbc_messages_sent_today ?? 0],
@@ -54,9 +61,12 @@ export function ControlTowerOverview({ stats }: { stats: DashboardStats }) {
                     {action.detail}
                   </Text>
                 </Box>
-                <Badge color={action.severity === 'critical' ? 'red' : 'orange'}>
-                  {action.code.split('.').at(-1)}
-                </Badge>
+                <Flex gap="2" align="center">
+                  <Badge color={action.severity === 'critical' ? 'red' : 'orange'}>
+                    {action.code.split('.').at(-1)}
+                  </Badge>
+                  <Link href={actionTargets[action.target] ?? '/connectors'}>Ouvrir</Link>
+                </Flex>
               </Flex>
             ))}
           </Flex>
@@ -70,6 +80,20 @@ export function ControlTowerOverview({ stats }: { stats: DashboardStats }) {
             <Text size="2" color="gray" as="div">{label}</Text>
             <Text size="7" weight="bold" as="div">{total}</Text>
             <Text size="1" color="gray" as="div">+{today} aujourd&apos;hui</Text>
+          </Box>
+        ))}
+      </Grid>
+
+      <Text size="3" weight="bold" as="div" mb="2">Performance</Text>
+      <Grid columns={{ initial: '1', xs: '3' }} gap="3" mb="5">
+        {[
+          ['Reponse LBC', stats.lbc_response_rate ?? 0],
+          ['Extraction telephone', stats.phone_extraction_rate ?? 0],
+          ['Reponse SMS', stats.sms_response_rate ?? 0],
+        ].map(([label, value]) => (
+          <Box key={label as string} p="3" style={{ border: '1px solid var(--gray-5)' }}>
+            <Text size="2" color="gray" as="div">{label}</Text>
+            <Text size="5" weight="bold">{Number(value).toFixed(1)}%</Text>
           </Box>
         ))}
       </Grid>

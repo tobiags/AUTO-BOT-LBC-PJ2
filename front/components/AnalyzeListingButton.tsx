@@ -3,8 +3,6 @@
 import { startTransition, useState } from 'react'
 import { Button, Text } from '@radix-ui/themes'
 
-import { api } from '@/lib/api'
-
 type Props = {
   listingId: string
   onSuccess?: () => void
@@ -18,7 +16,10 @@ export function AnalyzeListingButton({ listingId, onSuccess }: Props) {
     setPending(true)
     setError(null)
     try {
-      await api.analyzer.run(listingId)
+      const response = await fetch(`/api/operations/analyzer/listings/${listingId}`, {
+        method: 'POST',
+      })
+      if (!response.ok) throw new Error('Analyse refusee')
       startTransition(() => {
         if (onSuccess) {
           onSuccess()

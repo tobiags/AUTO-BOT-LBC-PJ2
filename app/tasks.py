@@ -41,6 +41,10 @@ celery_app.conf.update(
             "task": "app.tasks.refresh_connector_status_task",
             "schedule": 60.0,
         },
+        "sync-lbc-inbox": {
+            "task": "app.tasks.sync_lbc_inbox_task",
+            "schedule": 600.0,
+        },
     },
 )
 
@@ -51,7 +55,7 @@ def _run(coro):
 
 
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)
-def create_account_task(self, mode: str = "A"):
+def create_account_task(self, mode: str = "A", workflow_id: str | None = None):
     """WF-01 — création d'un nouveau compte LBC."""
     from app.services.account_creation import (
         AccountCreationError,
@@ -60,30 +64,43 @@ def create_account_task(self, mode: str = "A"):
     )
     try:
         result = _run(create_lbc_account(mode=mode))
+        if workflow_id:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, str(result.account_id)))
         log.info("Compte créé : %s", result.account_id)
         return {"account_id": result.account_id, "email": result.email}
     except ProxyUnavailableError as exc:
+        if workflow_id:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
         log.error("Proxy 4G indisponible : %s — pas de retry (règle R07)", exc)
         raise
     except AccountCreationError as exc:
+        if workflow_id and self.request.retries >= self.max_retries:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
         log.warning("Échec création compte : %s — retry %d/2", exc, self.request.retries)
         raise self.retry(countdown=60, exc=exc)
 
 
 @celery_app.task(name="app.tasks.run_campaign_task", bind=True)
-def run_campaign_task(self, campaign_id: str):
+def run_campaign_task(self, campaign_id: str, workflow_id: str | None = None):
     """WF-02 — exécution d'une campagne SMS."""
     from app.services.campaign_runner import run_campaign
 
-    result = _run(run_campaign(campaign_id))
+    result = _run(run_campaign(campaign_id, workflow_id))
+    task_args = [campaign_id, workflow_id] if workflow_id else [campaign_id]
     scheduled_for = result.get("scheduled_for")
     if result.get("status") == "deferred" and scheduled_for:
         eta = datetime.fromisoformat(scheduled_for)
         log.info("Campagne %s requeuee pour %s", campaign_id, scheduled_for)
-        run_campaign_task.apply_async(args=[campaign_id], eta=eta)
+        run_campaign_task.apply_async(args=task_args, eta=eta)
     elif result.get("status") == "running":
         log.info("Campagne %s - lot termine, relance du lot suivant", campaign_id)
-        run_campaign_task.apply_async(args=[campaign_id])
+        run_campaign_task.apply_async(args=task_args)
     return result
 
 
@@ -154,3 +171,63 @@ def refresh_connector_status_task():
 
     results = _run(refresh_connector_statuses())
     return [result.model_dump(mode="json") for result in results]
+
+
+@celery_app.task(name="app.tasks.run_browser_use_task", bind=True, max_retries=2)
+def run_browser_use_task(
+    self,
+    workflow_id: str,
+    template_id: str,
+    target_url: str,
+    custom_prompt: str | None = None,
+):
+    """Execute une tache Browser Use bornee et persistante."""
+    from uuid import UUID
+
+    import httpx
+
+    from app.services.browser_use_workflows import execute_browser_use_workflow
+
+    try:
+        return _run(execute_browser_use_workflow(
+            UUID(workflow_id), template_id, target_url, custom_prompt
+        ))
+    except (httpx.TimeoutException, httpx.NetworkError) as exc:
+        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+
+
+@celery_app.task(name="app.tasks.run_experimental_lab_task")
+def run_experimental_lab_task(workflow_id: str, engine: str, target_url: str):
+    from uuid import UUID
+
+    from app.services.experimental_lab import execute_lab_run
+
+    return _run(execute_lab_run(UUID(workflow_id), engine, target_url))
+
+
+@celery_app.task(name="app.tasks.run_lbc_message_campaign_task")
+def run_lbc_message_campaign_task(campaign_id: str, workflow_id: str):
+    """Traite toutes les annonces LBC eligibles par lots bornes."""
+    from app.services.lbc_messaging import run_lbc_message_campaign
+
+    result = _run(run_lbc_message_campaign(campaign_id, workflow_id))
+    if result.get("status") == "running":
+        run_lbc_message_campaign_task.apply_async(args=[campaign_id, workflow_id])
+    return result
+
+
+@celery_app.task(name="app.tasks.sync_lbc_inbox_task")
+def sync_lbc_inbox_task(workflow_id: str | None = None):
+    """Synchronise periodiquement les messages entrants Leboncoin."""
+    from app.services.lbc_messaging import sync_lbc_inbox
+
+    return _run(sync_lbc_inbox(workflow_id))
+
+
+@celery_app.task(name="app.tasks.inspect_account_task")
+def inspect_account_task(workflow_id: str, account_id: str, profile_id: str):
+    from uuid import UUID
+
+    from app.services.account_control import inspect_account
+
+    return _run(inspect_account(UUID(workflow_id), UUID(account_id), profile_id))
