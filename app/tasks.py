@@ -51,7 +51,18 @@ celery_app.conf.update(
 
 def _run(coro):
     """Exécute une coroutine depuis un contexte synchrone Celery."""
-    return asyncio.run(coro)
+    async def run_and_dispose():
+        # Celery prefork reuses a process while asyncio.run creates a new loop
+        # for every task. Dispose the async DB pool before that loop disappears
+        # so pooled connections are never reused by a different event loop.
+        from app.db import engine
+
+        try:
+            return await coro
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run_and_dispose())
 
 
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)
@@ -208,9 +219,18 @@ def run_experimental_lab_task(workflow_id: str, engine: str, target_url: str):
 @celery_app.task(name="app.tasks.run_lbc_message_campaign_task")
 def run_lbc_message_campaign_task(campaign_id: str, workflow_id: str):
     """Traite toutes les annonces LBC eligibles par lots bornes."""
-    from app.services.lbc_messaging import run_lbc_message_campaign
+    from app.services.lbc_messaging import (
+        mark_lbc_message_campaign_failed,
+        run_lbc_message_campaign,
+    )
 
-    result = _run(run_lbc_message_campaign(campaign_id, workflow_id))
+    try:
+        result = _run(run_lbc_message_campaign(campaign_id, workflow_id))
+    except Exception as exc:
+        # A Celery exception otherwise leaves the UI campaign as RUNNING while
+        # its workflow remains PENDING, which hides the actual failure.
+        _run(mark_lbc_message_campaign_failed(campaign_id, workflow_id, str(exc)))
+        raise
     if result.get("status") == "running":
         run_lbc_message_campaign_task.apply_async(args=[campaign_id, workflow_id])
     return result

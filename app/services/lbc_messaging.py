@@ -174,6 +174,29 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
     return {"status": final_status.value.lower(), "sent": sent, "failed": failed}
 
 
+async def mark_lbc_message_campaign_failed(
+    campaign_id: str, workflow_id: str, error: str
+) -> None:
+    """Persist a worker exception so the dashboard cannot show a false RUNNING state."""
+    message = error[:500] or "LBC campaign worker failed"
+    campaign_uuid = uuid.UUID(campaign_id)
+    workflow_uuid = uuid.UUID(workflow_id)
+    async with get_db() as db:
+        await db.execute(
+            update(Campaign).where(Campaign.id == campaign_uuid).values(
+                status=CampaignStatus.FAILED,
+                last_error=message,
+            )
+        )
+        await db.execute(
+            update(WorkflowRun).where(WorkflowRun.id == workflow_uuid).values(
+                status=WorkflowStatus.FAILED,
+                last_error=message,
+                finished_at=datetime.now(UTC),
+            )
+        )
+
+
 def _apply_vehicle_criteria(query, raw_criteria: dict):
     criteria = VehicleSearchCriteria.model_validate(raw_criteria)
     if criteria.brand_model:
