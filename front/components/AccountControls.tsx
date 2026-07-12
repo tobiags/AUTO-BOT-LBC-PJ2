@@ -10,9 +10,10 @@ import type { AccountStatus } from '@/lib/api'
 export function AccountCreateControl() {
   const [mode, setMode] = useState('A')
   const [pending, setPending] = useState(false)
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const router = useRouter()
   return (
-    <Flex gap="2">
+    <Flex gap="2" align="center" wrap="wrap">
       <Select.Root value={mode} onValueChange={setMode}>
         <Select.Trigger aria-label="Mode de creation" />
         <Select.Content>
@@ -24,16 +25,39 @@ export function AccountCreateControl() {
         disabled={pending}
         onClick={async () => {
           setPending(true)
-          const response = await fetch('/api/operations/accounts', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode }),
-          })
-          setPending(false)
-          if (response.ok) router.refresh()
+          setFeedback(null)
+          try {
+            const response = await fetch('/api/operations/accounts', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode }),
+            })
+            const payload = await response.json().catch(() => null)
+            if (!response.ok) {
+              const detail = payload?.detail?.message ?? payload?.error ?? 'Commande impossible'
+              throw new Error(detail)
+            }
+            setFeedback({
+              kind: 'success',
+              text: `Création ${mode} mise en file. Suivez le résultat dans Workflows.`,
+            })
+            router.refresh()
+          } catch (reason) {
+            setFeedback({
+              kind: 'error',
+              text: reason instanceof Error ? reason.message : 'Erreur de lancement',
+            })
+          } finally {
+            setPending(false)
+          }
         }}
       >
         <Plus size={14} /> Creer un compte
       </Button>
+      {feedback && (
+        <Text size="1" color={feedback.kind === 'error' ? 'red' : 'green'} role="status">
+          {feedback.text}
+        </Text>
+      )}
     </Flex>
   )
 }

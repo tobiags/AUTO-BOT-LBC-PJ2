@@ -95,6 +95,15 @@ def create_account_task(self, mode: str = "A", workflow_id: str | None = None):
             _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
         log.warning("Échec création compte : %s — retry %d/2", exc, self.request.retries)
         raise self.retry(countdown=60, exc=exc)
+    except Exception as exc:
+        # Configuration/provider errors (for example missing iproxy or a
+        # rejected OTP provider request) must not leave the workflow pending.
+        if workflow_id:
+            from app.services.account_control import finish_account_creation_workflow
+
+            _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
+        log.exception("Échec inattendu création compte : %s", exc)
+        raise
 
 
 @celery_app.task(name="app.tasks.run_campaign_task", bind=True)
