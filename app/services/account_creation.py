@@ -68,9 +68,15 @@ async def _check_active_pool_needs_account() -> bool:
 
 
 def _session_path_for(account_id: str) -> str:
-    """Retourne le dossier de session Patchright pour un compte donné."""
+    """Retourne le dossier de session Patchright pour un compte donne."""
     path = Path(settings.sessions_dir) / account_id
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        if settings.is_production_like():
+            raise
+        path = Path("runtime/modules/patchright/sessions") / account_id
+        path.mkdir(parents=True, exist_ok=True)
     return str(path)
 
 
@@ -222,7 +228,7 @@ async def _create_with_patchright(
             await ctx.close()
 
 
-async def _create_with_browser_use(email: str, otp_order_id: str) -> None:
+async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, str]:
     """
     Fallback Mode B : browser-use Cloud REST API.
 
@@ -253,8 +259,17 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> None:
         raise AccountCreationError(f"Timeout browser-use task_id={task_id}")
 
     async with _httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            f"{_base}/profiles",
+            headers=_headers,
+            json={"name": f"lbc-{email}", "userId": email},
+        )
+        r.raise_for_status()
+        profile_id = r.json()["id"]
         # Créer la session browser-use (proxy FR résidentiel inclus côté cloud)
-        r = await client.post(f"{_base}/sessions", headers=_headers, json={})
+        r = await client.post(
+            f"{_base}/sessions", headers=_headers, json={"profileId": profile_id}
+        )
         r.raise_for_status()
         session_id = r.json()["id"]
         log.info("browser-use Cloud : session créée=%s", session_id)
@@ -262,7 +277,7 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> None:
         try:
             # Tâche 1 — formulaire email
             r = await client.post(f"{_base}/tasks", headers=_headers, json={
-                "session_id": session_id,
+                "sessionId": session_id,
                 "task": (
                     f"Ouvre {_LBC_SIGNUP_URL}. "
                     f"Remplis le champ email avec '{email}' et clique Continuer. "
@@ -280,7 +295,7 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> None:
                 raise AccountCreationError(f"Timeout OTP SMS order_id={otp_order_id}")
 
             r = await client.post(f"{_base}/tasks", headers=_headers, json={
-                "session_id": session_id,
+                "sessionId": session_id,
                 "task": (
                     f"Saisis le code SMS '{sms_code}' dans le champ de vérification "
                     "et clique Valider. Arrête-toi à la page suivante."
@@ -294,7 +309,7 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> None:
             email_code = await _poll_email_code_redis(email, timeout=_EMAIL_CODE_TIMEOUT)
             if email_code:
                 r = await client.post(f"{_base}/tasks", headers=_headers, json={
-                    "session_id": session_id,
+                    "sessionId": session_id,
                     "task": (
                         f"Saisis le code de vérification email '{email_code}' "
                         "et clique Valider pour finaliser la création du compte."
@@ -310,6 +325,7 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> None:
                 headers=_headers,
                 json={"action": "stop"},
             )
+        return profile_id, session_id
 
 
 async def create_lbc_account(mode: str = "A") -> CreationResult:
@@ -342,10 +358,6 @@ async def create_lbc_account(mode: str = "A") -> CreationResult:
 
     # ── Navigation et inscription ────────────────────────────────────────────────
     session_path = _session_path_for(account_uuid)
-    if mode == "A" and proxy:
-        await _create_with_patchright(email, proxy, session_path, order.id)
-    else:
-        await _create_with_browser_use(email, order.id)
 
     # ── Persistance DB — statut EN_CHAUFFE ───────────────────────────────────────
     async with get_db() as db:
@@ -353,12 +365,31 @@ async def create_lbc_account(mode: str = "A") -> CreationResult:
             id=uuid.UUID(account_uuid),
             email=email,
             phone_otp=order.phone,
-            status=AccountStatus.EN_CHAUFFE,
+            status=AccountStatus.EN_CREATION,
             datadome_trust_level=DatadomeTrustLevel.LOW,
             quota_actuel=10,
             session_path=session_path,
         )
         db.add(account)
+        await db.flush()
+
+    profile_id = None
+    session_id = None
+    if mode == "A" and proxy:
+        await _create_with_patchright(email, proxy, session_path, order.id)
+    else:
+        browser_state = await _create_with_browser_use(email, order.id)
+        if isinstance(browser_state, tuple) and len(browser_state) == 2:
+            profile_id, session_id = browser_state
+
+    account.status = AccountStatus.EN_CHAUFFE
+    async with get_db() as db:
+        account = await db.get(PlatformAccount, uuid.UUID(account_uuid))
+        if account is None:
+            raise AccountCreationError(f"Compte en creation introuvable: {account_uuid}")
+        account.status = AccountStatus.EN_CHAUFFE
+        account.browser_use_profile_id = profile_id
+        account.browser_use_session_id = session_id
         await db.flush()
 
     log.info("Compte créé : id=%s statut=EN_CHAUFFE warm-up 48–72h", account_uuid)

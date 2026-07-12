@@ -6,12 +6,20 @@ import pytest
 from app.models import ListingSource
 from app.services.scraper import (
     RawListing,
+    _page_url,
     _parse_km,
     _parse_lbc_search_items,
     _parse_price,
     _pick_lbc_title,
     enrich_with_phone,
 )
+
+
+@pytest.mark.unit
+def test_page_url_preserves_filters_and_replaces_page():
+    url = _page_url("https://example.test/search?q=citroen&page=2", 7)
+    assert "q=citroen" in url
+    assert "page=7" in url
 
 
 @pytest.mark.unit
