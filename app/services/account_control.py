@@ -121,11 +121,18 @@ async def create_account_command(
         ))
         workflow_id = workflow.id
     from app.tasks import create_account_task
-
-    task = create_account_task.delay(mode=mode, workflow_id=str(workflow_id))
-    async with get_db() as db:
-        workflow = await db.get(WorkflowRun, workflow_id)
-        workflow.celery_task_id = task.id
+    try:
+        task = create_account_task.delay(mode=mode, workflow_id=str(workflow_id))
+        async with get_db() as db:
+            workflow = await db.get(WorkflowRun, workflow_id)
+            workflow.celery_task_id = task.id
+    except Exception as exc:
+        # Do not leave an invisible PENDING workflow when the broker is down
+        # or Celery rejects the dispatch before returning a task id.
+        await finish_account_creation_workflow(
+            str(workflow_id), None, f"Account creation dispatch failed: {str(exc)[:400]}"
+        )
+        raise
     return AccountCommandResponse(
         account_id=None, workflow_id=workflow_id, action="create", status="queued"
     )
