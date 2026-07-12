@@ -67,6 +67,12 @@ docs/           # plan d'implémentation HTML
 
 Voir `docs/Plan_Implementation_Modules.html` pour la documentation complète module par module.
 
+## Documentation utilisateur et revue
+
+- [Guide complet d'utilisation](docs/GUIDE_COMPLET_UTILISATION.md)
+- [Guide HTML navigable](docs/GUIDE_COMPLET_UTILISATION.html)
+- [Revue technique complète du 12 juillet 2026](docs/REVUE_COMPLETE_2026-07-12.md)
+
 ## Déploiement
 
 ```bash

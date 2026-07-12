@@ -13,6 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import sentry_sdk
 
@@ -156,6 +157,13 @@ def _parse_lbc_search_items(items: list[dict[str, Any]]) -> list[RawListing]:
     return results
 
 
+def _page_url(url: str, page_number: int) -> str:
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["page"] = str(page_number)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
 async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
     """
     Scrape LeBonCoin via Patchright avec un compte ACTIF.
@@ -198,22 +206,30 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
         f"&mileage_max={km_max}&price_max={prix_max}&sort=time&order=desc"
     )
 
+    max_pages = max(1, min(int(search_params.get("max_pages", 50)), 100))
+    raw_items: list[dict[str, Any]] = []
+    seen_urls: set[str] = set()
     async with async_playwright() as p:
         ctx = await _launch_patchright_context(p.chromium, account.session_path)
         try:
             page = await ctx.new_page()
-            await page.goto(search_url, wait_until="networkidle", timeout=30_000)
-            await page.wait_for_load_state("domcontentloaded", timeout=15_000)
-
-            try:
-                raw_items: list[dict[str, Any]] = await page.evaluate(
-                    _LBC_GENERIC_JS_EXTRACT,
-                    isolated_context=True,
+            for page_number in range(1, max_pages + 1):
+                await page.goto(
+                    _page_url(search_url, page_number),
+                    wait_until="networkidle",
+                    timeout=30_000,
                 )
-            except Exception as exc:
-                log.error("scrape_lbc heuristique echouee : %s", exc)
-                sentry_sdk.capture_exception(exc)
-                return []
+                page_items = await page.evaluate(
+                    _LBC_GENERIC_JS_EXTRACT, isolated_context=True
+                )
+                new_items = [item for item in page_items if item.get("url") not in seen_urls]
+                if not new_items:
+                    break
+                raw_items.extend(new_items)
+                seen_urls.update(str(item["url"]) for item in new_items)
+        except Exception as exc:
+            log.error("scrape_lbc heuristique echouee : %s", exc)
+            sentry_sdk.capture_exception(exc)
         finally:
             await ctx.close()
 
@@ -270,33 +286,35 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
     )
 
     listings: list[RawListing] = []
+    seen_urls: set[str] = set()
+    max_pages = max(1, min(int(search_params.get("max_pages", 50)), 100))
     async with AsyncWebCrawler(config=browser_config) as crawler:
-        result = await crawler.arun(url=search_url, config=crawler_config)
-
-    if not result.success:
-        log.warning("crawl4ai La Centrale echoue : %s", result.error_message)
-        return []
-
-    if not result.extracted_content:
-        log.warning("crawl4ai La Centrale : extracted_content vide")
-        return []
-
-    raw_items: list[dict[str, Any]] = json.loads(result.extracted_content)
-    for item in raw_items:
-        raw_url = item.get("url", "")
-        if raw_url and not raw_url.startswith("http"):
-            raw_url = f"https://www.lacentrale.fr{raw_url}"
-
-        listing = RawListing(
-            source=ListingSource.LA_CENTRALE,
-            url=raw_url,
-            title=item.get("title", "").strip() or None,
-            price=_parse_price(item.get("price", "")),
-            km=_parse_km(item.get("km", "")),
-            location=item.get("location", "").strip() or None,
-            raw_data=json.dumps(item, ensure_ascii=False),
-        )
-        listings.append(enrich_with_phone(listing))
+        for page_number in range(1, max_pages + 1):
+            result = await crawler.arun(
+                url=_page_url(search_url, page_number), config=crawler_config
+            )
+            if not result.success or not result.extracted_content:
+                break
+            added = 0
+            for item in json.loads(result.extracted_content):
+                raw_url = item.get("url", "")
+                if raw_url and not raw_url.startswith("http"):
+                    raw_url = f"https://www.lacentrale.fr{raw_url}"
+                if not raw_url or raw_url in seen_urls:
+                    continue
+                seen_urls.add(raw_url)
+                added += 1
+                listings.append(enrich_with_phone(RawListing(
+                    source=ListingSource.LA_CENTRALE,
+                    url=raw_url,
+                    title=item.get("title", "").strip() or None,
+                    price=_parse_price(item.get("price", "")),
+                    km=_parse_km(item.get("km", "")),
+                    location=item.get("location", "").strip() or None,
+                    raw_data=json.dumps(item, ensure_ascii=False),
+                )))
+            if added == 0:
+                break
 
     log.info("scrape_la_centrale : %d annonces collectees", len(listings))
     return listings

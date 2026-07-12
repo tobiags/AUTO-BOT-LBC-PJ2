@@ -1,8 +1,4 @@
-"""
-Webhook Mailgun → POST /webhooks/email.
-Reçoit les emails LBC de vérification.
-Règle R12 : idempotent.
-"""
+"""Signed Mailgun webhook used during LBC account verification."""
 import hashlib
 import logging
 import re
@@ -12,11 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
+from app.security import verify_mailgun_signature
 from app.tables import PlatformAccount, WebhookEvent
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 log = logging.getLogger(__name__)
-
 _CODE_RE = re.compile(r"\b\d{5,8}\b")
 
 
@@ -31,10 +27,15 @@ async def receive_email(
     sender: str = Form(...),
     subject: str = Form(""),
     body_plain: str = Form("", alias="body-plain"),
+    timestamp: str = Form(...),
+    token: str = Form(...),
+    signature: str = Form(...),
 ):
-    event_key = hashlib.sha256(f"email:{recipient}:{sender}:{subject}".encode()).hexdigest()[:32]
+    verify_mailgun_signature(timestamp, token, signature)
+    event_key = hashlib.sha256(
+        f"email:{recipient}:{sender}:{subject}:{timestamp}:{token}".encode()
+    ).hexdigest()[:32]
 
-    # Idempotence — R12
     async with get_db() as db:
         result = await db.execute(
             pg_insert(WebhookEvent)
@@ -47,26 +48,25 @@ async def receive_email(
 
     code = extract_verification_code(body_plain)
     if not code:
-        log.warning("Email reçu sans code de vérification — destinataire=%s", recipient)
-        return {"ok": True, "code": None}
+        log.warning("Email recu sans code de verification pour destinataire=%s", recipient)
+        return {"ok": True}
 
-    log.info("Code LBC extrait : %s — destinataire=%s", code, recipient)
-
-    # Associer le code au compte en attente (EN_CHAUFFE avec cet email)
     async with get_db() as db:
         result = await db.execute(
             select(PlatformAccount).where(PlatformAccount.email == recipient).limit(1)
         )
         account = result.scalar_one_or_none()
         if account:
-            log.info("Compte trouvé : id=%s — dépôt code Redis pour Patchright", account.id)
-            # Dépose le code en Redis. account_creation._poll_email_code_redis() le récupère.
-            import redis.asyncio as _aioredis  # noqa: I001
-            from app.config import get_settings as _gs
-            _redis = _aioredis.from_url(_gs().redis_url, decode_responses=True)
-            try:
-                await _redis.setex(f"email_code:{recipient}", 600, code)
-            finally:
-                await _redis.aclose()
+            import redis.asyncio as aioredis
 
-    return {"ok": True, "code": code}
+            from app.config import get_settings
+
+            redis = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+            try:
+                await redis.setex(f"email_code:{recipient}", 600, code)
+            finally:
+                await redis.aclose()
+        else:
+            log.warning("Aucun compte en creation pour destinataire=%s", recipient)
+
+    return {"ok": True}

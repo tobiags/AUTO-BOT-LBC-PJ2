@@ -7,13 +7,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import sentry_sdk
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import accounts, analyzer, campaigns, dashboard, health, listings, operations
 from app.config import get_settings
 from app.db import engine
-from app.schema_sync import ensure_runtime_schema
+from app.security import require_control_token, require_webhook_secret, websocket_token_is_valid
 from app.services.balance_poller import start_balance_poller
 from app.webhooks import call, email, funds, sms
 from app.ws import ws_manager
@@ -31,7 +31,6 @@ def validate_startup_or_raise() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_startup_or_raise()
-    await ensure_runtime_schema()
     poller_task = asyncio.create_task(start_balance_poller())
     try:
         yield
@@ -57,20 +56,24 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
-app.include_router(accounts.router)
-app.include_router(campaigns.router)
-app.include_router(listings.router)
-app.include_router(analyzer.router)
-app.include_router(sms.router)
+protected = [Depends(require_control_token)]
+app.include_router(accounts.router, dependencies=protected)
+app.include_router(campaigns.router, dependencies=protected)
+app.include_router(listings.router, dependencies=protected)
+app.include_router(analyzer.router, dependencies=protected)
+app.include_router(sms.router, dependencies=[Depends(require_webhook_secret)])
 app.include_router(email.router)
-app.include_router(call.router)
-app.include_router(funds.router)
-app.include_router(dashboard.router)
+app.include_router(call.router, dependencies=[Depends(require_webhook_secret)])
+app.include_router(funds.router, dependencies=[Depends(require_webhook_secret)])
+app.include_router(dashboard.router, dependencies=protected)
 app.include_router(operations.router)
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
+    if not websocket_token_is_valid(token):
+        await websocket.close(code=4401)
+        return
     await ws_manager.connect(websocket)
     try:
         while True:

@@ -69,9 +69,18 @@ async def create_browser_use_workflow(
 
     from app.tasks import run_browser_use_task
 
-    task = run_browser_use_task.delay(
-        str(workflow_id), template_id, target_url, custom_prompt
-    )
+    try:
+        task = run_browser_use_task.delay(
+            str(workflow_id), template_id, target_url, custom_prompt
+        )
+    except Exception as exc:
+        await _update_workflow(
+            workflow_id,
+            status=WorkflowStatus.FAILED,
+            last_error=str(exc)[:500],
+            finished=True,
+        )
+        raise
     async with get_db() as db:
         await db.execute(
             update(WorkflowRun)
@@ -96,6 +105,23 @@ async def execute_browser_use_workflow(
     prompt = custom_prompt or template.prompt
     client = BrowserUseCloudClient(settings.browser_use_api_key)
     await _update_workflow(workflow_id, status=WorkflowStatus.RUNNING, started=True)
+    try:
+        return await _execute_browser_use_task(
+            workflow_id, template_id, target_url, prompt, template, client, settings
+        )
+    except Exception as exc:
+        await _update_workflow(
+            workflow_id,
+            status=WorkflowStatus.FAILED,
+            last_error=str(exc)[:500],
+            finished=True,
+        )
+        raise
+
+
+async def _execute_browser_use_task(
+    workflow_id, template_id, target_url, prompt, template, client, settings
+) -> dict:
     task = await client.create_task(
         task=f"{prompt}\nURL cible: {target_url}",
         metadata={"workflow_id": str(workflow_id), "template": template_id},
@@ -220,6 +246,7 @@ async def _update_workflow(
     checkpoint: dict | None = None,
     started: bool = False,
     finished: bool = False,
+    last_error: str | None = None,
 ) -> None:
     values = {}
     if status is not None:
@@ -230,6 +257,8 @@ async def _update_workflow(
         values["started_at"] = datetime.now(UTC)
     if finished:
         values["finished_at"] = datetime.now(UTC)
+    if last_error is not None:
+        values["last_error"] = last_error
     async with get_db() as db:
         await db.execute(
             update(WorkflowRun).where(WorkflowRun.id == workflow_id).values(**values)

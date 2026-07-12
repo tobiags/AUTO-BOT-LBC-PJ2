@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Guide complet AutoTransfert P2</title>
+  <style>
+    :root{--ink:#172033;--muted:#637083;--line:#dfe5ec;--soft:#f5f7fa;--accent:#0969da;--danger:#cf222e}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);font:15px/1.65 Inter,system-ui,sans-serif}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+    header{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:20px;padding:11px 24px;background:#fffffff2;border-bottom:1px solid var(--line)}header input{width:min(560px,55vw);padding:9px 12px;border:1px solid #b9c3cf;border-radius:6px;font:inherit}.version{margin-left:auto;color:var(--muted);font-size:13px}
+    .layout{display:grid;grid-template-columns:225px minmax(0,820px) 190px;gap:32px;max-width:1320px;margin:auto;padding:26px 22px 80px}nav,aside{position:sticky;top:82px;align-self:start;max-height:calc(100vh - 100px);overflow:auto}nav a,aside a{display:block;padding:5px 8px;border-radius:5px;color:#46556a;font-size:13px}nav a:hover,aside a:hover{background:var(--soft);text-decoration:none}nav strong,aside strong{display:block;margin:0 8px 8px;font-size:12px;color:var(--muted);text-transform:uppercase}
+    main{min-width:0}h1{margin:0;font-size:38px;line-height:1.15}h2{margin:42px 0 12px;padding-top:12px;border-top:1px solid var(--line);font-size:25px}h3{margin:25px 0 7px}.lead{color:var(--muted);font-size:17px}.pill{display:inline-block;margin:8px 5px 10px 0;padding:3px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}.callout{margin:18px 0;padding:13px 16px;border-left:4px solid var(--accent);background:#ddf4ff;border-radius:4px}.warn{border-color:#bf8700;background:#fff8c5}.danger{border-color:var(--danger);background:#ffebe9}table{width:100%;border-collapse:collapse;margin:15px 0 24px;font-size:14px}th,td{padding:9px 10px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft)}pre{overflow:auto;padding:15px;border-radius:6px;background:#0d1117;color:#e6edf3;font:13px/1.55 ui-monospace,Consolas,monospace}code{padding:.12em .35em;border-radius:4px;background:#eff1f3;font-family:ui-monospace,Consolas,monospace}pre code{padding:0;background:none}.hidden{display:none}footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+    @media(max-width:1000px){.layout{grid-template-columns:200px minmax(0,1fr)}aside{display:none}}@media(max-width:720px){header{flex-wrap:wrap}header input{order:3;width:100%}.layout{display:block;padding:20px 16px 60px}nav{position:static;columns:2;margin-bottom:24px}h1{font-size:31px}}
+  </style>
+</head>
+<body>
+  <header><strong>AutoTransfert P2</strong><input id="search" type="search" placeholder="Rechercher dans le guide..."><span class="version">12 juillet 2026</span></header>
+  <div class="layout">
+    <nav><strong>Guide</strong><a href="#start">Demarrage</a><a href="#arch">Architecture</a><a href="#roles">Roles</a><a href="#dashboard">Dashboard</a><a href="#workflows">Workflows</a><a href="#campaigns">Campagnes</a><a href="#accounts">Comptes LBC</a><a href="#connectors">Connecteurs</a><a href="#browser">Browser Use</a><a href="#lab">Laboratoire</a><a href="#config">Configuration</a><a href="#install">Installation</a><a href="#deploy">Deploiement</a><a href="#incidents">Incidents</a><a href="#maintenance">Maintenance</a><a href="#limits">Limites</a></nav>
+    <main id="content">
+      <h1>Guide complet d'utilisation</h1>
+      <p class="lead">Collecte d'annonces, campagnes, comptes Leboncoin, messagerie, diagnostics et exploitation longue duree.</p>
+      <span class="pill">FastAPI</span><span class="pill">Celery</span><span class="pill">Next.js</span><span class="pill">PostgreSQL</span><span class="pill">Redis</span><span class="pill">Coolify</span>
+      <div class="callout warn"><strong>Etat actuel.</strong> Le dashboard et les workflows sont operationnels. La creation automatique de comptes et le backfill complet ont encore les limites decrites en fin de guide.</div>
+
+      <section id="start"><h2>Demarrage rapide</h2><ol><li>Se connecter sur <code>https://app.ecovente.com/login</code>.</li><li>Verifier les connecteurs et leurs horodatages.</li><li>Verifier un compte LBC actif avec session utilisable.</li><li>Creer une campagne avec quota faible.</li><li>Suivre le workflow et lire l'erreur avant tout retry.</li></ol></section>
+
+      <section id="arch"><h2>Architecture</h2><table><tr><th>Composant</th><th>Responsabilite</th></tr><tr><td>Frontend</td><td>Session operateur et commandes.</td></tr><tr><td>API</td><td>Validation, autorisation et workflows.</td></tr><tr><td>Worker</td><td>Lots, retries et fournisseurs.</td></tr><tr><td>PostgreSQL</td><td>Donnees, historiques et audits.</td></tr><tr><td>Redis</td><td>File Celery et OTP temporaires.</td></tr><tr><td>Lab</td><td>Diagnostics Camoufox/Obscura isoles.</td></tr></table><pre><code>Utilisateur -> Frontend -> API -> PostgreSQL
+                              -> Redis -> Worker -> Sites et fournisseurs</code></pre></section>
+
+      <section id="roles"><h2>Roles et acces</h2><table><tr><th>Role</th><th>Acces</th></tr><tr><td>viewer</td><td>Consultation.</td></tr><tr><td>operator</td><td>Campagnes et commandes courantes.</td></tr><tr><td>admin</td><td>Comptes, prompts personnalises et laboratoire.</td></tr></table><div class="callout danger">Ne jamais exposer <code>CONTROL_TOWER_TOKEN</code> ni une cle fournisseur au navigateur ou dans la documentation.</div></section>
+
+      <section id="dashboard"><h2>Tableau de bord</h2><p>Il regroupe annonces, SMS, messages LBC, numeros extraits, comptes, campagnes, credits, connecteurs, actions requises et activite recente. Les workflows sont actualises automatiquement ; toujours verifier la date de derniere activite.</p></section>
+
+      <section id="workflows"><h2>Workflows et logs</h2><p>Chaque execution conserve type, cible, progression, checkpoint, erreur et dates. Les commandes operateur sont auditees.</p><pre><code>PENDING -> RUNNING -> COMPLETED
+                    -> FAILED -> RETRY
+          -> PAUSED -> RUNNING
+          -> CANCELLED</code></pre><div class="callout warn"><code>PENDING</code> sans task ID indique un dispatch echoue. <code>RUNNING</code> sans activite recente indique un blocage.</div></section>
+
+      <section id="campaigns"><h2>Annonces et campagnes</h2><p>Les annonces LBC et La Centrale sont normalisees en base. Une annonce ancienne ou nouvelle est eligible si elle correspond aux criteres et n'a pas deja ete contactee.</p><ol><li>Choisir marque/modele, type, region et budget.</li><li>Rediger le message et choisir le canal.</li><li>Fixer le quota, creer et demarrer.</li><li>Suivre les lots dans Workflows.</li></ol><p>La messagerie LBC traite des lots de 25 et deduplique les envois. <code>COMPLETED</code> signifie que le backlog present en base est termine, pas que toutes les pages du site ont ete importees.</p></section>
+
+      <section id="accounts"><h2>Comptes LBC</h2><table><tr><th>Mode</th><th>Methode</th><th>Prerequis</th></tr><tr><td>A</td><td>Patchright + proxy 4G</td><td>iProxy complet, SmsApp, Mailgun.</td></tr><tr><td>B</td><td>Browser Use Cloud</td><td>Browser Use, SmsApp, Mailgun.</td></tr></table><p>Suivre <code>account.create</code>, puis validation OTP, chauffe, inspection et activation.</p><ul><li><code>IPROXY_CONNECTION_ID is required</code> : configuration A incomplete.</li><li><code>SMSApp 502</code> : fournisseur OTP indisponible.</li><li><code>No active Browser Use profile</code> : aucun profil utilisable pour envoyer.</li></ul></section>
+
+      <section id="connectors"><h2>Connecteurs</h2><table><tr><th>Service</th><th>Usage</th><th>Controle</th></tr><tr><td>PostgreSQL</td><td>Persistance</td><td>SELECT 1</td></tr><tr><td>Redis/Celery</td><td>File</td><td>Ping/broker</td></tr><tr><td>Browser Use</td><td>Navigation cloud</td><td>Lecture tache</td></tr><tr><td>iProxy</td><td>IP mobile</td><td>Lecture proxy</td></tr><tr><td>SMSTools</td><td>SMS/appels</td><td>SIM actives</td></tr><tr><td>SmsApp</td><td>OTP</td><td>Achat controle</td></tr><tr><td>Mailgun</td><td>Email</td><td>Etat domaine</td></tr></table><p><code>configured</code> ne signifie pas <code>operational</code>.</p></section>
+
+      <section id="browser"><h2>Browser Use</h2><p>Utiliser les templates de diagnostic annonce, enrichissement, assistance messagerie sans envoi et diagnostic compte. Chaque tache est limitee en domaine, temps et cout. Browser Use convient aux actions chirurgicales, pas au scraping massif.</p></section>
+
+      <section id="lab"><h2>Laboratoire</h2><p>Camoufox et Obscura sont isoles de la production et desactives par defaut. Activer le moteur, verifier token/domaines, lancer un diagnostic, exporter le rapport puis desactiver. Ne jamais stocker cookie, OTP ou conversation complete.</p></section>
+
+      <section id="config"><h2>Configuration</h2><pre><code>ENV=production
+DATABASE_URL=postgresql+asyncpg://...
+REDIS_URL=redis://...
+CELERY_BROKER_URL=redis://...
+CELERY_RESULT_BACKEND=redis://...
+SECRET_KEY=...
+CONTROL_TOWER_TOKEN=...
+BROWSER_USE_API_KEY=...
+IPROXY_API_KEY=...
+IPROXY_CONNECTION_ID=...
+IPROXY_PROXY_ID=...
+SMSAPP_API_TOKEN=...
+SMSTOOLS_API_KEY=...
+MAILGUN_API_KEY=...
+MAILGUN_DOMAIN=...</code></pre><p>Les secrets fournisseurs restent cote API/worker. Utiliser les secrets Coolify ou un coffre-fort.</p></section>
+
+      <section id="install"><h2>Installation et tests</h2><pre><code>docker compose up -d postgres postgres_test redis
+python -m pip install -e ".[dev]"
+alembic upgrade head
+python -m uvicorn app.main:app --reload
+celery -A app.tasks worker --loglevel=info --concurrency=2
+
+Set-Location front
+npm install
+npm run dev</code></pre><h3>Verification</h3><pre><code>python -m pytest -q
+python -m ruff check app tests
+npm test -- --run
+npm run lint
+npm run build
+npm audit --omit=dev</code></pre></section>
+
+      <section id="deploy"><h2>Deploiement Coolify</h2><ol><li>Pousser le commit GitHub.</li><li>Deployer l'API et verifier <code>/health</code>.</li><li>Deployer le worker et verifier <code>celery ready</code>.</li><li>Deployer le frontend.</li><li>Deployer le lab seulement s'il a change.</li><li>Executer un diagnostic sans mutation.</li></ol><p>PostgreSQL et Redis ne sont pas redeployes pour une livraison applicative.</p></section>
+
+      <section id="incidents"><h2>Incidents</h2><table><tr><th>Symptome</th><th>Action</th></tr><tr><td>PENDING sans task ID</td><td>Verifier Redis/Celery, corriger puis retry.</td></tr><tr><td>RUNNING ancien</td><td>Lire les logs, stopper et corriger.</td></tr><tr><td>Profil Browser Use absent</td><td>Configurer et inspecter un profil.</td></tr><tr><td>iProxy desactive</td><td>Completer les trois variables.</td></tr><tr><td>SmsApp 502</td><td>Attendre et retenter une fois.</td></tr><tr><td>DataDome/CAPTCHA</td><td>Quarantaine, proxy sticky, diagnostic manuel.</td></tr></table></section>
+
+      <section id="maintenance"><h2>Maintenance longue duree</h2><h3>Chaque jour</h3><p>Workflows, comptes, campagnes, credits et connecteurs.</p><h3>Chaque semaine</h3><p>Diagnostic sans mutation, webhooks, blacklist et croissance des logs.</p><h3>Chaque mois</h3><p>Rotation des secrets, couts, restauration de sauvegarde, dependances et changements des sites.</p></section>
+
+      <section id="limits"><h2>Limites connues</h2><ul><li>Routes historiques et webhooks a durcir.</li><li>Profil Browser Use non persiste par la creation de compte.</li><li>Compte a creer avant l'attente du webhook email.</li><li>Backfill pagine complet non garanti.</li><li>Creation de compte La Centrale non implementee.</li><li>Wrapper d'erreur uniforme a generaliser.</li></ul><div class="callout danger"><strong>Avant production autonome :</strong> appliquer les priorites du rapport de revue.</div></section>
+
+      <footer>Source : <a href="GUIDE_COMPLET_UTILISATION.md">guide Markdown</a> · <a href="REVUE_COMPLETE_2026-07-12.md">rapport de revue</a> · Mise en page inspiree du template <code>docs-page</code> de html-anything.</footer>
+    </main>
+    <aside><strong>Sur cette page</strong><a href="#arch">Architecture</a><a href="#workflows">Workflows</a><a href="#campaigns">Campagnes</a><a href="#accounts">Comptes</a><a href="#config">Configuration</a><a href="#deploy">Deploiement</a><a href="#limits">Limites</a></aside>
+  </div>
+  <script>const q=document.getElementById('search'),s=[...document.querySelectorAll('main section')];q.addEventListener('input',()=>{const v=q.value.trim().toLocaleLowerCase('fr');s.forEach(x=>x.classList.toggle('hidden',v&&!x.textContent.toLocaleLowerCase('fr').includes(v)))})</script>
+</body>
+</html>

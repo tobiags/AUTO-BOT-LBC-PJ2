@@ -15,9 +15,13 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://autotransfert:password@localhost:5433/autotransfert_p2_test",
 )
-
+from app.config import get_settings
 from app.main import app
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus
+
+get_settings().__dict__["control_tower_token"] = "test-control-token"
+get_settings().__dict__["smstools_webhook_secret"] = "test-webhook-secret"
+get_settings().__dict__["mailgun_webhook_signing_key"] = "test-mailgun-key"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -56,7 +60,14 @@ def require_integration_db(request):
 
 @pytest.fixture
 async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={
+            "X-Control-Tower-Token": "test-control-token",
+            "X-Webhook-Secret": "test-webhook-secret",
+        },
+    ) as c:
         yield c
 
 

@@ -51,7 +51,15 @@ async def create_lab_run(
 
     from app.tasks import run_experimental_lab_task
 
-    task = run_experimental_lab_task.delay(str(workflow_id), engine, target_url)
+    try:
+        task = run_experimental_lab_task.delay(str(workflow_id), engine, target_url)
+    except Exception as exc:
+        async with get_db() as db:
+            workflow = await db.get(WorkflowRun, workflow_id)
+            workflow.status = WorkflowStatus.FAILED
+            workflow.last_error = str(exc)[:500]
+            workflow.finished_at = datetime.now(UTC)
+        raise
     async with get_db() as db:
         workflow = await db.get(WorkflowRun, workflow_id)
         workflow.celery_task_id = task.id

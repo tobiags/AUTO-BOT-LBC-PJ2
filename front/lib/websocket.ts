@@ -67,17 +67,26 @@ export function useBackofficeEvents(onEvent: (event: BackofficeEvent) => void) {
   onEventRef.current = onEvent
 
   useEffect(() => {
-    const ws = new WebSocket(WS_URL)
+    let ws: WebSocket | undefined
+    let cancelled = false
+    void fetch('/api/auth/ws-token', { cache: 'no-store' }).then(async (response) => {
+      if (!response.ok || cancelled) return
+      const { token } = (await response.json()) as { token: string }
+      const separator = WS_URL.includes('?') ? '&' : '?'
+      ws = new WebSocket(`${WS_URL}${separator}token=${encodeURIComponent(token)}`)
+      ws.onopen = () => setConnected(true)
+      ws.onclose = () => setConnected(false)
+      ws.onerror = () => setConnected(false)
+      ws.onmessage = (e: MessageEvent) => {
+        const data = parseBackofficeEvent(String(e.data))
+        if (data) onEventRef.current(data)
+      }
+    })
 
-    ws.onopen = () => setConnected(true)
-    ws.onclose = () => setConnected(false)
-    ws.onerror = () => setConnected(false)
-    ws.onmessage = (e: MessageEvent) => {
-      const data = parseBackofficeEvent(String(e.data))
-      if (data) onEventRef.current(data)
+    return () => {
+      cancelled = true
+      ws?.close()
     }
-
-    return () => ws.close()
   }, [])
 
   return { connected }
