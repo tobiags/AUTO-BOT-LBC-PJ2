@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge, Box, Card, Flex, Heading, Text } from '@radix-ui/themes'
+import { useRouter } from 'next/navigation'
 
 import type { DashboardStats, ServiceBalance } from '@/lib/api'
 import {
@@ -142,6 +143,16 @@ function CreditCard({ b }: { b: ServiceBalance }) {
 export function DashboardRealtime({ initialStats }: { initialStats: DashboardStats | null }) {
   const [stats, setStats] = useState(initialStats)
   const [calls, setCalls] = useState<IncomingCallEvent[]>([])
+  const router = useRouter()
+
+  useEffect(() => {
+    setStats(initialStats)
+  }, [initialStats])
+
+  useEffect(() => {
+    const refresh = window.setInterval(() => router.refresh(), 10000)
+    return () => window.clearInterval(refresh)
+  }, [router])
 
   const handleEvent = useCallback((event: BackofficeEvent) => {
     if (event.event === 'incoming_call') {
@@ -257,6 +268,39 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
             <Text size="1" color="gray" as="div">Aucune campagne active</Text>
           )}
         </Card>
+      </Flex>
+
+      <Flex justify="between" align="center" mt="5" mb="2">
+        <Text size="3" weight="bold">Activité récente</Text>
+        <Text size="1" color="gray">Actualisation automatique toutes les 10 secondes</Text>
+      </Flex>
+      <Flex direction="column" gap="2">
+        {(stats?.workflows ?? []).slice(0, 6).map((workflow) => (
+          <Card key={workflow.id}>
+            <Flex justify="between" align="start" gap="3" wrap="wrap">
+              <Box>
+                <Text size="2" weight="bold" as="div">{workflow.workflow_type}</Text>
+                <Text size="1" color="gray" as="div">
+                  Lot {workflow.batch_number} · mis à jour le{' '}
+                  {new Date(workflow.updated_at).toLocaleString('fr-FR')}
+                </Text>
+              </Box>
+              <Badge color={workflow.status === 'FAILED' ? 'red' : workflow.status === 'RUNNING' ? 'green' : 'gray'}>
+                {workflow.status}
+              </Badge>
+            </Flex>
+            <Text size="1" color={workflow.last_error ? 'red' : 'gray'} as="div" mt="2">
+              {workflow.last_error ?? (
+                workflow.progress_total
+                  ? `Progression : ${workflow.progress_current} / ${workflow.progress_total}`
+                  : 'Aucune erreur enregistrée'
+              )}
+            </Text>
+          </Card>
+        ))}
+        {!stats?.workflows.length && (
+          <Text size="2" color="gray">Aucune activité récente.</Text>
+        )}
       </Flex>
     </Box>
   )

@@ -31,7 +31,13 @@ export function WorkflowControl() {
     if (!response.ok) throw new Error('Workflows indisponibles')
     setWorkflows(await response.json())
   }
-  useEffect(() => { load().catch((reason) => setError(reason.message)) }, [])
+  useEffect(() => {
+    load().catch((reason) => setError(reason.message))
+    const refresh = window.setInterval(() => {
+      load().catch((reason) => setError(reason.message))
+    }, 8000)
+    return () => window.clearInterval(refresh)
+  }, [])
 
   async function command(id: string, action: string) {
     if (action === 'cancel' && !window.confirm('Annuler ce workflow ?')) return
@@ -80,6 +86,9 @@ export function WorkflowControl() {
                   <Text weight="bold" size="2" as="div">{workflow.workflow_type}</Text>
                   <Text size="1" color="gray" as="div">
                     {workflow.target_type}: {workflow.target_id ?? '-'} · lot {workflow.batch_number}
+                  </Text>
+                  <Text size="1" color="gray" as="div">
+                    Dernière activité : {new Date(workflow.updated_at).toLocaleString('fr-FR')}
                   </Text>
                 </Table.Cell>
                 <Table.Cell style={{ minWidth: 150 }}>
