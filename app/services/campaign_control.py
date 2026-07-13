@@ -80,7 +80,7 @@ async def execute_campaign_command(
     actor: str,
     role: str,
 ) -> CampaignCommandResponse:
-    dispatch_workflow_id: UUID | None = None
+    dispatch_workflow_ids: list[tuple[str, UUID]] = []
     async with get_db() as db:
         duplicate = await db.scalar(
             select(AuditEvent).where(AuditEvent.idempotency_key == idempotency_key)
@@ -98,47 +98,27 @@ async def execute_campaign_command(
         if campaign is None:
             raise LookupError("Campaign not found")
         next_status = campaign_transition(campaign.status, action)
-        workflow_type = (
-            "campaign.lbc_message"
-            if campaign.type == "lbc_message"
-            else "campaign.sms"
-        )
+        workflow_types = ["campaign.lbc_message", "campaign.sms"] if campaign.type == "both" else [
+            "campaign.lbc_message" if campaign.type == "lbc_message" else "campaign.sms"
+        ]
         campaign.status = next_status
         campaign.last_error = None
-
-        active = await db.scalar(
-            select(WorkflowRun)
-            .where(
-                WorkflowRun.workflow_type == workflow_type,
-                WorkflowRun.target_id == str(campaign_id),
-                WorkflowRun.status.in_([
-                    WorkflowStatus.PENDING,
-                    WorkflowStatus.RUNNING,
-                    WorkflowStatus.PAUSED,
-                ]),
-            )
-            .order_by(WorkflowRun.created_at.desc())
-        )
-        workflow = active
-        if action in {"start", "retry"} or workflow is None:
-            workflow = WorkflowRun(
-                idempotency_key=idempotency_key,
-                workflow_type=workflow_type,
-                target_type="campaign",
-                target_id=str(campaign_id),
-                status=WorkflowStatus.PENDING,
-                batch_size=200,
-                initiated_by=actor,
-            )
-            db.add(workflow)
-            await db.flush()
-        elif action == "pause":
-            workflow.status = WorkflowStatus.PAUSED
-        elif action == "cancel":
-            workflow.status = WorkflowStatus.CANCELLED
-            workflow.finished_at = datetime.now(UTC)
-        elif action == "resume":
-            workflow.status = WorkflowStatus.PENDING
+        workflows: list[tuple[str, WorkflowRun]] = []
+        for index, workflow_type in enumerate(workflow_types):
+            active = await db.scalar(select(WorkflowRun).where(WorkflowRun.workflow_type == workflow_type, WorkflowRun.target_id == str(campaign_id), WorkflowRun.status.in_([WorkflowStatus.PENDING, WorkflowStatus.RUNNING, WorkflowStatus.PAUSED])).order_by(WorkflowRun.created_at.desc()))
+            workflow = active
+            if action in {"start", "retry"} or workflow is None:
+                workflow = WorkflowRun(idempotency_key=f"{idempotency_key}-{index}", workflow_type=workflow_type, target_type="campaign", target_id=str(campaign_id), status=WorkflowStatus.PENDING, batch_size=200, initiated_by=actor)
+                db.add(workflow)
+                await db.flush()
+            elif action == "pause":
+                workflow.status = WorkflowStatus.PAUSED
+            elif action == "cancel":
+                workflow.status = WorkflowStatus.CANCELLED
+                workflow.finished_at = datetime.now(UTC)
+            elif action == "resume":
+                workflow.status = WorkflowStatus.PENDING
+            workflows.append((workflow_type, workflow))
 
         db.add(AuditEvent(
             actor=actor,
@@ -149,13 +129,13 @@ async def execute_campaign_command(
             idempotency_key=idempotency_key,
             input_summary={"action": action},
             result_status=next_status.value.lower(),
-            workflow_run_id=workflow.id,
+            workflow_run_id=workflows[0][1].id,
         ))
         if action in {"start", "resume", "retry"}:
-            dispatch_workflow_id = workflow.id
-        workflow_id = workflow.id
+            dispatch_workflow_ids = [(workflow_type, workflow.id) for workflow_type, workflow in workflows]
+        workflow_id = workflows[0][1].id
 
-    if dispatch_workflow_id is not None:
+    for workflow_type, dispatch_workflow_id in dispatch_workflow_ids:
         if workflow_type == "campaign.lbc_message":
             from app.tasks import run_lbc_message_campaign_task
 

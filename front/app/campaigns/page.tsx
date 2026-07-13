@@ -75,11 +75,12 @@ export default async function CampaignsPage() {
                   </Text>
                   {campaign.search_criteria && (
                     <Text size="1" color="gray" as="div">
-                      {campaign.search_criteria.brand_model || 'Tous modeles'}
-                      {' / '}{campaign.search_criteria.vehicle_type || 'Tous types'}
                       {' / '}{campaign.search_criteria.region || 'Toutes regions'}
+                      {' / '}{campaign.search_criteria.department || 'Tous départements'}
                       {' / '}{campaign.search_criteria.budget_min ?? 0}
                       {'-' }{campaign.search_criteria.budget_max ?? 'sans plafond'} EUR
+                      {' / année ≤ '}{campaign.search_criteria.year_max ?? '—'}
+                      {' / km ≤ '}{campaign.search_criteria.mileage_max ?? '—'}
                     </Text>
                   )}
                 </Table.Cell>

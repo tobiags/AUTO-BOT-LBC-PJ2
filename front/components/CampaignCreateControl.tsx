@@ -9,11 +9,12 @@ export function CampaignCreateControl() {
   const router = useRouter()
   const [type, setType] = useState('lbc_message')
   const [messageTemplate, setMessageTemplate] = useState('Bonjour, votre vehicule est-il toujours disponible ?')
-  const [brandModel, setBrandModel] = useState('')
-  const [vehicleType, setVehicleType] = useState('')
   const [region, setRegion] = useState('')
+  const [department, setDepartment] = useState('')
   const [budgetMin, setBudgetMin] = useState('')
   const [budgetMax, setBudgetMax] = useState('')
+  const [yearMax, setYearMax] = useState('')
+  const [mileageMax, setMileageMax] = useState('')
   const [quota, setQuota] = useState(15)
   const [pending, setPending] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -31,11 +32,12 @@ export function CampaignCreateControl() {
           message_template: messageTemplate,
           quota_per_sim: quota,
           search_criteria: {
-            brand_model: brandModel || null,
-            vehicle_type: vehicleType || null,
             region: region || null,
+            department: department || null,
             budget_min: budgetMin ? Number(budgetMin) : null,
             budget_max: budgetMax ? Number(budgetMax) : null,
+            year_max: yearMax ? Number(yearMax) : null,
+            mileage_max: mileageMax ? Number(mileageMax) : null,
           },
         }),
       })
@@ -54,31 +56,17 @@ export function CampaignCreateControl() {
       <form onSubmit={submit}>
         <Flex gap="3" wrap="wrap" align="end">
           <Box style={{ flex: 1, minWidth: 210 }}>
-            <Text size="2" weight="bold" as="div" mb="1">Marque / modele</Text>
-            <TextField.Root
-              value={brandModel}
-              onChange={(event) => setBrandModel(event.target.value)}
-              placeholder="Renault Clio"
-              aria-label="Marque et modele"
-            />
-          </Box>
-          <Box style={{ flex: 1, minWidth: 180 }}>
-            <Text size="2" weight="bold" as="div" mb="1">Type de vehicule</Text>
-            <TextField.Root
-              value={vehicleType}
-              onChange={(event) => setVehicleType(event.target.value)}
-              placeholder="Citadine, SUV..."
-              aria-label="Type de vehicule"
-            />
-          </Box>
-          <Box style={{ flex: 1, minWidth: 180 }}>
-            <Text size="2" weight="bold" as="div" mb="1">Region ou departement</Text>
+            <Text size="2" weight="bold" as="div" mb="1">Région</Text>
             <TextField.Root
               value={region}
               onChange={(event) => setRegion(event.target.value)}
-              placeholder="Ile-de-France ou 75"
-              aria-label="Region ou departement"
+              placeholder="Île-de-France"
+              aria-label="Région"
             />
+          </Box>
+          <Box style={{ width: 150 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Département</Text>
+            <TextField.Root value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="75" aria-label="Département" />
           </Box>
           <Box style={{ width: 130 }}>
             <Text size="2" weight="bold" as="div" mb="1">Budget minimum</Text>
@@ -89,6 +77,14 @@ export function CampaignCreateControl() {
               onChange={(event) => setBudgetMin(event.target.value)}
               aria-label="Budget minimum"
             />
+          </Box>
+          <Box style={{ width: 130 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Année max.</Text>
+            <TextField.Root type="number" min="1900" max="2100" value={yearMax} onChange={(event) => setYearMax(event.target.value)} aria-label="Année maximale" />
+          </Box>
+          <Box style={{ width: 140 }}>
+            <Text size="2" weight="bold" as="div" mb="1">Kilométrage max.</Text>
+            <TextField.Root type="number" min="0" value={mileageMax} onChange={(event) => setMileageMax(event.target.value)} aria-label="Kilométrage maximal" />
           </Box>
           <Box style={{ width: 130 }}>
             <Text size="2" weight="bold" as="div" mb="1">Budget maximum</Text>
@@ -107,6 +103,7 @@ export function CampaignCreateControl() {
               <Select.Content>
                 <Select.Item value="lbc_message">Messagerie LBC</Select.Item>
                 <Select.Item value="sms_direct">SMS direct</Select.Item>
+                <Select.Item value="both">LBC + SMS selon disponibilité</Select.Item>
               </Select.Content>
             </Select.Root>
           </Box>

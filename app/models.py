@@ -242,7 +242,7 @@ class VehicleAnalysisOut(BaseModel):
 
 
 class CampaignCreate(BaseModel):
-    type: str = Field(..., description="'sms_direct' ou 'lbc_message'")
+    type: str = Field(..., description="'sms_direct', 'lbc_message' ou 'both'")
     message_template: str
     quota_per_sim: int = Field(15, ge=1, le=60)
     listing_ids: list[UUID] = []
@@ -614,11 +614,15 @@ class CampaignCommandRequest(BaseModel):
 
 
 class VehicleSearchCriteria(BaseModel):
+    # Compatibilité des campagnes historiques ; ces filtres ne sont plus proposés dans le dashboard.
     brand_model: str | None = Field(default=None, max_length=120)
     vehicle_type: str | None = Field(default=None, max_length=80)
     region: str | None = Field(default=None, max_length=120)
+    department: str | None = Field(default=None, max_length=10)
     budget_min: int | None = Field(default=None, ge=0, le=2_000_000)
     budget_max: int | None = Field(default=None, ge=0, le=2_000_000)
+    year_max: int | None = Field(default=None, ge=1900, le=2100)
+    mileage_max: int | None = Field(default=None, ge=0, le=2_000_000)
 
     @model_validator(mode="after")
     def validate_budget(self):
@@ -629,7 +633,7 @@ class VehicleSearchCriteria(BaseModel):
 
 
 class CampaignCreateCommand(BaseModel):
-    type: Literal["sms_direct", "lbc_message"]
+    type: Literal["sms_direct", "lbc_message", "both"]
     message_template: str = Field(min_length=1, max_length=2000)
     quota_per_sim: int = Field(15, ge=1, le=60)
     search_criteria: VehicleSearchCriteria = Field(default_factory=VehicleSearchCriteria)

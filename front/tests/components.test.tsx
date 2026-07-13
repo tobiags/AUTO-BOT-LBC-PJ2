@@ -62,7 +62,7 @@ describe('CampaignStartButton', () => {
 })
 
 describe('CampaignCreateControl', () => {
-  it('expose les criteres automobiles de recherche', () => {
+  it('expose les criteres de recherche et le canal multi-disponibilite', () => {
     globalThis.ResizeObserver = class {
       observe() {}
       unobserve() {}
@@ -70,11 +70,13 @@ describe('CampaignCreateControl', () => {
     } as typeof ResizeObserver
     render(<Wrap><CampaignCreateControl /></Wrap>)
 
-    expect(screen.getByLabelText(/marque.*modele/i)).toBeTruthy()
-    expect(screen.getByLabelText(/type de vehicule/i)).toBeTruthy()
-    expect(screen.getByLabelText(/region ou departement/i)).toBeTruthy()
+    expect(screen.getByLabelText(/région/i)).toBeTruthy()
+    expect(screen.getByLabelText(/département/i)).toBeTruthy()
     expect(screen.getByLabelText(/budget minimum/i)).toBeTruthy()
     expect(screen.getByLabelText(/budget maximum/i)).toBeTruthy()
+    expect(screen.getByLabelText(/année maximale/i)).toBeTruthy()
+    expect(screen.getByLabelText(/kilométrage maximal/i)).toBeTruthy()
+    expect(screen.getByLabelText(/canal de campagne/i)).toBeTruthy()
     expect(screen.getByLabelText(/message/i)).toBeTruthy()
   })
 })

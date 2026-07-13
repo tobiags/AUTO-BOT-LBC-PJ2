@@ -73,11 +73,14 @@ export type Campaign = {
   scheduled_at: string | null
   last_error: string | null
   search_criteria: {
-    brand_model: string | null
-    vehicle_type: string | null
-    region: string | null
-    budget_min: number | null
-    budget_max: number | null
+    brand_model?: string | null
+    vehicle_type?: string | null
+    region?: string | null
+    department?: string | null
+    budget_min?: number | null
+    budget_max?: number | null
+    year_max?: number | null
+    mileage_max?: number | null
   }
   created_at: string
 }

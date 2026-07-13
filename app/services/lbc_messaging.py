@@ -255,21 +255,21 @@ def _apply_vehicle_criteria(query, raw_criteria: dict):
     if criteria.brand_model:
         for term in criteria.brand_model.split():
             pattern = f"%{term}%"
-            query = query.where(
-                or_(
-                    Listing.title.ilike(pattern),
-                    Listing.make.ilike(pattern),
-                    Listing.model.ilike(pattern),
-                )
-            )
+            query = query.where(or_(Listing.title.ilike(pattern), Listing.make.ilike(pattern), Listing.model.ilike(pattern)))
     if criteria.vehicle_type:
         query = query.where(Listing.title.ilike(f"%{criteria.vehicle_type}%"))
     if criteria.region:
         query = query.where(Listing.location.ilike(f"%{criteria.region}%"))
+    if criteria.department:
+        query = query.where(Listing.location.ilike(f"%{criteria.department}%"))
     if criteria.budget_min is not None:
         query = query.where(Listing.price >= criteria.budget_min)
     if criteria.budget_max is not None:
         query = query.where(Listing.price <= criteria.budget_max)
+    if criteria.year_max is not None:
+        query = query.where(Listing.year <= criteria.year_max)
+    if criteria.mileage_max is not None:
+        query = query.where(Listing.km <= criteria.mileage_max)
     return query
 
 
