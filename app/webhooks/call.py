@@ -2,9 +2,10 @@
 Webhook SMSTools -> POST /webhooks/call (CALL_FORWARDING).
 Push WebSocket vers le back-office.
 """
+
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -15,6 +16,15 @@ from app.ws import ws_manager
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 log = logging.getLogger(__name__)
+
+
+async def _safe_record_call(sim_id: str, sender: str, external_key: str) -> None:
+    try:
+        from app.services.call_history import record_incoming_call
+
+        await record_incoming_call(sim_id, sender, external_key)
+    except Exception:
+        log.exception("Impossible d'enregistrer l'appel entrant %s", external_key)
 
 
 def _listing_payload(listing: Listing) -> dict:
@@ -62,7 +72,7 @@ async def _find_listing_for_call(sim_id: str, from_number: str) -> dict | None:
 
 
 @router.post("/call")
-async def receive_call(payload: list[CallToolsWebhookItem]):
+async def receive_call(payload: list[CallToolsWebhookItem], bg: BackgroundTasks):
     if not payload:
         return {"ok": True}
 
@@ -70,6 +80,7 @@ async def receive_call(payload: list[CallToolsWebhookItem]):
     event_key = item.webhook_id[:32]
     from_number = item.message.sender
     sim_id = item.message.receiver
+    bg.add_task(_safe_record_call, sim_id, from_number, f"call:{event_key}")
 
     async with get_db() as db:
         result = await db.execute(

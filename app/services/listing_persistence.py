@@ -4,6 +4,8 @@ Persistance des annonces scrapées → table listings.
 Déduplication par URL via ON CONFLICT DO NOTHING (contrainte UNIQUE).
 Utilisé par scrape_listings_task après chaque collecte LBC / La Centrale.
 """
+
+import hashlib
 import logging
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -16,7 +18,22 @@ from app.tables import Listing
 log = logging.getLogger(__name__)
 
 
-async def persist_listings(listings: list[RawListing]) -> dict:
+def listing_content_hash(listing: RawListing) -> str:
+    """Stable fingerprint used when a source changes an ad URL."""
+    canonical = "|".join(
+        str(value or "").strip().lower()
+        for value in (
+            listing.source.value,
+            listing.title,
+            listing.price,
+            listing.km,
+            listing.location,
+        )
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def persist_listings(listings: list[RawListing], sector_id=None) -> dict:
     """
     Insère les annonces en base avec déduplication par URL.
 
@@ -39,6 +56,8 @@ async def persist_listings(listings: list[RawListing]) -> dict:
                 .values(
                     source=listing.source,
                     url=listing.url,
+                    content_hash=listing_content_hash(listing),
+                    sector_id=sector_id,
                     title=listing.title,
                     price=listing.price,
                     km=listing.km,
@@ -52,7 +71,7 @@ async def persist_listings(listings: list[RawListing]) -> dict:
                     transmission=listing.transmission,
                     status=ListingStatus.NOUVELLE,
                 )
-                .on_conflict_do_nothing(index_elements=["url"])
+                .on_conflict_do_nothing()
                 .returning(Listing.id)
             )
             result = await db.execute(stmt)

@@ -19,6 +19,7 @@ import { ControlTowerOverview } from '@/components/ControlTowerOverview'
 import { IncomingCallAlert } from '@/components/IncomingCallAlert'
 import { DashboardRefreshButton } from '@/components/DashboardRefreshButton'
 import { CampaignCreateControl } from '@/components/CampaignCreateControl'
+import { ContactLookup } from '@/components/ContactLookup'
 
 const SERVICE_ICONS: Record<string, string> = {
   smstools: 'SMS',
@@ -241,6 +242,8 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
       </Flex>
 
       {stats && <ControlTowerOverview stats={stats} />}
+
+      <ContactLookup />
 
       <Text size="3" weight="bold" as="div" mb="2">Comptes et campagnes</Text>
       <Flex gap="3" wrap="wrap">

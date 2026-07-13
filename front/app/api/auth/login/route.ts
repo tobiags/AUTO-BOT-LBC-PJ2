@@ -1,48 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { controlSessionSecret, createControlSession } from '@/lib/control-session'
-
-function constantTimeEqual(left: string, right: string): boolean {
-  const length = Math.max(left.length, right.length)
-  let mismatch = left.length ^ right.length
-  for (let index = 0; index < length; index += 1) {
-    mismatch |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0)
-  }
-  return mismatch === 0
-}
+import { controlSessionSecret, createControlSession, type ControlRole } from '@/lib/control-session'
 
 export async function POST(request: NextRequest) {
   const { username, password } = await request.json()
   const secret = controlSessionSecret()
-  const users = [
-    {
-      username: process.env.CONTROL_TOWER_ADMIN_USER ?? 'admin',
-      password: process.env.CONTROL_TOWER_ADMIN_PASSWORD ?? '',
-      role: 'admin' as const,
-    },
-    {
-      username: process.env.CONTROL_TOWER_OPERATOR_USER ?? 'operator',
-      password: process.env.CONTROL_TOWER_OPERATOR_PASSWORD ?? '',
-      role: 'operator' as const,
-    },
-    {
-      username: process.env.CONTROL_TOWER_VIEWER_USER ?? 'viewer',
-      password: process.env.CONTROL_TOWER_VIEWER_PASSWORD ?? '',
-      role: 'viewer' as const,
-    },
-  ]
-  if (!users.some((user) => user.password) || !secret) {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+  const controlToken = process.env.CONTROL_TOWER_TOKEN
+  if (!secret || !controlToken) {
     return NextResponse.json({ error: 'Authentification non configuree' }, { status: 503 })
   }
-  const user = users.find((candidate) => (
-    candidate.password
-    && constantTimeEqual(String(username), candidate.username)
-    && constantTimeEqual(String(password), candidate.password)
-  ))
-  if (!user) {
-    return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 })
+  const backend = await fetch(`${baseUrl}/api/v1/workspace/authenticate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Control-Tower-Token': controlToken },
+    body: JSON.stringify({ email: username, password }),
+  })
+  if (!backend.ok) {
+    return NextResponse.json({ error: 'Identifiants invalides' }, { status: backend.status === 401 ? 401 : 503 })
   }
-  const token = await createControlSession(user.username, user.role, secret)
+  const user = await backend.json() as { email: string; role: 'administrateur' | 'manager' | 'operateur' }
+  const controlRole: ControlRole = user.role === 'administrateur' ? 'admin' : 'operator'
+  const token = await createControlSession(user.email, controlRole, secret)
   const response = NextResponse.json({ ok: true, role: user.role })
   response.cookies.set('control_session', token, {
     httpOnly: true,

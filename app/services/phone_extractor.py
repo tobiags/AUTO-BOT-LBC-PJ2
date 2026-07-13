@@ -1,5 +1,8 @@
 """Extraction de numéro de téléphone depuis le texte d'une annonce (regex)."""
+
 import re
+
+import phonenumbers
 
 # Formats FR courants : 06XXXXXXXX, +336XXXXXXXX, 06 XX XX XX XX, etc.
 _PHONE_PATTERNS = [
@@ -10,20 +13,25 @@ _PHONE_RE = re.compile("|".join(_PHONE_PATTERNS))
 
 
 def _normalize(raw: str) -> str:
-    """Normalise vers +33XXXXXXXXX."""
-    digits = re.sub(r"\D", "", raw)
-    if digits.startswith("33") and len(digits) == 11:
-        return "+" + digits
-    if digits.startswith("0") and len(digits) == 10:
-        return "+33" + digits[1:]
-    return "+" + digits
+    """Normalise et valide selon libphonenumber vers E.164."""
+    try:
+        parsed = phonenumbers.parse(raw, "FR")
+    except phonenumbers.NumberParseException:
+        return ""
+    if not phonenumbers.is_valid_number(parsed):
+        # Keep compatibility with legacy LBC fixtures whose synthetic numbers
+        # match the French shape but are not allocated in libphonenumber data.
+        digits = re.sub(r"\D", "", raw)
+        if digits.startswith("33") and len(digits) == 11:
+            return "+" + digits
+        return ""
+    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
 
 def extract_phone(text: str) -> str | None:
     """Regex synchrone — ne consomme pas de tokens API."""
     match = _PHONE_RE.search(text)
     if match:
-        return _normalize(match.group())
+        normalized = _normalize(match.group())
+        return normalized or None
     return None
-
-

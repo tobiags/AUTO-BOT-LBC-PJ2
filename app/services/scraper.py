@@ -8,6 +8,7 @@ La Centrale : crawl4ai AsyncWebCrawler + JsonCssExtractionStrategy.
 
 Format unifie de sortie : RawListing
 """
+
 import json
 import logging
 import re
@@ -200,10 +201,13 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
     modele = search_params.get("modele", "")
     km_max = search_params.get("km_max", 150000)
     prix_max = search_params.get("prix_max", 50000)
+    region = search_params.get("region", "")
+    department = search_params.get("department", "")
 
     search_url = (
         f"https://www.leboncoin.fr/voitures/offres/?q={marque}+{modele}"
         f"&mileage_max={km_max}&price_max={prix_max}&sort=time&order=desc"
+        f"&locations={department or region}"
     )
 
     max_pages = max(1, min(int(search_params.get("max_pages", 50)), 100))
@@ -213,15 +217,14 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
         ctx = await _launch_patchright_context(p.chromium, account.session_path)
         try:
             page = await ctx.new_page()
-            for page_number in range(1, max_pages + 1):
+            start_page = max(1, int(search_params.get("start_page", 1)))
+            for page_number in range(start_page, max_pages + 1):
                 await page.goto(
                     _page_url(search_url, page_number),
                     wait_until="networkidle",
                     timeout=30_000,
                 )
-                page_items = await page.evaluate(
-                    _LBC_GENERIC_JS_EXTRACT, isolated_context=True
-                )
+                page_items = await page.evaluate(_LBC_GENERIC_JS_EXTRACT, isolated_context=True)
                 new_items = [item for item in page_items if item.get("url") not in seen_urls]
                 if not new_items:
                     break
@@ -271,6 +274,8 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
         f"https://www.lacentrale.fr/listing"
         f"?makesModelsCommercialNames={makes_models}"
         f"&mileageMax={km_max}&priceMax={prix_max}"
+        f"&region={search_params.get('region', '')}"
+        f"&department={search_params.get('department', '')}"
         f"&sortBy=NEW&sortOrder=1"
     )
 
@@ -289,7 +294,8 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
     seen_urls: set[str] = set()
     max_pages = max(1, min(int(search_params.get("max_pages", 50)), 100))
     async with AsyncWebCrawler(config=browser_config) as crawler:
-        for page_number in range(1, max_pages + 1):
+        start_page = max(1, int(search_params.get("start_page", 1)))
+        for page_number in range(start_page, max_pages + 1):
             result = await crawler.arun(
                 url=_page_url(search_url, page_number), config=crawler_config
             )
@@ -304,15 +310,19 @@ async def scrape_la_centrale(search_params: dict[str, Any]) -> list[RawListing]:
                     continue
                 seen_urls.add(raw_url)
                 added += 1
-                listings.append(enrich_with_phone(RawListing(
-                    source=ListingSource.LA_CENTRALE,
-                    url=raw_url,
-                    title=item.get("title", "").strip() or None,
-                    price=_parse_price(item.get("price", "")),
-                    km=_parse_km(item.get("km", "")),
-                    location=item.get("location", "").strip() or None,
-                    raw_data=json.dumps(item, ensure_ascii=False),
-                )))
+                listings.append(
+                    enrich_with_phone(
+                        RawListing(
+                            source=ListingSource.LA_CENTRALE,
+                            url=raw_url,
+                            title=item.get("title", "").strip() or None,
+                            price=_parse_price(item.get("price", "")),
+                            km=_parse_km(item.get("km", "")),
+                            location=item.get("location", "").strip() or None,
+                            raw_data=json.dumps(item, ensure_ascii=False),
+                        )
+                    )
+                )
             if added == 0:
                 break
 

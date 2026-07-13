@@ -2,6 +2,7 @@
 Pydantic models (API I/O + boundaries return types).
 SQLAlchemy ORM tables sont dans app/tables.py.
 """
+
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
@@ -10,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 # ── ENUMS ─────────────────────────────────────────────────────────────────────
+
 
 class AccountStatus(StrEnum):
     EN_CREATION = "EN_CRÉATION"
@@ -30,6 +32,7 @@ class SmsStatus(StrEnum):
     SENT = "sent"
     FAILED = "failed"
     QUEUED = "queued"
+    RECEIVED = "received"
 
 
 class ListingSource(StrEnum):
@@ -85,7 +88,54 @@ class LbcMessageStatus(StrEnum):
     SKIPPED = "skipped"
 
 
+class UserRole(StrEnum):
+    ADMINISTRATEUR = "administrateur"
+    MANAGER = "manager"
+    OPERATEUR = "operateur"
+
+
+class SectorStatus(StrEnum):
+    ACTIF = "actif"
+    PAUSE = "pause"
+
+
+class CollectionRunStatus(StrEnum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ContactStatus(StrEnum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    CONVERTED = "converted"
+    INVALID = "invalid"
+    DO_NOT_CONTACT = "do_not_contact"
+
+
+class SmsDirection(StrEnum):
+    OUTBOUND = "outbound"
+    INBOUND = "inbound"
+
+
+class SmsClassification(StrEnum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    STOP = "stop"
+    INFORMATION = "information"
+    AMBIGUOUS = "ambiguous"
+    INVALID = "invalid"
+
+
+class SequenceStatus(StrEnum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
 # ── BOUNDARIES RETURN TYPES ────────────────────────────────────────────────────
+
 
 class SmsResult(BaseModel):
     id: str
@@ -105,7 +155,7 @@ class ActivationOrder(BaseModel):
 
 
 class ProxyInfo(BaseModel):
-    url: str           # http://user:pass@host:port
+    url: str  # http://user:pass@host:port
     asn_org: str = ""  # "Orange", "SFR", "Bouygues", "Free Mobile"
     country: str = "FR"
 
@@ -122,16 +172,17 @@ class ConnectorProbeResult(BaseModel):
 
 # ── API REQUEST / RESPONSE ─────────────────────────────────────────────────────
 
+
 class HealthResponse(BaseModel):
-    status: str          # "ok" | "degraded"
+    status: str  # "ok" | "degraded"
     db: bool
     redis: bool
-    ts: int              # unix timestamp
+    ts: int  # unix timestamp
 
 
 class HealthCheckComponent(BaseModel):
     name: str
-    status: str          #  ok | degraded | down | disabled | misconfigured
+    status: str  #  ok | degraded | down | disabled | misconfigured
     required: bool
     configured: bool
     latency_ms: int | None = None
@@ -176,14 +227,14 @@ class VehicleAnalysisOut(BaseModel):
     listing_id: UUID
     listing_url: str
     # Scoring marché (calculé depuis notre DB)
-    price_score: float | None = None          # % sous marché ; positif = sous-évalué
+    price_score: float | None = None  # % sous marché ; positif = sous-évalué
     market_avg_price: int | None = None
     market_min_price: int | None = None
     market_max_price: int | None = None
     market_sample_size: int = 0
-    confidence: str = "insufficient"          # "high" | "medium" | "low" | "insufficient"
+    confidence: str = "insufficient"  # "high" | "medium" | "low" | "insufficient"
     # Analyse IA Claude
-    reliability_score: int | None = None      # 0-100
+    reliability_score: int | None = None  # 0-100
     ai_summary: str | None = None
     known_issues: list[str] = []
     inspection_tips: list[str] = []
@@ -199,6 +250,7 @@ class CampaignCreate(BaseModel):
 
 class CampaignListingsPayload(BaseModel):
     """Payload pour POST /campaigns/{id}/listings — pré-assigne des annonces."""
+
     listing_ids: list[UUID] = Field(..., min_length=1)
 
 
@@ -231,13 +283,127 @@ class AccountOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UserCreate(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    display_name: str = Field(min_length=1, max_length=120)
+    role: UserRole = UserRole.OPERATEUR
+
+
+class UserLogin(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class UserOut(BaseModel):
+    id: UUID
+    email: str
+    display_name: str
+    role: UserRole
+    workspace_id: UUID
+    active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UserCreated(UserOut):
+    temporary_password: str
+
+
+class SectorCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    source: ListingSource
+    region: str = Field(min_length=1, max_length=120)
+    department: str = Field(min_length=1, max_length=10)
+    radius_km: int = Field(0, ge=0, le=500)
+    brand_model: str | None = Field(default=None, max_length=120)
+    mileage_max: int | None = Field(default=None, ge=0, le=2_000_000)
+    price_min: int | None = Field(default=None, ge=0, le=2_000_000)
+    price_max: int | None = Field(default=None, ge=0, le=2_000_000)
+    frequency_minutes: int = Field(60, ge=5, le=1440)
+    schedule_start: str = Field("06:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    schedule_end: str = Field("22:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    daily_volume: int = Field(50, ge=1, le=10000)
+
+    @model_validator(mode="after")
+    def validate_prices(self):
+        if (
+            self.price_min is not None
+            and self.price_max is not None
+            and self.price_min > self.price_max
+        ):
+            raise ValueError("price_min must be less than or equal to price_max")
+        return self
+
+
+class SectorOut(SectorCreate):
+    id: UUID
+    workspace_id: UUID
+    status: SectorStatus
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SectorResourceAssignment(BaseModel):
+    account_ids: list[UUID] = []
+    proxy_ids: list[str] = []
+    sim_ids: list[str] = []
+    daily_limit_per_account: int = Field(10, ge=1, le=10000)
+    daily_limit_per_sim: int = Field(15, ge=1, le=10000)
+
+
+class SmsSequenceOut(BaseModel):
+    id: UUID
+    contact_id: UUID
+    listing_id: UUID
+    campaign_id: UUID | None
+    current_step: int
+    next_due_at: datetime | None
+    status: SequenceStatus
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CampaignMessageTemplateUpsert(BaseModel):
+    channel: str = Field(pattern=r"^(sms|lbc)$")
+    step: int = Field(ge=0, le=20)
+    variant_key: str = Field("a", pattern=r"^[a-zA-Z0-9_-]{1,30}$")
+    delay_days: int = Field(ge=0, le=365)
+    send_time: str = Field("10:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    body: str = Field(min_length=1, max_length=2000)
+    enabled: bool = True
+
+
+class CampaignMessageTemplateOut(CampaignMessageTemplateUpsert):
+    id: UUID
+    campaign_id: UUID
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CallOutcomeUpdate(BaseModel):
+    result: str = Field(min_length=1, max_length=50)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class ContactLookupOut(BaseModel):
+    phone_e164: str
+    contact_id: UUID | None
+    listings: list[dict[str, Any]]
+    calls: list[dict[str, Any]]
+
+
 # ── WEBHOOK PAYLOADS ───────────────────────────────────────────────────────────
+
 
 class SmsToolsMessage(BaseModel):
     id: str
     date_utc: str
-    sender: str   # numéro expéditeur
-    receiver: str # numéro SIM destinataire
+    sender: str  # numéro expéditeur
+    receiver: str  # numéro SIM destinataire
     content: str = ""
 
 
@@ -250,8 +416,8 @@ class SmsToolsWebhookItem(BaseModel):
 class CallToolsMessage(BaseModel):
     id: str
     date_utc: str
-    sender: str   # numéro appelant
-    receiver: str # numéro SIM
+    sender: str  # numéro appelant
+    receiver: str  # numéro SIM
 
 
 class CallToolsWebhookItem(BaseModel):
@@ -271,6 +437,7 @@ class EmailWebhookPayload(BaseModel):
 
 # ── SMSTOOLS FUNDS WEBHOOKS ───────────────────────────────────────────────────
 
+
 class SmsToolsFundsItem(BaseModel):
     webhook_id: str
     webhook_type: str  # "insufficient_funds" | "funds_purchased"
@@ -278,6 +445,7 @@ class SmsToolsFundsItem(BaseModel):
 
 
 # ── DASHBOARD ─────────────────────────────────────────────────────────────────
+
 
 class ServiceBalanceOut(BaseModel):
     service: str
@@ -526,6 +694,7 @@ class WorkflowCommandRequest(BaseModel):
 
 
 # ── WEBSOCKET EVENTS ───────────────────────────────────────────────────────────
+
 
 class IncomingCallEvent(BaseModel):
     event: str = "incoming_call"

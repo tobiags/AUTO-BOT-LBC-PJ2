@@ -2,6 +2,7 @@ import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
 
 import { CampaignControls } from '@/components/CampaignControls'
 import { CampaignCreateControl } from '@/components/CampaignCreateControl'
+import { CampaignTemplatesEditor } from '@/components/CampaignTemplatesEditor'
 import { api, type Campaign } from '@/lib/api'
 
 export const revalidate = 0
@@ -108,6 +109,7 @@ export default async function CampaignsPage() {
                 </Table.Cell>
                 <Table.Cell>
                   <CampaignControls campaignId={campaign.id} status={campaign.status} />
+                  <CampaignTemplatesEditor campaignId={campaign.id} />
                 </Table.Cell>
               </Table.Row>
             ))

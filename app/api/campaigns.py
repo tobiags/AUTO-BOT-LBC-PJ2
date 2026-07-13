@@ -4,9 +4,16 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select, update
 
 from app.db import get_db
-from app.models import CampaignCreate, CampaignListingsPayload, CampaignOut, CampaignStatus
+from app.models import (
+    CampaignCreate,
+    CampaignListingsPayload,
+    CampaignMessageTemplateOut,
+    CampaignMessageTemplateUpsert,
+    CampaignOut,
+    CampaignStatus,
+)
 from app.services.campaign_runner import is_within_sms_window, next_sms_window_start
-from app.tables import Campaign, Listing
+from app.tables import Campaign, CampaignMessageTemplate, Listing
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -30,6 +37,15 @@ async def create_campaign(payload: CampaignCreate):
         )
         db.add(campaign)
         await db.flush()
+        db.add(
+            CampaignMessageTemplate(
+                campaign_id=campaign.id,
+                channel="sms",
+                step=0,
+                delay_days=0,
+                body=payload.message_template,
+            )
+        )
         if payload.listing_ids:
             await db.execute(
                 update(Listing)
@@ -37,6 +53,47 @@ async def create_campaign(payload: CampaignCreate):
                 .values(campaign_id=campaign.id)
             )
         return CampaignOut.model_validate(campaign)
+
+
+@router.get("/{campaign_id}/templates", response_model=list[CampaignMessageTemplateOut])
+async def list_campaign_templates(campaign_id: uuid.UUID):
+    async with get_db() as db:
+        if await db.get(Campaign, campaign_id) is None:
+            raise HTTPException(404, "Campagne introuvable")
+        result = await db.execute(
+            select(CampaignMessageTemplate)
+            .where(CampaignMessageTemplate.campaign_id == campaign_id)
+            .order_by(CampaignMessageTemplate.channel, CampaignMessageTemplate.step)
+        )
+        return result.scalars().all()
+
+
+@router.put("/{campaign_id}/templates", response_model=CampaignMessageTemplateOut)
+async def upsert_campaign_template(
+    campaign_id: uuid.UUID,
+    payload: CampaignMessageTemplateUpsert,
+):
+    async with get_db() as db:
+        if await db.get(Campaign, campaign_id) is None:
+            raise HTTPException(404, "Campagne introuvable")
+        template = (
+            await db.execute(
+                select(CampaignMessageTemplate).where(
+                    CampaignMessageTemplate.campaign_id == campaign_id,
+                    CampaignMessageTemplate.channel == payload.channel,
+                    CampaignMessageTemplate.step == payload.step,
+                    CampaignMessageTemplate.variant_key == payload.variant_key,
+                )
+            )
+        ).scalar_one_or_none()
+        if template is None:
+            template = CampaignMessageTemplate(campaign_id=campaign_id, **payload.model_dump())
+            db.add(template)
+        else:
+            for key, value in payload.model_dump().items():
+                setattr(template, key, value)
+        await db.flush()
+        return template
 
 
 @router.post("/{campaign_id}/start", tags=["campaigns"])

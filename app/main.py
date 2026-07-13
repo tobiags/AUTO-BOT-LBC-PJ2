@@ -1,6 +1,7 @@
 """
 FastAPI app - AutoTransfert SAS P2 (Acquisition Vehicules).
 """
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -10,7 +11,17 @@ import sentry_sdk
 from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import accounts, analyzer, campaigns, dashboard, health, listings, operations
+from app.api import (
+    accounts,
+    analyzer,
+    campaigns,
+    contacts,
+    dashboard,
+    health,
+    listings,
+    operations,
+    workspace,
+)
 from app.config import get_settings
 from app.db import engine
 from app.security import require_control_token, require_webhook_secret, websocket_token_is_valid
@@ -67,6 +78,8 @@ app.include_router(call.router, dependencies=[Depends(require_webhook_secret)])
 app.include_router(funds.router, dependencies=[Depends(require_webhook_secret)])
 app.include_router(dashboard.router, dependencies=protected)
 app.include_router(operations.router)
+app.include_router(workspace.router, dependencies=protected)
+app.include_router(contacts.router, dependencies=protected)
 
 
 @app.websocket("/ws")

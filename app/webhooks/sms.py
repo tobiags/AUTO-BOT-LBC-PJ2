@@ -2,6 +2,7 @@
 Webhook SMSTools -> POST /webhooks/sms (INBOX_MESSAGE).
 Gere STOP (WF-05). Regle R12 : idempotent via webhook_id.
 """
+
 import hashlib
 import logging
 from typing import Any
@@ -13,6 +14,7 @@ from app import boundaries
 from app.db import get_db
 from app.models import SmsToolsWebhookItem
 from app.services.blacklist import add_to_blacklist
+from app.services.sms_inbox import record_inbound_sms
 from app.tables import WebhookEvent
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -28,6 +30,22 @@ def _is_stop(body: str) -> bool:
 def _event_key(sim_id: str, from_number: str, body: str, timestamp: str) -> str:
     raw = f"{sim_id}:{from_number}:{body}:{timestamp}"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+
+async def _safe_record_inbound_sms(sim_id: str, sender: str, body: str, event_key: str) -> None:
+    try:
+        result = await record_inbound_sms(sim_id, sender, body, event_key)
+        async with get_db() as db:
+            await db.execute(
+                WebhookEvent.__table__.update()
+                .where(WebhookEvent.event_key == event_key)
+                .values(processed=True)
+            )
+        log.info("SMS entrant de %s (SIM %s) : %s", sender, sim_id, result)
+    except Exception:
+        # The webhook acknowledgement must not be retried by the provider
+        # because the local database is temporarily unavailable.
+        log.exception("Impossible d'enregistrer le SMS entrant %s", event_key)
 
 
 def _extract_sms_payload(
@@ -62,9 +80,14 @@ async def receive_sms(
         return {"ok": True}
 
     async with get_db() as db:
+        stored_payload = (
+            [item.model_dump(mode="json") for item in payload]
+            if isinstance(payload, list)
+            else payload
+        )
         result = await db.execute(
             pg_insert(WebhookEvent)
-            .values(event_key=event_key, source="sms", processed=False)
+            .values(event_key=event_key, source="sms", processed=False, payload=stored_payload)
             .on_conflict_do_nothing(index_elements=["event_key"])
             .returning(WebhookEvent.id)
         )
@@ -72,6 +95,7 @@ async def receive_sms(
             log.debug("SMS deja traite - event_key=%s", event_key)
             return {"ok": True, "duplicate": True}
 
+    bg.add_task(_safe_record_inbound_sms, sim_id, from_number, body, event_key)
     if _is_stop(body):
         log.info("STOP recu de %s (SIM %s) - blacklist", from_number, sim_id)
         await add_to_blacklist(
@@ -86,6 +110,6 @@ async def receive_sms(
             "Vous etes bien desinscrit. Cordialement, AutoTransfert.",
         )
     else:
-        log.info("SMS entrant de %s (SIM %s) : %s", from_number, sim_id, body[:80])
+        log.info("SMS entrant de %s (SIM %s) mis en file", from_number, sim_id)
 
     return {"ok": True}

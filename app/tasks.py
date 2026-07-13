@@ -1,12 +1,12 @@
 """
 Tâches Celery — exécutées en arrière-plan.
 """
+
 import asyncio
 import logging
 from datetime import datetime
 
 from celery import Celery
-from celery.schedules import crontab
 
 from app.config import get_settings
 
@@ -26,11 +26,15 @@ celery_app.conf.update(
     timezone="Europe/Paris",
     enable_utc=True,
     broker_connection_retry_on_startup=True,
+    task_routes={
+        "app.tasks.collect_sector_task": {"queue": "collection"},
+        "app.tasks.sync_lbc_inbox_task": {"queue": "inbox"},
+    },
     beat_schedule={
         # WF-04 — scraping quotidien à 06h00
         "scrape-lbc-daily": {
-            "task": "app.tasks.scrape_listings_task",
-            "schedule": crontab(hour=6, minute=0),
+            "task": "app.tasks.dispatch_sector_collections_task",
+            "schedule": 300.0,
         },
         # Vérification pool comptes — toutes les heures
         "check-account-pool": {
@@ -45,12 +49,21 @@ celery_app.conf.update(
             "task": "app.tasks.sync_lbc_inbox_task",
             "schedule": 600.0,
         },
+        "run-sms-sequences": {
+            "task": "app.tasks.run_sms_sequences_task",
+            "schedule": 300.0,
+        },
+        "replay-sms-events": {
+            "task": "app.tasks.replay_sms_events_task",
+            "schedule": 60.0,
+        },
     },
 )
 
 
 def _run(coro):
     """Exécute une coroutine depuis un contexte synchrone Celery."""
+
     async def run_and_dispose():
         # Celery prefork reuses a process while asyncio.run creates a new loop
         # for every task. Dispose the async DB pool before that loop disappears
@@ -73,6 +86,7 @@ def create_account_task(self, mode: str = "A", workflow_id: str | None = None):
         ProxyUnavailableError,
         create_lbc_account,
     )
+
     try:
         result = _run(create_lbc_account(mode=mode))
         if workflow_id:
@@ -138,13 +152,51 @@ def scrape_listings_task(search_params: dict | None = None):
     persist_result = _run(persist_listings(all_listings))
     log.info(
         "Scraping terminé — LBC: %d La Centrale: %d persistés: %s",
-        len(lbc_results), len(lc_results), persist_result,
+        len(lbc_results),
+        len(lc_results),
+        persist_result,
     )
     return {
         "lbc": len(lbc_results),
         "la_centrale": len(lc_results),
         "persist": persist_result,
     }
+
+
+@celery_app.task(name="app.tasks.collect_sector_task", bind=True, max_retries=2)
+def collect_sector_task(self, sector_id: str):
+    """Collecte isolée d'un secteur : une panne ne bloque pas les autres."""
+    from uuid import UUID
+
+    from app.services.sector_collection import collect_sector
+
+    try:
+        return _run(collect_sector(UUID(sector_id)))
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+
+
+@celery_app.task(name="app.tasks.dispatch_sector_collections_task")
+def dispatch_sector_collections_task():
+    """Distribue les secteurs actifs dans des tâches indépendantes."""
+    from sqlalchemy import select
+
+    from app.db import get_db
+    from app.tables import Sector
+
+    async def list_active():
+        async with get_db() as db:
+            return [
+                str(row.id)
+                for row in (
+                    await db.execute(select(Sector.id).where(Sector.status == "actif"))
+                ).all()
+            ]
+
+    sector_ids = _run(list_active())
+    for sector_id in sector_ids:
+        collect_sector_task.delay(sector_id)
+    return {"dispatched": len(sector_ids), "sector_ids": sector_ids}
 
 
 @celery_app.task(name="app.tasks.analyze_batch_task")
@@ -209,9 +261,9 @@ def run_browser_use_task(
     from app.services.browser_use_workflows import execute_browser_use_workflow
 
     try:
-        return _run(execute_browser_use_workflow(
-            UUID(workflow_id), template_id, target_url, custom_prompt
-        ))
+        return _run(
+            execute_browser_use_workflow(UUID(workflow_id), template_id, target_url, custom_prompt)
+        )
     except (httpx.TimeoutException, httpx.NetworkError) as exc:
         raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
 
@@ -251,6 +303,21 @@ def sync_lbc_inbox_task(workflow_id: str | None = None):
     from app.services.lbc_messaging import sync_lbc_inbox
 
     return _run(sync_lbc_inbox(workflow_id))
+
+
+@celery_app.task(name="app.tasks.run_sms_sequences_task")
+def run_sms_sequences_task():
+    """Envoie une seule étape due par séquence, avec verrouillage DB."""
+    from app.services.sms_sequence import run_due_sms_sequences
+
+    return _run(run_due_sms_sequences())
+
+
+@celery_app.task(name="app.tasks.replay_sms_events_task")
+def replay_sms_events_task():
+    from app.services.sms_inbox import replay_pending_sms_events
+
+    return _run(replay_pending_sms_events())
 
 
 @celery_app.task(name="app.tasks.inspect_account_task")

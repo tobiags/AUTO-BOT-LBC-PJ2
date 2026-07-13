@@ -1,7 +1,8 @@
 import asyncio
 import hashlib
+import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import phonenumbers
 from sqlalchemy import exists, func, or_, select, update
@@ -23,6 +24,7 @@ from app.services.browser_use_cloud import BrowserUseCloudClient
 from app.tables import (
     AuditEvent,
     Campaign,
+    CampaignMessageTemplate,
     LbcMessageLog,
     Listing,
     PlatformAccount,
@@ -31,10 +33,11 @@ from app.tables import (
 )
 
 LBC_MESSAGE_BATCH_SIZE = 25
+log = logging.getLogger(__name__)
 
 
-def outbound_message_key(campaign_id: str, listing_id: str) -> str:
-    digest = hashlib.sha256(f"{campaign_id}:{listing_id}".encode()).hexdigest()[:40]
+def outbound_message_key(campaign_id: str, listing_id: str, step: int = 0) -> str:
+    digest = hashlib.sha256(f"{campaign_id}:{listing_id}:{step}".encode()).hexdigest()[:40]
     return f"outbound:{digest}"
 
 
@@ -69,20 +72,31 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
         workflow.started_at = workflow.started_at or datetime.now(UTC)
 
         assigned = await db.scalar(
-            select(func.count()).select_from(Listing).where(
-                Listing.campaign_id == campaign_uuid
+            select(func.count()).select_from(Listing).where(Listing.campaign_id == campaign_uuid)
+        )
+        sent_count = (
+            select(func.count(LbcMessageLog.id))
+            .where(
+                LbcMessageLog.listing_id == Listing.id,
+                LbcMessageLog.direction == LbcMessageDirection.OUTBOUND,
+                LbcMessageLog.status.in_([LbcMessageStatus.QUEUED, LbcMessageStatus.SENT]),
             )
+            .correlate(Listing)
+            .scalar_subquery()
+        )
+        latest_due = (
+            select(func.max(LbcMessageLog.next_due_at))
+            .where(
+                LbcMessageLog.listing_id == Listing.id,
+                LbcMessageLog.direction == LbcMessageDirection.OUTBOUND,
+            )
+            .correlate(Listing)
+            .scalar_subquery()
         )
         eligible = select(Listing).where(
             Listing.source == ListingSource.LBC,
-            ~exists().where(
-                (LbcMessageLog.listing_id == Listing.id)
-                & (LbcMessageLog.direction == LbcMessageDirection.OUTBOUND)
-                & (LbcMessageLog.status.in_([
-                    LbcMessageStatus.QUEUED,
-                    LbcMessageStatus.SENT,
-                ]))
-            ),
+            sent_count < 3,
+            or_(sent_count == 0, latest_due <= datetime.now(UTC)),
             ~exists().where(SmsLog.listing_id == Listing.id),
         )
         if assigned:
@@ -123,12 +137,51 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
             await _pause_for_quota(campaign_uuid, workflow_uuid)
             return {"status": "paused", "sent": sent, "failed": failed}
 
-        message = campaign.message_template.format(
-            title=listing.title or "", url=listing.url
-        )
-        external_key = outbound_message_key(campaign_id, str(listing.id))
+        async with get_db() as db:
+            step = int(
+                await db.scalar(
+                    select(func.count(LbcMessageLog.id)).where(
+                        LbcMessageLog.listing_id == listing.id,
+                        LbcMessageLog.direction == LbcMessageDirection.OUTBOUND,
+                        LbcMessageLog.status.in_([LbcMessageStatus.QUEUED, LbcMessageStatus.SENT]),
+                    )
+                )
+                or 0
+            )
+            templates = (
+                await db.scalars(
+                    select(CampaignMessageTemplate).where(
+                        CampaignMessageTemplate.campaign_id == campaign_uuid,
+                        CampaignMessageTemplate.channel == "lbc",
+                        CampaignMessageTemplate.step == step,
+                        CampaignMessageTemplate.enabled.is_(True),
+                    )
+                )
+            ).all()
+            template = (
+                templates[
+                    int(hashlib.sha256(f"{listing.id}:{step}".encode()).hexdigest()[:2], 16)
+                    % len(templates)
+                ]
+                if templates
+                else None
+            )
+        if step == 0 and template is None:
+            message = campaign.message_template.format(title=listing.title or "", url=listing.url)
+            delay_days = 3
+        elif template is None:
+            continue
+        else:
+            message = template.body.format(title=listing.title or "", url=listing.url)
+            delay_days = template.delay_days
+        external_key = outbound_message_key(campaign_id, str(listing.id), step)
         if not await _queue_message(
-            external_key, listing.id, account.id, message
+            external_key,
+            listing.id,
+            account.id,
+            message,
+            step,
+            datetime.now(UTC) + timedelta(days=delay_days),
         ):
             continue
         try:
@@ -141,9 +194,7 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
             usage[account.id] = usage.get(account.id, 0) + 1
             sent += 1
         except Exception as exc:
-            await _mark_message(
-                external_key, LbcMessageStatus.FAILED, type(exc).__name__
-            )
+            await _mark_message(external_key, LbcMessageStatus.FAILED, type(exc).__name__)
             failed += 1
 
     final_status = CampaignStatus.RUNNING if has_more else CampaignStatus.COMPLETED
@@ -174,22 +225,24 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
     return {"status": final_status.value.lower(), "sent": sent, "failed": failed}
 
 
-async def mark_lbc_message_campaign_failed(
-    campaign_id: str, workflow_id: str, error: str
-) -> None:
+async def mark_lbc_message_campaign_failed(campaign_id: str, workflow_id: str, error: str) -> None:
     """Persist a worker exception so the dashboard cannot show a false RUNNING state."""
     message = error[:500] or "LBC campaign worker failed"
     campaign_uuid = uuid.UUID(campaign_id)
     workflow_uuid = uuid.UUID(workflow_id)
     async with get_db() as db:
         await db.execute(
-            update(Campaign).where(Campaign.id == campaign_uuid).values(
+            update(Campaign)
+            .where(Campaign.id == campaign_uuid)
+            .values(
                 status=CampaignStatus.FAILED,
                 last_error=message,
             )
         )
         await db.execute(
-            update(WorkflowRun).where(WorkflowRun.id == workflow_uuid).values(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == workflow_uuid)
+            .values(
                 status=WorkflowStatus.FAILED,
                 last_error=message,
                 finished_at=datetime.now(UTC),
@@ -202,11 +255,13 @@ def _apply_vehicle_criteria(query, raw_criteria: dict):
     if criteria.brand_model:
         for term in criteria.brand_model.split():
             pattern = f"%{term}%"
-            query = query.where(or_(
-                Listing.title.ilike(pattern),
-                Listing.make.ilike(pattern),
-                Listing.model.ilike(pattern),
-            ))
+            query = query.where(
+                or_(
+                    Listing.title.ilike(pattern),
+                    Listing.make.ilike(pattern),
+                    Listing.model.ilike(pattern),
+                )
+            )
     if criteria.vehicle_type:
         query = query.where(Listing.title.ilike(f"%{criteria.vehicle_type}%"))
     if criteria.region:
@@ -260,17 +315,13 @@ async def list_lbc_messages(limit: int = 100) -> list[LbcMessageView]:
     async with get_db() as db:
         rows = (
             await db.scalars(
-                select(LbcMessageLog)
-                .order_by(LbcMessageLog.created_at.desc())
-                .limit(limit)
+                select(LbcMessageLog).order_by(LbcMessageLog.created_at.desc()).limit(limit)
             )
         ).all()
     return [LbcMessageView.model_validate(row) for row in rows]
 
 
-async def queue_inbox_sync(
-    *, idempotency_key: str, actor: str, role: str
-) -> uuid.UUID:
+async def queue_inbox_sync(*, idempotency_key: str, actor: str, role: str) -> uuid.UUID:
     async with get_db() as db:
         existing = await db.scalar(
             select(WorkflowRun).where(WorkflowRun.idempotency_key == idempotency_key)
@@ -287,12 +338,19 @@ async def queue_inbox_sync(
         )
         db.add(workflow)
         await db.flush()
-        db.add(AuditEvent(
-            actor=actor, role=role, action="messaging.inbox_sync",
-            target_type="platform", target_id="leboncoin",
-            idempotency_key=idempotency_key, input_summary=None,
-            result_status="queued", workflow_run_id=workflow.id,
-        ))
+        db.add(
+            AuditEvent(
+                actor=actor,
+                role=role,
+                action="messaging.inbox_sync",
+                target_type="platform",
+                target_id="leboncoin",
+                idempotency_key=idempotency_key,
+                input_summary=None,
+                result_status="queued",
+                workflow_run_id=workflow.id,
+            )
+        )
         workflow_id = workflow.id
     from app.tasks import sync_lbc_inbox_task
 
@@ -303,9 +361,7 @@ async def queue_inbox_sync(
     return workflow_id
 
 
-async def _fetch_inbox_messages(
-    client: BrowserUseCloudClient, profile_id: str
-) -> list[dict]:
+async def _fetch_inbox_messages(client: BrowserUseCloudClient, profile_id: str) -> list[dict]:
     schema = {
         "type": "object",
         "properties": {
@@ -344,9 +400,7 @@ async def _fetch_inbox_messages(
     return parsed.get("messages", []) if isinstance(parsed, dict) else []
 
 
-async def _persist_inbound_message(
-    account_id: uuid.UUID, message: dict
-) -> tuple[bool, list[str]]:
+async def _persist_inbound_message(account_id: uuid.UUID, message: dict) -> tuple[bool, list[str]]:
     text = str(message.get("text", ""))
     external_key = f"inbound:{str(message.get('external_key', ''))[:130]}"
     listing_url = str(message.get("listing_url", ""))
@@ -372,6 +426,12 @@ async def _persist_inbound_message(
         inserted = result.scalar_one_or_none() is not None
         if inserted and phones and listing is not None:
             listing.phone = phones[0]
+            from app.services.sms_sequence import ensure_contact_and_sequence
+
+            try:
+                await ensure_contact_and_sequence(listing.id, phones[0])
+            except Exception as exc:
+                log.warning("Contact/SMS sequence non planifiée pour %s: %s", listing.id, exc)
     return inserted, phones
 
 
@@ -409,6 +469,8 @@ async def _queue_message(
     listing_id: uuid.UUID,
     account_id: uuid.UUID,
     message: str,
+    sequence_step: int,
+    next_due_at: datetime,
 ) -> bool:
     async with get_db() as db:
         result = await db.execute(
@@ -421,6 +483,8 @@ async def _queue_message(
                 status=LbcMessageStatus.QUEUED,
                 content_hash=hashlib.sha256(message.encode()).hexdigest(),
                 preview=message[:160],
+                sequence_step=sequence_step,
+                next_due_at=next_due_at,
             )
             .on_conflict_do_nothing(index_elements=["external_key"])
             .returning(LbcMessageLog.id)
@@ -463,7 +527,8 @@ async def _may_continue(campaign_id: uuid.UUID, workflow_id: uuid.UUID) -> bool:
         campaign = await db.get(Campaign, campaign_id)
         workflow = await db.get(WorkflowRun, workflow_id)
     return bool(
-        campaign and workflow
+        campaign
+        and workflow
         and campaign.status == CampaignStatus.RUNNING
         and workflow.status == WorkflowStatus.RUNNING
     )
@@ -472,30 +537,34 @@ async def _may_continue(campaign_id: uuid.UUID, workflow_id: uuid.UUID) -> bool:
 async def _pause_for_quota(campaign_id: uuid.UUID, workflow_id: uuid.UUID) -> None:
     async with get_db() as db:
         await db.execute(
-            update(Campaign).where(Campaign.id == campaign_id).values(
+            update(Campaign)
+            .where(Campaign.id == campaign_id)
+            .values(
                 status=CampaignStatus.PAUSED,
                 last_error="All LBC account quotas are exhausted",
             )
         )
         await db.execute(
-            update(WorkflowRun).where(WorkflowRun.id == workflow_id).values(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == workflow_id)
+            .values(
                 status=WorkflowStatus.PAUSED,
                 last_error="All LBC account quotas are exhausted",
             )
         )
 
 
-async def _finish_failed(
-    campaign_id: uuid.UUID, workflow_id: uuid.UUID, error: str
-) -> None:
+async def _finish_failed(campaign_id: uuid.UUID, workflow_id: uuid.UUID, error: str) -> None:
     async with get_db() as db:
         await db.execute(
-            update(Campaign).where(Campaign.id == campaign_id).values(
-                status=CampaignStatus.PAUSED, last_error=error
-            )
+            update(Campaign)
+            .where(Campaign.id == campaign_id)
+            .values(status=CampaignStatus.PAUSED, last_error=error)
         )
         await db.execute(
-            update(WorkflowRun).where(WorkflowRun.id == workflow_id).values(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == workflow_id)
+            .values(
                 status=WorkflowStatus.FAILED,
                 last_error=error,
                 finished_at=datetime.now(UTC),
