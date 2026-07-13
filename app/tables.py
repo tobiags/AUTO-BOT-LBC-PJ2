@@ -46,6 +46,20 @@ class Workspace(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class WorkspaceSetting(Base):
+    __tablename__ = "workspace_settings"
+    __table_args__ = (UniqueConstraint("workspace_id", "key", name="uq_workspace_settings_key"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    key: Mapped[str] = mapped_column(String(80), nullable=False)
+    value: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    updated_by: Mapped[str | None] = mapped_column(String(100))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (UniqueConstraint("workspace_id", "email", name="uq_users_workspace_email"),)

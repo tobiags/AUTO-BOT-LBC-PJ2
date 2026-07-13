@@ -14,7 +14,7 @@ async function sessionHeaders(request: NextRequest) {
   )
   if (!session) return null
 
-  const role = session.role === 'admin' ? 'administrateur' : 'operateur'
+  const role = session.role === 'admin' ? 'administrateur' : session.role === 'manager' ? 'manager' : 'operateur'
   return {
     ...controlApiHeaders(request),
     'X-Operator-Role': role,

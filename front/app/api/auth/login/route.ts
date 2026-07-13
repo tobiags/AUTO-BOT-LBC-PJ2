@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Identifiants invalides' }, { status: backend.status === 401 ? 401 : 503 })
   }
   const user = await backend.json() as { email: string; role: 'administrateur' | 'manager' | 'operateur' }
-  const controlRole: ControlRole = user.role === 'administrateur' ? 'admin' : 'operator'
+  const controlRole: ControlRole = user.role === 'administrateur' ? 'admin' : user.role === 'manager' ? 'manager' : 'operator'
   const token = await createControlSession(user.email, controlRole, secret)
   const response = NextResponse.json({ ok: true, role: user.role })
   response.cookies.set('control_session', token, {

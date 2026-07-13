@@ -353,6 +353,40 @@ class SectorResourceAssignment(BaseModel):
     daily_limit_per_sim: int = Field(15, ge=1, le=10000)
 
 
+class SectorResourcesOut(BaseModel):
+    account_ids: list[UUID]
+    proxy_ids: list[str]
+    sim_ids: list[str]
+    daily_limit_per_account: int
+    daily_limit_per_sim: int
+
+
+class WorkspaceSettingUpsert(BaseModel):
+    key: str = Field(pattern=r"^[a-z][a-z0-9_.-]{1,79}$")
+    value: dict[str, Any]
+
+
+class WorkspaceSettingOut(WorkspaceSettingUpsert):
+    updated_by: str | None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AuditEventOut(BaseModel):
+    id: UUID
+    actor: str
+    role: str
+    action: str
+    target_type: str | None
+    target_id: str | None
+    result_status: str
+    input_summary: dict[str, Any] | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class SmsSequenceOut(BaseModel):
     id: UUID
     contact_id: UUID
