@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/campaigns', label: 'Campagnes', compact: 'Campagnes' },
   { href: '/messaging', label: 'Messagerie LBC', compact: 'Messages' },
   { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes' },
+  { href: '/users', label: 'Utilisateurs', compact: 'Utilisateurs' },
   { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse' },
   { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs' },
   { href: '/browser-use', label: 'Browser Use', compact: 'Browser Use' },
