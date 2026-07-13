@@ -3,7 +3,7 @@ Polling automatique des soldes services externes.
 Tourne en background toutes les 30 minutes.
 
 Services couverts :
-- iProxy    : GET /api/console/v1/connections/{id} -> balance + expires_at du plan
+- iProxy    : GET /api/cn/v1 -> état de la connexion et expiration du plan
 - BrowserUse: GET /api/v2/billing/account -> totalCreditsBalanceUsd +
   subscriptionCurrentPeriodEnd
 - Anthropic : pas d'API publique - suivi via tokens dans anthropic_tracker.py
@@ -24,7 +24,6 @@ from app.ws import ws_manager
 
 log = logging.getLogger(__name__)
 _INTERVAL = 30 * 60  # 30 min
-_IPROXY_CONN_ID = "gqvnnailyv"  # connexion "autotransfert.persan"
 
 
 async def _upsert_balance(
@@ -81,22 +80,15 @@ async def _upsert_balance(
         )
 
 
-async def _poll_iproxy(client: httpx.AsyncClient, api_key: str) -> None:
+async def _poll_iproxy(
+    client: httpx.AsyncClient,
+    api_key: str,
+    connection_id: str,
+) -> None:
     try:
-        # /me -> solde wallet
-        me = (
-            await client.get(
-                "https://iproxy.online/api/console/v1/me",
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=10,
-            )
-        ).raise_for_status().json()
-        balance = float(me.get("balance") or 0)
-
-        # /connections/{id} -> date d'expiration du plan actif
         conn = (
             await client.get(
-                f"https://iproxy.online/api/console/v1/connections/{_IPROXY_CONN_ID}",
+                "https://iproxy.online/api/cn/v1",
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=10,
             )
@@ -108,7 +100,9 @@ async def _poll_iproxy(client: httpx.AsyncClient, api_key: str) -> None:
             else None
         )
 
-        await _upsert_balance("iproxy", "iProxy SIMs", balance, "USD", 5.0, expires_at)
+        balance_raw = conn.get("balance")
+        balance = float(balance_raw) if balance_raw is not None else None
+        await _upsert_balance("iproxy", f"iProxy {connection_id}", balance, "USD", 5.0, expires_at)
     except Exception as exc:
         log.warning("iProxy balance poll failed: %s", exc)
         sentry_sdk.capture_exception(exc)
@@ -138,8 +132,14 @@ async def _poll_once() -> None:
     settings = get_settings()
     async with httpx.AsyncClient() as client:
         tasks = []
-        if settings.iproxy_api_key:
-            tasks.append(_poll_iproxy(client, settings.iproxy_api_key))
+        if settings.iproxy_api_key and settings.iproxy_connection_id:
+            tasks.append(
+                _poll_iproxy(
+                    client,
+                    settings.iproxy_api_key,
+                    settings.iproxy_connection_id,
+                )
+            )
         if settings.browser_use_api_key:
             tasks.append(_poll_browseruse(client, settings.browser_use_api_key))
         if tasks:

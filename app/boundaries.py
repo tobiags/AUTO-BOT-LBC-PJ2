@@ -92,7 +92,7 @@ async def get_sim_list() -> list[dict]:
 
 # ── IPROXY.ONLINE ────────────────────────────────────────────────────────────
 
-_IPROXY_BASE = "https://iproxy.online/api/console/v1"
+_IPROXY_BASE = "https://iproxy.online/api/cn/v1"
 
 
 async def get_4g_proxy() -> ProxyInfo:
@@ -101,12 +101,14 @@ async def get_4g_proxy() -> ProxyInfo:
     RÈGLE R07 : cette fonction est le seul endroit autorisé pour obtenir
     l'IP 4G. Ne jamais passer l'IP VPS comme proxy LBC.
     """
-    if not settings.iproxy_connection_id:
-        raise ValueError("IPROXY_CONNECTION_ID is required")
+    if not settings.iproxy_api_key:
+        raise ValueError("IPROXY_API_KEY is required")
+    if not settings.iproxy_proxy_id:
+        raise ValueError("IPROXY_PROXY_ID is required")
 
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
-            f"{_IPROXY_BASE}/connection/{settings.iproxy_connection_id}/proxy-access",
+            f"{_IPROXY_BASE}/proxy-access",
             headers={"Authorization": f"Bearer {settings.iproxy_api_key}"},
         )
         resp.raise_for_status()
@@ -123,12 +125,12 @@ async def get_4g_proxy() -> ProxyInfo:
 
 async def rotate_4g_ip() -> bool:
     """Demande une rotation d'IP — attendre 30–60s avant de réutiliser."""
-    if not settings.iproxy_connection_id:
-        raise ValueError("IPROXY_CONNECTION_ID is required")
+    if not settings.iproxy_api_key:
+        raise ValueError("IPROXY_API_KEY is required")
 
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            f"{_IPROXY_BASE}/connection/{settings.iproxy_connection_id}/command-push",
+            f"{_IPROXY_BASE}/command-push",
             headers={"Authorization": f"Bearer {settings.iproxy_api_key}"},
             json={"action": "changeip"},
         )
@@ -137,26 +139,27 @@ async def rotate_4g_ip() -> bool:
 
 # ── SMSAPP.IO (OTP) ───────────────────────────────────────────────────────────
 
-_SMSAPP_BASE = "https://backend.smsapp.io/v1"
+_SMSAPP_BASE = "https://backend.smsapp.io/api"
 
 
 async def buy_number(country: str, service: str) -> ActivationOrder:
     """Achète un numéro OTP jetable. Pay-per-delivery — remboursé si SMS non reçu."""
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            f"{_SMSAPP_BASE}/buy",
+            f"{_SMSAPP_BASE}/buy-product",
             headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
-            json={"country": country, "service": service},
+            json={"country": country, "product": service},
         )
         resp.raise_for_status()
         data = resp.json()
+        product = data.get("product", data)
         return ActivationOrder(
-            id=str(data["id"]),
-            phone=data["phone"],
-            country=country,
-            service=service,
-            cost=data.get("cost", 0.0),
-            expires=data.get("expires", 0),
+            id=str(product["id"]),
+            phone=product.get("phone") or product.get("number") or data.get("phone", ""),
+            country=product.get("country", country),
+            service=product.get("product") or product.get("service") or service,
+            cost=product.get("price", product.get("cost", data.get("cost", 0.0))),
+            expires=product.get("expires", data.get("expires", 0)),
         )
 
 
@@ -174,8 +177,9 @@ async def poll_sms(order_id: str, max_wait: int = 120) -> str | None:
     while loop.time() < deadline:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
-                f"{_SMSAPP_BASE}/sms/{order_id}",
+                f"{_SMSAPP_BASE}/get-sms",
                 headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
+                params={"numberId": order_id},
             )
             resp.raise_for_status()
             data = resp.json()
@@ -192,8 +196,9 @@ async def cancel_number(order_id: str) -> bool:
     """Annule et rembourse un numéro OTP non utilisé."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
-            f"{_SMSAPP_BASE}/cancel/{order_id}",
+            f"{_SMSAPP_BASE}/cancel",
             headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
+            json={"numberId": order_id},
         )
         return resp.status_code == 200
 

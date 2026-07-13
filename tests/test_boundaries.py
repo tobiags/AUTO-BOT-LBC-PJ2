@@ -170,7 +170,7 @@ async def test_get_4g_proxy_uses_connection_scoped_endpoint():
         proxy = await boundaries.get_4g_proxy()
 
     client.get.assert_awaited_once_with(
-        "https://iproxy.online/api/console/v1/connection/connection-3/proxy-access",
+        "https://iproxy.online/api/cn/v1/proxy-access",
         headers={"Authorization": "Bearer api-key"},
     )
     assert proxy.url == "http://user:pass@proxy.example:9000"
@@ -187,7 +187,6 @@ async def test_rotate_4g_ip_uses_connection_scoped_endpoint():
     client.post = AsyncMock(return_value=response)
     settings = SimpleNamespace(
         iproxy_api_key="api-key",
-        iproxy_connection_id="connection-3",
     )
 
     with (
@@ -197,21 +196,80 @@ async def test_rotate_4g_ip_uses_connection_scoped_endpoint():
         assert await boundaries.rotate_4g_ip() is True
 
     client.post.assert_awaited_once_with(
-        "https://iproxy.online/api/console/v1/connection/connection-3/command-push",
+        "https://iproxy.online/api/cn/v1/command-push",
         headers={"Authorization": "Bearer api-key"},
         json={"action": "changeip"},
     )
 
 
 @pytest.mark.asyncio
-async def test_get_4g_proxy_rejects_missing_connection_id():
+async def test_get_4g_proxy_rejects_missing_proxy_configuration():
     from app import boundaries
 
     settings = SimpleNamespace(
         iproxy_api_key="api-key",
-        iproxy_connection_id="",
-        iproxy_proxy_id="proxy-7",
+        iproxy_connection_id="connection-3",
+        iproxy_proxy_id="",
     )
     with patch.object(boundaries, "settings", settings):
-        with pytest.raises(ValueError, match="IPROXY_CONNECTION_ID"):
+        with pytest.raises(ValueError, match="IPROXY_PROXY_ID"):
             await boundaries.get_4g_proxy()
+
+
+@pytest.mark.asyncio
+async def test_buy_number_uses_smsapp_documented_endpoint():
+    from app import boundaries
+
+    response = Mock()
+    response.json.return_value = {
+        "product": {
+            "id": "number-1",
+            "phone": "+33612345678",
+            "price": 0.05,
+            "expires": 9999999999,
+        }
+    }
+    response.raise_for_status.return_value = None
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.post = AsyncMock(return_value=response)
+    settings = SimpleNamespace(smsapp_api_token="smsapp-token")
+
+    with (
+        patch("app.boundaries.httpx.AsyncClient", return_value=client),
+        patch.object(boundaries, "settings", settings),
+    ):
+        order = await boundaries.buy_number("fr", "leboncoin")
+
+    client.post.assert_awaited_once_with(
+        "https://backend.smsapp.io/api/buy-product",
+        headers={"Authorization": "Bearer smsapp-token"},
+        json={"country": "fr", "product": "leboncoin"},
+    )
+    assert order.id == "number-1"
+    assert order.phone == "+33612345678"
+
+
+@pytest.mark.asyncio
+async def test_cancel_number_uses_smsapp_documented_endpoint():
+    from app import boundaries
+
+    response = Mock(status_code=200)
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.post = AsyncMock(return_value=response)
+    settings = SimpleNamespace(smsapp_api_token="smsapp-token")
+
+    with (
+        patch("app.boundaries.httpx.AsyncClient", return_value=client),
+        patch.object(boundaries, "settings", settings),
+    ):
+        assert await boundaries.cancel_number("number-1") is True
+
+    client.post.assert_awaited_once_with(
+        "https://backend.smsapp.io/api/cancel",
+        headers={"Authorization": "Bearer smsapp-token"},
+        json={"numberId": "number-1"},
+    )
