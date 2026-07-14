@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import type { AccountStatus } from '@/lib/api'
 
 export function AccountCreateControl() {
-  const [mode, setMode] = useState('A')
+  const [mode, setMode] = useState('B')
   const [pending, setPending] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const router = useRouter()

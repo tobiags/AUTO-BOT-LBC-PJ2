@@ -693,7 +693,7 @@ class AccountCommandRequest(BaseModel):
 
 
 class AccountCreateCommandRequest(BaseModel):
-    mode: Literal["A", "B"] = "A"
+    mode: Literal["A", "B"] = "B"
     idempotency_key: str = Field(min_length=8, max_length=100)
 
 
