@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     # SmsApp.io
     smsapp_api_token: str = ""
+    smsapp_max_price_usd: float = 1.0
 
     # Mailgun
     mailgun_api_key: str = ""

@@ -31,7 +31,7 @@ async def update_account_status(account_id: uuid.UUID, status: AccountStatus):
 
 
 @router.post("/trigger-creation")
-async def trigger_account_creation(mode: str = "A"):
+async def trigger_account_creation(mode: str = "B"):
     """Déclenche manuellement la création d'un nouveau compte LBC."""
     from app.tasks import create_account_task
     task = create_account_task.delay(mode=mode)

@@ -222,19 +222,19 @@ async def test_buy_number_uses_smsapp_documented_endpoint():
 
     response = Mock()
     response.json.return_value = {
-        "product": {
-            "id": "number-1",
-            "phone": "+33612345678",
-            "price": 0.05,
-            "expires": 9999999999,
-        }
+        "id": "number-1",
+        "phone": "+33612345678",
+        "country": "fr",
+        "service": "leboncoin",
+        "cost": 0.05,
+        "expires": "2026-07-14T18:00:00Z",
     }
     response.raise_for_status.return_value = None
     client = AsyncMock()
     client.__aenter__.return_value = client
     client.__aexit__.return_value = False
     client.post = AsyncMock(return_value=response)
-    settings = SimpleNamespace(smsapp_api_token="smsapp-token")
+    settings = SimpleNamespace(smsapp_api_token="smsapp-token", smsapp_max_price_usd=1.0)
 
     with (
         patch("app.boundaries.httpx.AsyncClient", return_value=client),
@@ -243,9 +243,9 @@ async def test_buy_number_uses_smsapp_documented_endpoint():
         order = await boundaries.buy_number("fr", "leboncoin")
 
     client.post.assert_awaited_once_with(
-        "https://backend.smsapp.io/api/buy-product",
+        "https://backend.smsapp.io/v1/buy",
         headers={"Authorization": "Bearer smsapp-token"},
-        json={"country": "fr", "product": "leboncoin"},
+        json={"country": "fr", "service": "leboncoin", "max_price": 1.0},
     )
     assert order.id == "number-1"
     assert order.phone == "+33612345678"
@@ -269,7 +269,6 @@ async def test_cancel_number_uses_smsapp_documented_endpoint():
         assert await boundaries.cancel_number("number-1") is True
 
     client.post.assert_awaited_once_with(
-        "https://backend.smsapp.io/api/cancel",
+        "https://backend.smsapp.io/v1/cancel/number-1",
         headers={"Authorization": "Bearer smsapp-token"},
-        json={"numberId": "number-1"},
     )

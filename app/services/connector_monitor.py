@@ -193,20 +193,35 @@ async def probe_mailgun() -> ConnectorProbeResult:
     )
 
 
+async def probe_smsapp() -> ConnectorProbeResult:
+    settings = get_settings()
+    if not settings.smsapp_api_token:
+        return ConnectorProbeResult(
+            name="smsapp", status=ConnectorState.DISABLED, configured=False
+        )
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(
+                "https://backend.smsapp.io/v1/balance",
+                headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
+            )
+            response.raise_for_status()
+            balance = response.json().get("balance")
+    except (httpx.HTTPError, ValueError) as exc:
+        return _failure("smsapp", True, started, exc)
+    return ConnectorProbeResult(
+        name="smsapp", status=ConnectorState.OK, configured=True,
+        latency_ms=_elapsed_ms(started),
+        details={"balance": balance} if balance is not None else {},
+    )
+
+
 async def probe_configuration_states() -> list[ConnectorProbeResult]:
     settings = get_settings()
     sentry_client = sentry_sdk.get_client()
     return [
-        ConnectorProbeResult(
-            name="smsapp",
-            status=(
-                ConnectorState.UNVERIFIED
-                if settings.smsapp_api_token
-                else ConnectorState.DISABLED
-            ),
-            configured=bool(settings.smsapp_api_token),
-            error_code=("NO_SAFE_READ_PROBE" if settings.smsapp_api_token else None),
-        ),
+        await probe_smsapp(),
         ConnectorProbeResult(
             name="sentry",
             status=(ConnectorState.OK if sentry_client.transport else ConnectorState.DISABLED),

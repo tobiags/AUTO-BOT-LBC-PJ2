@@ -10,6 +10,7 @@ Règle R03 : les clés API viennent de Settings, jamais hardcodées.
 import asyncio
 import logging
 import secrets
+from datetime import UTC, datetime
 
 import httpx
 
@@ -139,27 +140,44 @@ async def rotate_4g_ip() -> bool:
 
 # ── SMSAPP.IO (OTP) ───────────────────────────────────────────────────────────
 
-_SMSAPP_BASE = "https://backend.smsapp.io/api"
+_SMSAPP_BASE = "https://backend.smsapp.io/v1"
+
+
+def _smsapp_expiry_timestamp(value: object) -> int:
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str) and value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return int(parsed.timestamp())
+        except ValueError:
+            log.warning("Expiration SMSApp invalide: %r", value)
+    return 0
 
 
 async def buy_number(country: str, service: str) -> ActivationOrder:
     """Achète un numéro OTP jetable. Pay-per-delivery — remboursé si SMS non reçu."""
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            f"{_SMSAPP_BASE}/buy-product",
+            f"{_SMSAPP_BASE}/buy",
             headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
-            json={"country": country, "product": service},
+            json={
+                "country": country,
+                "service": service,
+                "max_price": getattr(settings, "smsapp_max_price_usd", 1.0),
+            },
         )
         resp.raise_for_status()
         data = resp.json()
-        product = data.get("product", data)
         return ActivationOrder(
-            id=str(product["id"]),
-            phone=product.get("phone") or product.get("number") or data.get("phone", ""),
-            country=product.get("country", country),
-            service=product.get("product") or product.get("service") or service,
-            cost=product.get("price", product.get("cost", data.get("cost", 0.0))),
-            expires=product.get("expires", data.get("expires", 0)),
+            id=str(data["id"]),
+            phone=data.get("phone", ""),
+            country=data.get("country", country),
+            service=data.get("service", service),
+            cost=float(data.get("cost", 0.0)),
+            expires=_smsapp_expiry_timestamp(data.get("expires")),
         )
 
 
@@ -177,14 +195,14 @@ async def poll_sms(order_id: str, max_wait: int = 120) -> str | None:
     while loop.time() < deadline:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
-                f"{_SMSAPP_BASE}/get-sms",
+                f"{_SMSAPP_BASE}/sms/{order_id}",
                 headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
-                params={"numberId": order_id},
             )
             resp.raise_for_status()
             data = resp.json()
             if data.get("status") == "RECEIVED" and data.get("sms"):
-                text = data["sms"][0].get("text", "")
+                sms = data["sms"]
+                text = sms[0].get("text", "") if isinstance(sms, list) else str(sms)
                 codes = re.findall(r"\b\d{4,8}\b", text)
                 if codes:
                     return codes[0]
@@ -196,9 +214,8 @@ async def cancel_number(order_id: str) -> bool:
     """Annule et rembourse un numéro OTP non utilisé."""
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
-            f"{_SMSAPP_BASE}/cancel",
+            f"{_SMSAPP_BASE}/cancel/{order_id}",
             headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
-            json={"numberId": order_id},
         )
         return resp.status_code == 200
 

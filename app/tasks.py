@@ -79,7 +79,7 @@ def _run(coro):
 
 
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)
-def create_account_task(self, mode: str = "A", workflow_id: str | None = None):
+def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
     """WF-01 — création d'un nouveau compte LBC."""
     from app.services.account_creation import (
         AccountCreationError,
