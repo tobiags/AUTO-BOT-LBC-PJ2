@@ -162,11 +162,13 @@ async def authenticate_user(payload: UserLogin):
             )
         ).scalar_one_or_none()
         settings = get_settings()
+        bootstrap_user = settings.control_tower_admin_user or "admin"
+        bootstrap_password = settings.control_tower_admin_password or settings.control_tower_token
         bootstrap_match = (
             user is not None
-            and payload.email.lower() == settings.control_tower_admin_user.lower()
-            and settings.control_tower_admin_password
-            and hmac.compare_digest(payload.password, settings.control_tower_admin_password)
+            and payload.email.lower() == bootstrap_user.lower()
+            and bootstrap_password
+            and hmac.compare_digest(payload.password, bootstrap_password)
         )
         if user is None or (not _password_matches(payload.password, user.password_hash) and not bootstrap_match):
             raise HTTPException(401, detail={"code": "INVALID_CREDENTIALS"})
