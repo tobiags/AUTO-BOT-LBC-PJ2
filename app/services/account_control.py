@@ -15,6 +15,7 @@ _TRANSITIONS = {
     (AccountStatus.RALENTI, "quarantine"): AccountStatus.QUARANTAINE,
     (AccountStatus.BLOQUE, "quarantine"): AccountStatus.QUARANTAINE,
     (AccountStatus.EN_CHAUFFE, "quarantine"): AccountStatus.QUARANTAINE,
+    (AccountStatus.EN_CREATION, "quarantine"): AccountStatus.QUARANTAINE,
     (AccountStatus.QUARANTAINE, "restore"): AccountStatus.EN_CHAUFFE,
     (AccountStatus.BLOQUE, "restore"): AccountStatus.EN_CHAUFFE,
     (AccountStatus.EN_CREATION, "warm"): AccountStatus.EN_CHAUFFE,

@@ -22,3 +22,12 @@ def test_account_transition_rejects_active_restore():
 
     with pytest.raises(ValueError, match="Invalid account transition"):
         account_transition("ACTIF", "restore")
+
+
+def test_account_transition_allows_creation_quarantine():
+    from app.models import AccountStatus
+    from app.services.account_control import account_transition
+
+    assert account_transition(
+        AccountStatus.EN_CREATION.value, "quarantine"
+    ) == AccountStatus.QUARANTAINE
