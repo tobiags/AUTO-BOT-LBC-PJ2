@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     env: str = "development"
     secret_key: str = "change-me"
     control_tower_token: str = ""
+    control_tower_admin_user: str = ""
+    control_tower_admin_password: str = ""
     strict_startup_validation: bool = False
 
     # Database
