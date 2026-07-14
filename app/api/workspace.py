@@ -129,6 +129,8 @@ async def reset_user_password(email: str):
         if user is None:
             raise HTTPException(404, detail={"code": "USER_NOT_FOUND"})
         user.password_hash = _password_hash(temporary_password)
+        user.active = True
+        await db.flush()
         db.add(
             AuditEvent(
                 actor="control-tower",
