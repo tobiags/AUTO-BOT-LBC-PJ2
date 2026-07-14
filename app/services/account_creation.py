@@ -228,7 +228,13 @@ async def _create_with_patchright(
             await ctx.close()
 
 
-async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, str]:
+async def _create_with_browser_use(
+    email: str,
+    otp_order_id: str,
+    *,
+    account_id: str,
+    workflow_id: str | None = None,
+) -> tuple[str, str]:
     """
     Fallback Mode B : browser-use Cloud REST API.
 
@@ -273,6 +279,14 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, 
         r.raise_for_status()
         session_id = r.json()["id"]
         log.info("browser-use Cloud : session créée=%s", session_id)
+        await _persist_browser_use_binding(account_id, profile_id, session_id)
+        await _creation_checkpoint(
+            workflow_id,
+            "browser_use_session_ready",
+            account_id=account_id,
+            profile_id=profile_id,
+            session_id=session_id,
+        )
 
         try:
             # Tâche 1 — formulaire email
@@ -285,7 +299,14 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, 
                 ),
             })
             r.raise_for_status()
-            await _wait_for_task(client, r.json()["id"])
+            task_id = r.json()["id"]
+            await _creation_checkpoint(
+                workflow_id,
+                "browser_use_email_task_started",
+                provider_task_id=task_id,
+                session_id=session_id,
+            )
+            await _wait_for_task(client, task_id)
             log.info("browser-use Cloud : tâche 1 (formulaire email) terminée")
 
             # Tâche 2 — code OTP SMS
@@ -302,7 +323,14 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, 
                 ),
             })
             r.raise_for_status()
-            await _wait_for_task(client, r.json()["id"])
+            task_id = r.json()["id"]
+            await _creation_checkpoint(
+                workflow_id,
+                "browser_use_otp_task_started",
+                provider_task_id=task_id,
+                session_id=session_id,
+            )
+            await _wait_for_task(client, task_id)
             log.info("browser-use Cloud : tâche 2 (OTP SMS) terminée")
 
             # Tâche 3 — code email (si présent dans le flux)
@@ -316,7 +344,14 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, 
                     ),
                 })
                 r.raise_for_status()
-                await _wait_for_task(client, r.json()["id"])
+                task_id = r.json()["id"]
+                await _creation_checkpoint(
+                    workflow_id,
+                    "browser_use_email_verification_started",
+                    provider_task_id=task_id,
+                    session_id=session_id,
+                )
+                await _wait_for_task(client, task_id)
                 log.info("browser-use Cloud : tâche 3 (code email) terminée")
 
         finally:
@@ -337,6 +372,19 @@ async def _creation_checkpoint(workflow_id: str | None, stage: str, **details) -
         workflow_id,
         checkpoint={"stage": stage, **details},
     )
+
+
+async def _persist_browser_use_binding(
+    account_id: str, profile_id: str, session_id: str
+) -> None:
+    """Make provider resources visible even if a later signup step fails."""
+    async with get_db() as db:
+        account = await db.get(PlatformAccount, uuid.UUID(account_id))
+        if account is None:
+            raise AccountCreationError(f"Compte en creation introuvable: {account_id}")
+        account.browser_use_profile_id = profile_id
+        account.browser_use_session_id = session_id
+        await db.flush()
 
 
 async def create_lbc_account(
@@ -399,7 +447,12 @@ async def create_lbc_account(
         if mode == "A" and proxy:
             await _create_with_patchright(email, proxy, session_path, order.id)
         else:
-            browser_state = await _create_with_browser_use(email, order.id)
+            browser_state = await _create_with_browser_use(
+                email,
+                order.id,
+                account_id=account_uuid,
+                workflow_id=workflow_id,
+            )
             if isinstance(browser_state, tuple) and len(browser_state) == 2:
                 profile_id, session_id = browser_state
         await _creation_checkpoint(workflow_id, "registration_completed")

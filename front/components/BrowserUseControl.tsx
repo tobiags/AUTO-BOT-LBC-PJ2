@@ -44,6 +44,10 @@ export function BrowserUseControl() {
 
   useEffect(() => {
     loadTasks().catch((error) => setMessage(error.message))
+    const refresh = window.setInterval(() => {
+      loadTasks().catch((error) => setMessage(error.message))
+    }, 3000)
+    return () => window.clearInterval(refresh)
   }, [])
 
   async function submit(event: FormEvent) {
@@ -139,6 +143,9 @@ export function BrowserUseControl() {
                 <Text size="1" color="gray" as="div">
                   {task.step_count} etape(s)
                   {task.duration_seconds == null ? '' : ` / ${task.duration_seconds.toFixed(1)} s`}
+                </Text>
+                <Text size="1" color="gray" as="div">
+                  Provider: {task.provider_task_id ?? 'en attente'} · Session: {task.session_id ?? 'en attente'}
                 </Text>
               </Table.Cell>
               <Table.Cell><Badge>{task.status}</Badge></Table.Cell>

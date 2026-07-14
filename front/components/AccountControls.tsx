@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Flex, Select, Text } from '@radix-ui/themes'
 import { Eye, Flame, Plus, RotateCcw, ShieldAlert } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -11,7 +11,43 @@ export function AccountCreateControl() {
   const [mode, setMode] = useState('B')
   const [pending, setPending] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  const [workflowId, setWorkflowId] = useState<string | null>(null)
+  const [workflowStatus, setWorkflowStatus] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    if (!workflowId) return
+    let active = true
+    const refreshWorkflow = async () => {
+      const response = await fetch('/api/operations/workflows', { cache: 'no-store' })
+      if (!response.ok) return
+      const workflows = await response.json() as Array<{
+        id: string
+        status: string
+        checkpoint?: { stage?: string }
+        last_error?: string | null
+      }>
+      const workflow = workflows.find((item) => item.id === workflowId)
+      if (!active || !workflow) return
+      setWorkflowStatus(workflow.status)
+      const stage = workflow.checkpoint?.stage
+      if (workflow.status === 'FAILED') {
+        setFeedback({ kind: 'error', text: workflow.last_error ?? 'Création échouée' })
+      } else if (workflow.status === 'COMPLETED') {
+        setFeedback({ kind: 'success', text: 'Compte créé. Actualisation du pool…' })
+        router.refresh()
+      } else if (stage) {
+        setFeedback({ kind: 'success', text: `Création en cours : ${stage}` })
+      }
+    }
+    void refreshWorkflow()
+    const timer = window.setInterval(() => void refreshWorkflow(), 3000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [router, workflowId])
+
   return (
     <Flex gap="2" align="center" wrap="wrap">
       <Select.Root value={mode} onValueChange={setMode}>
@@ -36,9 +72,13 @@ export function AccountCreateControl() {
               const detail = payload?.detail?.message ?? payload?.error ?? 'Commande impossible'
               throw new Error(detail)
             }
+            setWorkflowId(payload?.workflow_id ?? null)
+            setWorkflowStatus('PENDING')
             setFeedback({
               kind: 'success',
-              text: `Création ${mode} mise en file. Suivez le résultat dans Workflows.`,
+              text: payload?.workflow_id
+                ? `Création mise en file (${payload.workflow_id.slice(0, 8)}…).`
+                : `Création ${mode} mise en file.`,
             })
             router.refresh()
           } catch (reason) {
@@ -55,7 +95,7 @@ export function AccountCreateControl() {
       </Button>
       {feedback && (
         <Text size="1" color={feedback.kind === 'error' ? 'red' : 'green'} role="status">
-          {feedback.text}
+          {feedback.text}{workflowStatus && workflowStatus !== 'COMPLETED' ? ` · ${workflowStatus}` : ''}
         </Text>
       )}
     </Flex>
