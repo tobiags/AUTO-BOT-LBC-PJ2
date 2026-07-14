@@ -181,6 +181,49 @@ async def buy_number(country: str, service: str) -> ActivationOrder:
         )
 
 
+async def buy_number_with_fallback(service: str = "leboncoin") -> ActivationOrder:
+    """Achète un numéro dans le premier pays LBC autorisé et disponible."""
+    configured = [
+        country.strip().lower()
+        for country in settings.smsapp_otp_countries.split(",")
+        if country.strip()
+    ]
+    preferred = getattr(settings, "smsapp_otp_country", "").strip().lower()
+    countries = ([preferred] if preferred else []) + [
+        country for country in configured if country != preferred
+    ]
+    if not countries:
+        raise RuntimeError("Aucun pays SMSApp configuré pour la création LBC")
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for country in countries:
+            response = await client.get(
+                f"{_SMSAPP_BASE}/services",
+                headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
+                params={"country": country},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            services = payload.get("services", payload) if isinstance(payload, dict) else payload
+            match = next(
+                (
+                    item
+                    for item in services
+                    if isinstance(item, dict)
+                    and item.get("name") == service
+                    and item.get("available") is True
+                ),
+                None,
+            )
+            if match:
+                log.info("SMSApp: pays sélectionné=%s service=%s", country, service)
+                return await buy_number(country, service)
+
+    raise RuntimeError(
+        f"Aucun numéro SMSApp disponible pour {service} dans les pays configurés"
+    )
+
+
 async def poll_sms(order_id: str, max_wait: int = 120) -> str | None:
     """
     Poll jusqu'à réception du SMS OTP.

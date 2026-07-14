@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     smsapp_api_token: str = ""
     smsapp_max_price_usd: float = 1.0
     smsapp_otp_country: str = "france"
+    smsapp_otp_countries: str = "france,gb,nl,es,si,cy,de,it,at,cz,pt,pl"
 
     # Mailgun
     mailgun_api_key: str = ""

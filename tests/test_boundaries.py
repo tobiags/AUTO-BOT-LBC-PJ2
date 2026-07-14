@@ -272,3 +272,45 @@ async def test_cancel_number_uses_smsapp_documented_endpoint():
         "https://backend.smsapp.io/v1/cancel/number-1",
         headers={"Authorization": "Bearer smsapp-token"},
     )
+
+
+@pytest.mark.asyncio
+async def test_buy_number_with_fallback_selects_first_available_country():
+    from app import boundaries
+
+    unavailable = Mock()
+    unavailable.raise_for_status.return_value = None
+    unavailable.json.return_value = {
+        "services": [{"name": "leboncoin", "available": False}]
+    }
+    available = Mock()
+    available.raise_for_status.return_value = None
+    available.json.return_value = {
+        "services": [{"name": "leboncoin", "available": True}]
+    }
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    client.get = AsyncMock(side_effect=[unavailable, available])
+    settings = SimpleNamespace(
+        smsapp_api_token="smsapp-token",
+        smsapp_otp_country="france",
+        smsapp_otp_countries="france,es",
+    )
+    expected = object()
+
+    with (
+        patch("app.boundaries.httpx.AsyncClient", return_value=client),
+        patch.object(boundaries, "settings", settings),
+        patch.object(
+            boundaries, "buy_number", new_callable=AsyncMock, return_value=expected
+        ) as buy,
+    ):
+        result = await boundaries.buy_number_with_fallback()
+
+    assert result is expected
+    buy.assert_awaited_once_with("es", "leboncoin")
+    assert [call.kwargs["params"] for call in client.get.await_args_list] == [
+        {"country": "france"},
+        {"country": "es"},
+    ]

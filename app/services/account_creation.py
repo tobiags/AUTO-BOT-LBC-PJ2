@@ -353,7 +353,7 @@ async def create_lbc_account(mode: str = "A") -> CreationResult:
         log.info("Proxy 4G : %s | ASN: %s", proxy.url.split("@")[-1], proxy.asn_org)
 
     # ── Numéro OTP — SmsApp.io ──────────────────────────────────────────────────
-    order = await boundaries.buy_number(settings.smsapp_otp_country, "leboncoin")
+    order = await boundaries.buy_number_with_fallback("leboncoin")
     log.info("OTP acheté : phone=%s id=%s", order.phone, order.id)
 
     # ── Navigation et inscription ────────────────────────────────────────────────
