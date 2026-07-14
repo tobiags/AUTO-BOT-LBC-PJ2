@@ -115,6 +115,36 @@ async def create_user(
         )
 
 
+@router.post("/users/{email}/reset-password", response_model=UserCreated)
+async def reset_user_password(email: str):
+    """Issue a new temporary password through the already protected workspace router."""
+    temporary_password = secrets.token_urlsafe(12)
+    async with get_db() as db:
+        workspace = await _get_workspace(db)
+        user = (
+            await db.execute(
+                select(User).where(User.workspace_id == workspace.id, User.email == email.lower())
+            )
+        ).scalar_one_or_none()
+        if user is None:
+            raise HTTPException(404, detail={"code": "USER_NOT_FOUND"})
+        user.password_hash = _password_hash(temporary_password)
+        db.add(
+            AuditEvent(
+                actor="control-tower",
+                role="administrateur",
+                action="workspace.user.password.reset",
+                target_type="user",
+                target_id=str(user.id),
+                input_summary={"email": user.email},
+                result_status="success",
+            )
+        )
+        return UserCreated.model_validate(
+            {**UserOut.model_validate(user).model_dump(), "temporary_password": temporary_password}
+        )
+
+
 @router.post("/authenticate", response_model=UserOut)
 async def authenticate_user(payload: UserLogin):
     async with get_db() as db:
