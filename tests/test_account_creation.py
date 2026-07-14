@@ -211,6 +211,7 @@ async def test_create_mode_b_success(mock_buy_number, mock_poll_sms):
         result = await create_lbc_account(mode="B")
 
     assert result.mode == "B"
+    mock_buy_number.assert_awaited_once_with("france", "leboncoin")
 
 
 @pytest.mark.unit
