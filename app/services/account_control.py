@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -194,3 +194,60 @@ async def finish_account_creation_workflow(
         workflow.checkpoint = {"account_id": account_id} if account_id else None
         workflow.last_error = error
         workflow.finished_at = datetime.now(UTC)
+
+
+async def update_account_creation_workflow(
+    workflow_id: str,
+    *,
+    status: WorkflowStatus = WorkflowStatus.RUNNING,
+    checkpoint: dict | None = None,
+) -> None:
+    """Persist the current account-creation step for dashboard observability."""
+    async with get_db() as db:
+        workflow = await db.get(WorkflowRun, UUID(workflow_id))
+        if workflow is None or workflow.workflow_type != "account.create":
+            return
+        workflow.status = status
+        if checkpoint is not None:
+            workflow.checkpoint = checkpoint
+        if status == WorkflowStatus.RUNNING and workflow.started_at is None:
+            workflow.started_at = datetime.now(UTC)
+
+
+async def reconcile_account_creation_workflows(
+    *, pending_timeout_minutes: int = 10, running_timeout_minutes: int = 30
+) -> dict[str, int]:
+    """Fail account-creation workflows that no longer have a live worker."""
+    now = datetime.now(UTC)
+    pending_cutoff = now - timedelta(minutes=pending_timeout_minutes)
+    running_cutoff = now - timedelta(minutes=running_timeout_minutes)
+    reconciled = 0
+    async with get_db() as db:
+        workflows = (
+            await db.scalars(
+                select(WorkflowRun).where(
+                    WorkflowRun.workflow_type == "account.create",
+                    WorkflowRun.status.in_([WorkflowStatus.PENDING, WorkflowStatus.RUNNING]),
+                )
+            )
+        ).all()
+        for workflow in workflows:
+            was_pending = workflow.status == WorkflowStatus.PENDING
+            cutoff = pending_cutoff if was_pending else running_cutoff
+            reference_time = workflow.started_at or workflow.created_at
+            if reference_time is None or reference_time > cutoff:
+                continue
+            workflow.status = WorkflowStatus.FAILED
+            workflow.last_error_code = "WORKER_TIMEOUT"
+            workflow.last_error = (
+                "Workflow account.create expire : aucune progression persistée "
+                "depuis "
+                f"{pending_timeout_minutes if was_pending else running_timeout_minutes} minutes."
+            )
+            workflow.checkpoint = {
+                **(workflow.checkpoint or {}),
+                "stage": "reconciled_timeout",
+            }
+            workflow.finished_at = now
+            reconciled += 1
+    return {"reconciled": reconciled}

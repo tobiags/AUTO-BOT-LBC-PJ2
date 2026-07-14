@@ -328,7 +328,20 @@ async def _create_with_browser_use(email: str, otp_order_id: str) -> tuple[str, 
         return profile_id, session_id
 
 
-async def create_lbc_account(mode: str = "A") -> CreationResult:
+async def _creation_checkpoint(workflow_id: str | None, stage: str, **details) -> None:
+    if not workflow_id:
+        return
+    from app.services.account_control import update_account_creation_workflow
+
+    await update_account_creation_workflow(
+        workflow_id,
+        checkpoint={"stage": stage, **details},
+    )
+
+
+async def create_lbc_account(
+    mode: str = "A", workflow_id: str | None = None
+) -> CreationResult:
     """
     Crée un nouveau compte LBC.
 
@@ -343,6 +356,7 @@ async def create_lbc_account(mode: str = "A") -> CreationResult:
 
     # ── Proxy 4G (Mode A uniquement) ────────────────────────────────────────────
     proxy = None
+    await _creation_checkpoint(workflow_id, "preparing", mode=mode)
     if mode == "A":
         rotated = await boundaries.rotate_4g_ip()
         if not rotated:
@@ -351,10 +365,12 @@ async def create_lbc_account(mode: str = "A") -> CreationResult:
         proxy = await boundaries.get_4g_proxy()
         await _verify_proxy_is_fr_carrier(proxy)
         log.info("Proxy 4G : %s | ASN: %s", proxy.url.split("@")[-1], proxy.asn_org)
+        await _creation_checkpoint(workflow_id, "proxy_ready")
 
     # ── Numéro OTP — SmsApp.io ──────────────────────────────────────────────────
     order = await boundaries.buy_number_with_fallback("leboncoin")
     log.info("OTP acheté : phone=%s id=%s", order.phone, order.id)
+    await _creation_checkpoint(workflow_id, "otp_number_acquired", country=order.country)
 
     # ── Navigation et inscription ────────────────────────────────────────────────
     session_path = _session_path_for(account_uuid)
@@ -372,15 +388,27 @@ async def create_lbc_account(mode: str = "A") -> CreationResult:
         )
         db.add(account)
         await db.flush()
+    await _creation_checkpoint(
+        workflow_id, "account_placeholder_persisted", account_id=account_uuid
+    )
 
     profile_id = None
     session_id = None
-    if mode == "A" and proxy:
-        await _create_with_patchright(email, proxy, session_path, order.id)
-    else:
-        browser_state = await _create_with_browser_use(email, order.id)
-        if isinstance(browser_state, tuple) and len(browser_state) == 2:
-            profile_id, session_id = browser_state
+    try:
+        await _creation_checkpoint(workflow_id, "registration_started")
+        if mode == "A" and proxy:
+            await _create_with_patchright(email, proxy, session_path, order.id)
+        else:
+            browser_state = await _create_with_browser_use(email, order.id)
+            if isinstance(browser_state, tuple) and len(browser_state) == 2:
+                profile_id, session_id = browser_state
+        await _creation_checkpoint(workflow_id, "registration_completed")
+    except Exception:
+        async with get_db() as db:
+            failed_account = await db.get(PlatformAccount, uuid.UUID(account_uuid))
+            if failed_account is not None:
+                failed_account.status = AccountStatus.QUARANTAINE
+        raise
 
     account.status = AccountStatus.EN_CHAUFFE
     async with get_db() as db:

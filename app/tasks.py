@@ -41,6 +41,10 @@ celery_app.conf.update(
             "task": "app.tasks.check_account_pool_task",
             "schedule": 3600.0,
         },
+        "reconcile-account-creation-workflows": {
+            "task": "app.tasks.reconcile_account_creation_workflows_task",
+            "schedule": 60.0,
+        },
         "refresh-connector-status": {
             "task": "app.tasks.refresh_connector_status_task",
             "schedule": 60.0,
@@ -88,7 +92,14 @@ def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
     )
 
     try:
-        result = _run(create_lbc_account(mode=mode))
+        if workflow_id:
+            from app.services.account_control import update_account_creation_workflow
+
+            _run(update_account_creation_workflow(
+                workflow_id,
+                checkpoint={"stage": "started", "mode": mode},
+            ))
+        result = _run(create_lbc_account(mode=mode, workflow_id=workflow_id))
         if workflow_id:
             from app.services.account_control import finish_account_creation_workflow
 
@@ -103,6 +114,18 @@ def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
         log.error("Proxy 4G indisponible : %s — pas de retry (règle R07)", exc)
         raise
     except AccountCreationError as exc:
+        if workflow_id and self.request.retries < self.max_retries:
+            from app.services.account_control import update_account_creation_workflow
+
+            _run(update_account_creation_workflow(
+                workflow_id,
+                checkpoint={
+                    "stage": "retry_scheduled",
+                    "mode": mode,
+                    "retry": self.request.retries + 1,
+                    "error": str(exc)[:400],
+                },
+            ))
         if workflow_id and self.request.retries >= self.max_retries:
             from app.services.account_control import finish_account_creation_workflow
 
@@ -118,6 +141,14 @@ def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
             _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
         log.exception("Échec inattendu création compte : %s", exc)
         raise
+
+
+@celery_app.task(name="app.tasks.reconcile_account_creation_workflows_task")
+def reconcile_account_creation_workflows_task():
+    """Closes account-creation workflows that were lost before task execution."""
+    from app.services.account_control import reconcile_account_creation_workflows
+
+    return _run(reconcile_account_creation_workflows())
 
 
 @celery_app.task(name="app.tasks.run_campaign_task", bind=True)
