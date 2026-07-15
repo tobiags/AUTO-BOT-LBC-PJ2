@@ -111,6 +111,7 @@ async def run_lbc_message_campaign(campaign_id: str, workflow_id: str) -> dict:
         accounts = (
             await db.scalars(
                 select(PlatformAccount).where(
+                    PlatformAccount.deleted_at.is_(None),
                     PlatformAccount.status == AccountStatus.ACTIF,
                     PlatformAccount.browser_use_profile_id.isnot(None),
                 )
@@ -287,6 +288,7 @@ async def sync_lbc_inbox(workflow_id: str | None = None) -> dict:
         accounts = (
             await db.scalars(
                 select(PlatformAccount).where(
+                    PlatformAccount.deleted_at.is_(None),
                     PlatformAccount.status == AccountStatus.ACTIF,
                     PlatformAccount.browser_use_profile_id.isnot(None),
                 )

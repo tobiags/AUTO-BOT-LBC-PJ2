@@ -181,6 +181,7 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
         result = await db.execute(
             select(PlatformAccount)
             .where(
+                PlatformAccount.deleted_at.is_(None),
                 PlatformAccount.status == "ACTIF",
                 PlatformAccount.session_path.isnot(None),
             )

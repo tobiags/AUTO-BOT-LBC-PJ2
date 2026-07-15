@@ -191,7 +191,11 @@ async def finish_account_creation_workflow(
     async with get_db() as db:
         workflow = await db.get(WorkflowRun, UUID(workflow_id))
         workflow.status = WorkflowStatus.FAILED if error else WorkflowStatus.COMPLETED
-        workflow.checkpoint = {"account_id": account_id} if account_id else None
+        workflow.checkpoint = {
+            **(workflow.checkpoint or {}),
+            **({"account_id": account_id} if account_id else {}),
+            **({"stage": "failed"} if error else {"stage": "completed"}),
+        }
         workflow.last_error = error
         workflow.finished_at = datetime.now(UTC)
 
@@ -209,9 +213,62 @@ async def update_account_creation_workflow(
             return
         workflow.status = status
         if checkpoint is not None:
-            workflow.checkpoint = checkpoint
+            workflow.checkpoint = {**(workflow.checkpoint or {}), **checkpoint}
         if status == WorkflowStatus.RUNNING and workflow.started_at is None:
             workflow.started_at = datetime.now(UTC)
+
+
+async def remove_quarantined_account(
+    *, account_id: UUID, idempotency_key: str, actor: str, role: str
+) -> AccountCommandResponse:
+    """Remove a failed account from the active pool without destroying its audit trail."""
+    async with get_db() as db:
+        duplicate = await db.scalar(
+            select(AuditEvent).where(AuditEvent.idempotency_key == idempotency_key)
+        )
+        if duplicate:
+            return AccountCommandResponse(
+                account_id=account_id,
+                workflow_id=duplicate.workflow_run_id,
+                action="delete",
+                status=duplicate.result_status,
+            )
+        account = await db.get(PlatformAccount, account_id)
+        if account is None:
+            raise LookupError("Account not found")
+        if account.status != AccountStatus.QUARANTAINE:
+            raise ValueError("Seuls les comptes en quarantaine peuvent être supprimés")
+        account.deleted_at = datetime.now(UTC)
+        account.derniere_action = datetime.now(UTC)
+        workflow = WorkflowRun(
+            idempotency_key=idempotency_key,
+            workflow_type="account.delete",
+            target_type="account",
+            target_id=str(account_id),
+            status=WorkflowStatus.COMPLETED,
+            initiated_by=actor,
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+        )
+        db.add(workflow)
+        await db.flush()
+        db.add(AuditEvent(
+            actor=actor,
+            role=role,
+            action="account.delete",
+            target_type="account",
+            target_id=str(account_id),
+            idempotency_key=idempotency_key,
+            input_summary={"action": "delete", "mode": "soft_delete"},
+            result_status="completed",
+            workflow_run_id=workflow.id,
+        ))
+        return AccountCommandResponse(
+            account_id=account_id,
+            workflow_id=workflow.id,
+            action="delete",
+            status="completed",
+        )
 
 
 async def reconcile_account_creation_workflows(

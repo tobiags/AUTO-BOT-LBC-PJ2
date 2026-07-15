@@ -51,7 +51,10 @@ async def evaluate_warmup_batch() -> dict:
 
     async with get_db() as db:
         result = await db.execute(
-            select(PlatformAccount).where(PlatformAccount.status == AccountStatus.EN_CHAUFFE)
+            select(PlatformAccount).where(
+                PlatformAccount.deleted_at.is_(None),
+                PlatformAccount.status == AccountStatus.EN_CHAUFFE,
+            )
         )
         accounts = result.scalars().all()
 
@@ -119,7 +122,10 @@ async def update_account_health(account_id: str, success: bool) -> None:
 
     async with get_db() as db:
         result = await db.execute(
-            select(PlatformAccount).where(PlatformAccount.id == account_uuid).limit(1)
+            select(PlatformAccount).where(
+                PlatformAccount.id == account_uuid,
+                PlatformAccount.deleted_at.is_(None),
+            ).limit(1)
         )
         account = result.scalar_one_or_none()
         if not account:

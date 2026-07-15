@@ -60,6 +60,7 @@ async def _check_active_pool_needs_account() -> bool:
     async with get_db() as db:
         result = await db.execute(
             select(func.count()).select_from(PlatformAccount).where(
+                PlatformAccount.deleted_at.is_(None),
                 PlatformAccount.status.in_([AccountStatus.ACTIF, AccountStatus.EN_CHAUFFE])
             )
         )
@@ -249,7 +250,27 @@ async def _create_with_browser_use(
         "Content-Type": "application/json",
     }
 
-    async def _wait_for_task(client: _httpx.AsyncClient, task_id: str, timeout: int = 180) -> dict:
+    async def _stop_task(client: _httpx.AsyncClient, task_id: str | None) -> None:
+        if not task_id:
+            return
+        try:
+            response = await client.patch(
+                f"{_base}/tasks/{task_id}",
+                headers=_headers,
+                json={"action": "stop_task_and_session"},
+            )
+            response.raise_for_status()
+        except Exception as exc:  # cleanup must not hide the original failure
+            log.warning("browser-use cleanup impossible task_id=%s: %s", task_id, exc)
+
+    async def _wait_for_task(
+        client: _httpx.AsyncClient,
+        task_id: str,
+        *,
+        stage: str,
+        session_id: str,
+        timeout: int = 180,
+    ) -> dict:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         while loop.time() < deadline:
@@ -257,11 +278,23 @@ async def _create_with_browser_use(
             r.raise_for_status()
             data = r.json()
             status = data.get("status", "")
+            await _creation_checkpoint(
+                workflow_id,
+                stage,
+                provider_task_id=task_id,
+                session_id=session_id,
+                provider_status=status or "unknown",
+                provider_is_success=data.get("isSuccess"),
+                provider_output=str(data.get("output") or "")[:500],
+            )
             if status in ("finished", "completed", "done", "stopped"):
+                if data.get("isSuccess") is False:
+                    raise AccountCreationError(f"browser-use tâche rejetée : {data}")
                 return data
             if status in ("failed", "error"):
                 raise AccountCreationError(f"browser-use tâche échouée : {data}")
             await asyncio.sleep(5)
+        await _stop_task(client, task_id)
         raise AccountCreationError(f"Timeout browser-use task_id={task_id}")
 
     async with _httpx.AsyncClient(timeout=30) as client:
@@ -288,6 +321,7 @@ async def _create_with_browser_use(
             session_id=session_id,
         )
 
+        task_id: str | None = None
         try:
             # Tâche 1 — formulaire email
             r = await client.post(f"{_base}/tasks", headers=_headers, json={
@@ -306,7 +340,9 @@ async def _create_with_browser_use(
                 provider_task_id=task_id,
                 session_id=session_id,
             )
-            await _wait_for_task(client, task_id)
+            await _wait_for_task(
+                client, task_id, stage="browser_use_email_task_polling", session_id=session_id
+            )
             log.info("browser-use Cloud : tâche 1 (formulaire email) terminée")
 
             # Tâche 2 — code OTP SMS
@@ -330,7 +366,9 @@ async def _create_with_browser_use(
                 provider_task_id=task_id,
                 session_id=session_id,
             )
-            await _wait_for_task(client, task_id)
+            await _wait_for_task(
+                client, task_id, stage="browser_use_otp_task_polling", session_id=session_id
+            )
             log.info("browser-use Cloud : tâche 2 (OTP SMS) terminée")
 
             # Tâche 3 — code email (si présent dans le flux)
@@ -351,15 +389,25 @@ async def _create_with_browser_use(
                     provider_task_id=task_id,
                     session_id=session_id,
                 )
-                await _wait_for_task(client, task_id)
+                await _wait_for_task(
+                    client,
+                    task_id,
+                    stage="browser_use_email_verification_polling",
+                    session_id=session_id,
+                )
                 log.info("browser-use Cloud : tâche 3 (code email) terminée")
 
         finally:
-            await client.patch(
-                f"{_base}/sessions/{session_id}",
-                headers=_headers,
-                json={"action": "stop"},
-            )
+            await _stop_task(client, task_id)
+            try:
+                response = await client.patch(
+                    f"{_base}/sessions/{session_id}",
+                    headers=_headers,
+                    json={"action": "stop"},
+                )
+                response.raise_for_status()
+            except Exception as exc:  # cleanup must not hide the original failure
+                log.warning("browser-use session cleanup impossible session_id=%s: %s", session_id, exc)
         return profile_id, session_id
 
 

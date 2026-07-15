@@ -175,15 +175,22 @@ async def get_dashboard():
 
         # ── Comptes ──────────────────────────────────────────────────────────
         accounts_total = (
-            await db.execute(select(func.count()).select_from(PlatformAccount))
+            await db.execute(
+                select(func.count()).select_from(PlatformAccount).where(
+                    PlatformAccount.deleted_at.is_(None)
+                )
+            )
         ).scalar() or 0
         accounts_active = (await db.execute(
             select(func.count()).select_from(PlatformAccount).where(
+                PlatformAccount.deleted_at.is_(None),
                 PlatformAccount.status.in_([AccountStatus.ACTIF, AccountStatus.EN_CHAUFFE])
             )
         )).scalar() or 0
         account_status_counts = dict((await db.execute(
-            select(PlatformAccount.status, func.count()).group_by(PlatformAccount.status)
+            select(PlatformAccount.status, func.count())
+            .where(PlatformAccount.deleted_at.is_(None))
+            .group_by(PlatformAccount.status)
         )).all())
         accounts_warming = account_status_counts.get(AccountStatus.EN_CHAUFFE, 0)
         accounts_slowed = account_status_counts.get(AccountStatus.RALENTI, 0)

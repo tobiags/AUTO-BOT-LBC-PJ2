@@ -19,3 +19,18 @@ export async function POST(
   )
   return NextResponse.json(await response.json(), { status: response.status })
 }
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ accountId: string }> },
+) {
+  const { accountId } = await context.params
+  const response = await fetch(
+    `${API_URL}/api/v1/operations/accounts/${encodeURIComponent(accountId)}`,
+    {
+      method: 'DELETE', cache: 'no-store',
+      headers: controlApiHeaders(request),
+    },
+  )
+  return NextResponse.json(await response.json(), { status: response.status })
+}

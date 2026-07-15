@@ -27,7 +27,11 @@ from app.models import (
     WorkflowCommandRequest,
     WorkflowRunView,
 )
-from app.services.account_control import create_account_command, execute_account_command
+from app.services.account_control import (
+    create_account_command,
+    execute_account_command,
+    remove_quarantined_account,
+)
 from app.services.analyzer_control import queue_listing_analysis
 from app.services.browser_use_workflows import (
     create_browser_use_workflow,
@@ -342,6 +346,32 @@ async def account_operation(
         raise HTTPException(
             status_code=409,
             detail={"code": "INVALID_ACCOUNT_COMMAND", "message": str(exc)},
+        ) from exc
+
+
+@router.delete("/accounts/{account_id}", response_model=AccountCommandResponse)
+async def delete_quarantined_account(
+    account_id: UUID,
+    x_control_tower_token: Annotated[str | None, Header()] = None,
+    x_operator_role: Annotated[str, Header()] = "operator",
+    x_operator_id: Annotated[str, Header()] = "dashboard",
+):
+    role = _authorize(x_control_tower_token, x_operator_role)
+    if role != "admin":
+        raise HTTPException(status_code=403, detail={"code": "ADMIN_REQUIRED"})
+    try:
+        return await remove_quarantined_account(
+            account_id=account_id,
+            idempotency_key=f"delete-{account_id}-{secrets.token_urlsafe(12)}",
+            actor=x_operator_id[:100],
+            role=role,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "ACCOUNT_NOT_FOUND"}) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "INVALID_ACCOUNT_DELETE", "message": str(exc)},
         ) from exc
 
 

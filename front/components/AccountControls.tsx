@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Flex, Select, Text } from '@radix-ui/themes'
-import { Eye, Flame, Plus, RotateCcw, ShieldAlert } from 'lucide-react'
+import { Eye, Flame, Plus, RotateCcw, ShieldAlert, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import type { AccountStatus } from '@/lib/api'
@@ -127,6 +127,22 @@ export function AccountControls({ accountId, status, hasProfile }: {
     router.refresh()
   }
 
+  async function removeAccount() {
+    if (!window.confirm('Retirer définitivement ce compte du pool opérationnel ?')) return
+    setPending(true)
+    setError(null)
+    const response = await fetch(`/api/operations/accounts/${accountId}`, {
+      method: 'DELETE',
+    })
+    setPending(false)
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null)
+      setError(payload?.detail?.message ?? 'Suppression impossible')
+      return
+    }
+    router.refresh()
+  }
+
   return (
     <Flex gap="1" wrap="wrap">
       {hasProfile && (
@@ -140,9 +156,16 @@ export function AccountControls({ accountId, status, hasProfile }: {
         </Button>
       )}
       {status === 'QUARANTAINE' || status.includes('BLOQU') ? (
-        <Button size="1" variant="soft" disabled={pending} onClick={() => command('restore')}>
-          <RotateCcw size={13} /> Restaurer
-        </Button>
+        <>
+          <Button size="1" variant="soft" disabled={pending} onClick={() => command('restore')}>
+            <RotateCcw size={13} /> Restaurer
+          </Button>
+          {status === 'QUARANTAINE' && (
+            <Button size="1" color="red" variant="soft" disabled={pending} onClick={() => void removeAccount()}>
+              <Trash2 size={13} /> Supprimer
+            </Button>
+          )}
+        </>
       ) : (
         <Button
           size="1" color="red" variant="soft" disabled={pending}
