@@ -204,7 +204,7 @@ async def _create_with_patchright(
             if sms_code is None:
                 await boundaries.cancel_number(otp_order_id)
                 raise AccountCreationError(f"Timeout OTP SMS order_id={otp_order_id}")
-            log.info("Patchright : code OTP SMS=%s", sms_code)
+            log.info("Patchright : code OTP SMS recu")
 
             # Saisir dans le premier champ texte visible (page OTP)
             await page.get_by_role("textbox").first.fill(sms_code)
@@ -218,7 +218,7 @@ async def _create_with_patchright(
                 email_code = await _poll_email_code_redis(email, timeout=_EMAIL_CODE_TIMEOUT)
                 if email_code is None:
                     raise AccountCreationError(f"Timeout code vérification email pour {email}")
-                log.info("Patchright : code email=%s", email_code)
+                log.info("Patchright : code email recu")
                 await page.get_by_role("textbox").first.fill(email_code)
                 await page.get_by_role("button", name=_BTN_RE).click()
                 await page.wait_for_load_state("networkidle", timeout=20_000)

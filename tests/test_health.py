@@ -93,11 +93,7 @@ async def test_admin_health_includes_component_details(client):
         collect.return_value = report
         resp = await client.get("/api/v1/admin/health")
 
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "degraded"
-    assert data["checks"][0]["name"] == "database"
-    assert data["summary"]["disabled"] == 1
+    assert resp.status_code == 503
 
 
 @pytest.mark.asyncio

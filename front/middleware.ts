@@ -40,6 +40,7 @@ export const config = {
     '/connectors/:path*',
     '/browser-use/:path*',
     '/lab/:path*',
+    '/settings/:path*',
     '/api/operations/:path*',
   ],
 }

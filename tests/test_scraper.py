@@ -5,7 +5,9 @@ import pytest
 
 from app.models import ListingSource
 from app.services.scraper import (
+    DataDomeBlockedError,
     RawListing,
+    classify_lbc_error,
     _page_url,
     _parse_km,
     _parse_lbc_search_items,
@@ -202,3 +204,9 @@ def test_parse_lbc_search_items_can_extract_phone_from_text_fallback():
     }])
     assert items[0].title == "Citroen C3 appelez le 06 12 34 56 78"
     assert items[0].phone == "+33612345678"
+
+
+@pytest.mark.unit
+def test_datadome_error_is_not_treated_as_an_empty_scrape():
+    error = classify_lbc_error(RuntimeError("DataDome CAPTCHA: verify you are human"))
+    assert isinstance(error, DataDomeBlockedError)

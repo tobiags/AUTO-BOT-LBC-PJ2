@@ -24,6 +24,26 @@ from app.services.phone_extractor import extract_phone
 
 log = logging.getLogger(__name__)
 
+
+class LbcScrapeError(RuntimeError):
+    """A LeBonCoin collection failed and must not be reported as empty."""
+
+
+class DataDomeBlockedError(LbcScrapeError):
+    """LeBonCoin blocked the browser session with DataDome/CAPTCHA."""
+
+
+def is_datadome_blocked(message: str) -> bool:
+    normalized = message.lower()
+    return any(marker in normalized for marker in ("datadome", "captcha", "verify you are human"))
+
+
+def classify_lbc_error(exc: Exception) -> LbcScrapeError:
+    if is_datadome_blocked(str(exc)):
+        return DataDomeBlockedError("LeBonCoin blocked this session with DataDome")
+    return LbcScrapeError(f"LeBonCoin scraping failed: {exc}")
+
+
 _LC_SCHEMA = {
     "name": "Annonces La Centrale",
     "baseSelector": "article.listing-item, div[class*='AdCard'], div[class*='listing-card']",
@@ -165,7 +185,9 @@ def _page_url(url: str, page_number: int) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
-async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
+async def scrape_lbc(
+    search_params: dict[str, Any], account_id: Any | None = None
+) -> list[RawListing]:
     """
     Scrape LeBonCoin via Patchright avec un compte ACTIF.
 
@@ -178,15 +200,15 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
     from app.tables import PlatformAccount
 
     async with get_db() as db:
+        query = select(PlatformAccount).where(
+            PlatformAccount.deleted_at.is_(None),
+            PlatformAccount.status == "ACTIF",
+            PlatformAccount.session_path.isnot(None),
+        )
+        if account_id is not None:
+            query = query.where(PlatformAccount.id == account_id)
         result = await db.execute(
-            select(PlatformAccount)
-            .where(
-                PlatformAccount.deleted_at.is_(None),
-                PlatformAccount.status == "ACTIF",
-                PlatformAccount.session_path.isnot(None),
-            )
-            .order_by(PlatformAccount.derniere_action.asc().nullslast())
-            .limit(1)
+            query.order_by(PlatformAccount.derniere_action.asc().nullslast()).limit(1)
         )
         account = result.scalar_one_or_none()
 
@@ -234,6 +256,12 @@ async def scrape_lbc(search_params: dict[str, Any]) -> list[RawListing]:
         except Exception as exc:
             log.error("scrape_lbc heuristique echouee : %s", exc)
             sentry_sdk.capture_exception(exc)
+            if is_datadome_blocked(str(exc)):
+                async with get_db() as db:
+                    blocked_account = await db.get(PlatformAccount, account.id)
+                    if blocked_account is not None:
+                        blocked_account.status = "QUARANTAINE"
+            raise classify_lbc_error(exc) from exc
         finally:
             await ctx.close()
 

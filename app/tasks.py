@@ -95,10 +95,12 @@ def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
         if workflow_id:
             from app.services.account_control import update_account_creation_workflow
 
-            _run(update_account_creation_workflow(
-                workflow_id,
-                checkpoint={"stage": "started", "mode": mode},
-            ))
+            _run(
+                update_account_creation_workflow(
+                    workflow_id,
+                    checkpoint={"stage": "started", "mode": mode},
+                )
+            )
         result = _run(create_lbc_account(mode=mode, workflow_id=workflow_id))
         if workflow_id:
             from app.services.account_control import finish_account_creation_workflow
@@ -114,18 +116,29 @@ def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
         log.error("Proxy 4G indisponible : %s — pas de retry (règle R07)", exc)
         raise
     except AccountCreationError as exc:
+        from app.services.scraper import is_datadome_blocked
+
+        if is_datadome_blocked(str(exc)):
+            if workflow_id:
+                from app.services.account_control import finish_account_creation_workflow
+
+                _run(finish_account_creation_workflow(workflow_id, None, str(exc)[:500]))
+            log.error("DataDome detecte : aucune nouvelle tentative automatique")
+            raise
         if workflow_id and self.request.retries < self.max_retries:
             from app.services.account_control import update_account_creation_workflow
 
-            _run(update_account_creation_workflow(
-                workflow_id,
-                checkpoint={
-                    "stage": "retry_scheduled",
-                    "mode": mode,
-                    "retry": self.request.retries + 1,
-                    "error": str(exc)[:400],
-                },
-            ))
+            _run(
+                update_account_creation_workflow(
+                    workflow_id,
+                    checkpoint={
+                        "stage": "retry_scheduled",
+                        "mode": mode,
+                        "retry": self.request.retries + 1,
+                        "error": str(exc)[:400],
+                    },
+                )
+            )
         if workflow_id and self.request.retries >= self.max_retries:
             from app.services.account_control import finish_account_creation_workflow
 
@@ -210,21 +223,9 @@ def collect_sector_task(self, sector_id: str):
 @celery_app.task(name="app.tasks.dispatch_sector_collections_task")
 def dispatch_sector_collections_task():
     """Distribue les secteurs actifs dans des tâches indépendantes."""
-    from sqlalchemy import select
+    from app.services.sector_collection import get_due_sector_ids
 
-    from app.db import get_db
-    from app.tables import Sector
-
-    async def list_active():
-        async with get_db() as db:
-            return [
-                str(row.id)
-                for row in (
-                    await db.execute(select(Sector.id).where(Sector.status == "actif"))
-                ).all()
-            ]
-
-    sector_ids = _run(list_active())
+    sector_ids = _run(get_due_sector_ids())
     for sector_id in sector_ids:
         collect_sector_task.delay(sector_id)
     return {"dispatched": len(sector_ids), "sector_ids": sector_ids}
