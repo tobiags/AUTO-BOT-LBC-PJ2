@@ -191,9 +191,11 @@ async def finish_account_creation_workflow(
     async with get_db() as db:
         workflow = await db.get(WorkflowRun, UUID(workflow_id))
         workflow.status = WorkflowStatus.FAILED if error else WorkflowStatus.COMPLETED
+        previous_stage = (workflow.checkpoint or {}).get("stage")
         workflow.checkpoint = {
             **(workflow.checkpoint or {}),
             **({"account_id": account_id} if account_id else {}),
+            **({"last_stage": previous_stage} if error and previous_stage else {}),
             **({"stage": "failed"} if error else {"stage": "completed"}),
         }
         workflow.last_error = error

@@ -21,6 +21,67 @@ type Workflow = {
   updated_at: string
 }
 
+const ACCOUNT_CREATE_STAGES = [
+  ['profile_created', 'Profil Browser Use créé'],
+  ['session_created', 'Session navigateur créée'],
+  ['email_task_running', 'Saisie de l’e-mail en cours'],
+  ['email_task_verified', 'E-mail validé'],
+  ['otp_task_running', 'Saisie du code OTP en cours'],
+  ['otp_verified', 'OTP validé'],
+  ['account_verified', 'Compte vérifié'],
+  ['completed', 'Création terminée'],
+] as const
+
+function AccountCreationProgress({ workflow }: { workflow: Workflow }) {
+  const checkpoint = workflow.checkpoint ?? {}
+  const current = String(checkpoint.stage ?? 'pending')
+  const lastStage = String(checkpoint.last_stage ?? '')
+  const currentIndex = ACCOUNT_CREATE_STAGES.findIndex(([stage]) => stage === current)
+  const visibleCurrentIndex = current === 'account_verification_running'
+    ? ACCOUNT_CREATE_STAGES.findIndex(([stage]) => stage === 'account_verified')
+    : currentIndex
+  const failedIndex = workflow.status === 'FAILED'
+    ? ACCOUNT_CREATE_STAGES.findIndex(([stage]) => stage === lastStage)
+    : -1
+  const providerOutput = typeof checkpoint.provider_output === 'string'
+    ? checkpoint.provider_output
+    : ''
+  const providerStatus = typeof checkpoint.provider_status === 'string'
+    ? checkpoint.provider_status
+    : ''
+  return (
+    <Box mt="2">
+      <Text size="1" weight="bold" as="div">Progression de création</Text>
+      <Flex direction="column" gap="1" mt="1">
+        {ACCOUNT_CREATE_STAGES.map(([stage, label], index) => {
+          const complete = workflow.status === 'COMPLETED'
+            || (visibleCurrentIndex >= 0 && index < visibleCurrentIndex)
+            || (failedIndex >= 0 && index < failedIndex)
+          const active = (stage === current || (current === 'account_verification_running' && stage === 'account_verified'))
+            && workflow.status !== 'FAILED'
+          const failed = workflow.status === 'FAILED' && index === failedIndex
+          return (
+            <Flex key={stage} align="center" gap="2">
+              <Text size="1" color={failed ? 'red' : complete ? 'green' : active ? 'blue' : 'gray'}>
+                {failed ? '✕' : complete ? '✓' : active ? '…' : '○'}
+              </Text>
+              <Text size="1" color={failed ? 'red' : active ? 'blue' : 'gray'}>{label}</Text>
+            </Flex>
+          )
+        })}
+      </Flex>
+      {(providerStatus || providerOutput) && (
+        <Text size="1" color="gray" as="div" mt="2">
+          Fournisseur : {providerStatus || 'inconnu'}{providerOutput ? ` · ${providerOutput}` : ''}
+        </Text>
+      )}
+      {workflow.last_error && (
+        <Text size="1" color="red" as="div" mt="1">Blocage : {workflow.last_error}</Text>
+      )}
+    </Box>
+  )
+}
+
 export function WorkflowControl() {
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [pending, setPending] = useState<string | null>(null)
@@ -100,6 +161,9 @@ export function WorkflowControl() {
                   <Text size="1" color={workflow.last_error ? 'red' : 'gray'}>
                     {workflow.last_error ?? JSON.stringify(workflow.checkpoint ?? {}).slice(0, 180)}
                   </Text>
+                  {workflow.workflow_type === 'account.create' && (
+                    <AccountCreationProgress workflow={workflow} />
+                  )}
                 </Table.Cell>
                 <Table.Cell>
                   <Flex gap="1" wrap="wrap">

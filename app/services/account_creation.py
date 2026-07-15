@@ -305,6 +305,9 @@ async def _create_with_browser_use(
         )
         r.raise_for_status()
         profile_id = r.json()["id"]
+        await _creation_checkpoint(
+            workflow_id, "profile_created", account_id=account_id, profile_id=profile_id
+        )
         # Créer la session browser-use (proxy FR résidentiel inclus côté cloud)
         r = await client.post(
             f"{_base}/sessions", headers=_headers, json={"profileId": profile_id}
@@ -315,7 +318,7 @@ async def _create_with_browser_use(
         await _persist_browser_use_binding(account_id, profile_id, session_id)
         await _creation_checkpoint(
             workflow_id,
-            "browser_use_session_ready",
+            "session_created",
             account_id=account_id,
             profile_id=profile_id,
             session_id=session_id,
@@ -336,12 +339,15 @@ async def _create_with_browser_use(
             task_id = r.json()["id"]
             await _creation_checkpoint(
                 workflow_id,
-                "browser_use_email_task_started",
+                "email_task_running",
                 provider_task_id=task_id,
                 session_id=session_id,
             )
             await _wait_for_task(
-                client, task_id, stage="browser_use_email_task_polling", session_id=session_id
+                client, task_id, stage="email_task_running", session_id=session_id
+            )
+            await _creation_checkpoint(
+                workflow_id, "email_task_verified", provider_task_id=task_id, session_id=session_id
             )
             log.info("browser-use Cloud : tâche 1 (formulaire email) terminée")
 
@@ -362,12 +368,15 @@ async def _create_with_browser_use(
             task_id = r.json()["id"]
             await _creation_checkpoint(
                 workflow_id,
-                "browser_use_otp_task_started",
+                "otp_task_running",
                 provider_task_id=task_id,
                 session_id=session_id,
             )
             await _wait_for_task(
-                client, task_id, stage="browser_use_otp_task_polling", session_id=session_id
+                client, task_id, stage="otp_task_running", session_id=session_id
+            )
+            await _creation_checkpoint(
+                workflow_id, "otp_verified", provider_task_id=task_id, session_id=session_id
             )
             log.info("browser-use Cloud : tâche 2 (OTP SMS) terminée")
 
@@ -385,17 +394,21 @@ async def _create_with_browser_use(
                 task_id = r.json()["id"]
                 await _creation_checkpoint(
                     workflow_id,
-                    "browser_use_email_verification_started",
+                    "account_verification_running",
                     provider_task_id=task_id,
                     session_id=session_id,
                 )
                 await _wait_for_task(
                     client,
                     task_id,
-                    stage="browser_use_email_verification_polling",
+                    stage="account_verification_running",
                     session_id=session_id,
                 )
                 log.info("browser-use Cloud : tâche 3 (code email) terminée")
+
+            await _creation_checkpoint(
+                workflow_id, "account_verified", session_id=session_id
+            )
 
         finally:
             await _stop_task(client, task_id)
