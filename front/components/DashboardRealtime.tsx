@@ -71,7 +71,7 @@ function CreditCard({ b }: { b: ServiceBalance }) {
     : null
 
   return (
-    <Card style={{ flex: 1, minWidth: 180, borderLeft: `3px solid ${borderColor}` }}>
+    <Card className="dashboard-credit-card" style={{ flex: 1, minWidth: 180, borderLeft: `3px solid ${borderColor}` }}>
       <Flex justify="between" align="center" mb="1">
         <Text size="2" weight="bold">
           {icon} {b.label}
@@ -182,8 +182,8 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
   }) ?? false
 
   return (
-    <Box>
-      <Flex justify="between" align="center" mb="4" wrap="wrap" gap="2">
+    <Box className="dashboard-page">
+      <Flex className="dashboard-page-header" justify="between" align="center" mb="4" wrap="wrap" gap="2">
         <Box>
           <Heading size="6">Tableau de bord</Heading>
           {stats?.generated_at && (
@@ -229,8 +229,8 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
         </Card>
       )}
 
-      <Text size="3" weight="bold" as="div" mb="2">Credits et services</Text>
-      <Flex gap="3" wrap="wrap" mb="5">
+      <Text className="dashboard-section-title" size="3" weight="bold" as="div" mb="2">Credits et services</Text>
+      <Flex className="dashboard-credit-grid" gap="3" wrap="wrap" mb="5">
         {stats?.balances.map((b) => (
           <CreditCard key={b.service} b={b} />
         ))}
@@ -245,8 +245,8 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
 
       <ContactLookup />
 
-      <Text size="3" weight="bold" as="div" mb="2">Comptes et campagnes</Text>
-      <Flex gap="3" wrap="wrap">
+      <Text className="dashboard-section-title" size="3" weight="bold" as="div" mb="2">Comptes et campagnes</Text>
+      <Flex className="dashboard-summary-grid" gap="3" wrap="wrap">
         <Card style={{ flex: 1, minWidth: 160 }}>
           <Text size="2" color="gray" as="div" mb="1">Comptes LBC actifs</Text>
           <Text size="7" weight="bold" color={(stats?.accounts_active ?? 0) < 3 ? 'red' : undefined}>
@@ -277,7 +277,7 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
         <Text size="3" weight="bold">Activité récente</Text>
         <Text size="1" color="gray">Actualisation automatique toutes les 10 secondes</Text>
       </Flex>
-      <Flex direction="column" gap="2">
+      <Flex className="dashboard-workflow-list" direction="column" gap="2">
         {(stats?.workflows ?? []).slice(0, 6).map((workflow) => (
           <Card key={workflow.id}>
             <Flex justify="between" align="start" gap="3" wrap="wrap">
