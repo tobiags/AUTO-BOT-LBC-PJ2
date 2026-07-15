@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Badge, Box, Card, Flex, Heading, Text } from '@radix-ui/themes'
+import { FileText, MessageCircle, Phone, Send } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import type { DashboardStats, ServiceBalance } from '@/lib/api'
@@ -141,6 +142,33 @@ function CreditCard({ b }: { b: ServiceBalance }) {
   )
 }
 
+function DashboardMetric({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: {
+  label: string
+  value: number
+  detail: string
+  icon: typeof FileText
+  tone: 'blue' | 'green' | 'amber' | 'violet'
+}) {
+  return (
+    <Card className={`dashboard-metric-card dashboard-metric-${tone}`}>
+      <Flex align="center" gap="3">
+        <span className="dashboard-metric-icon"><Icon size={18} /></span>
+        <Box>
+          <Text size="2" color="gray" as="div">{label}</Text>
+          <Text size="7" weight="bold" as="div">{value.toLocaleString('fr-FR')}</Text>
+          <Text size="1" color="gray" as="div">{detail}</Text>
+        </Box>
+      </Flex>
+    </Card>
+  )
+}
+
 export function DashboardRealtime({ initialStats }: { initialStats: DashboardStats | null }) {
   const [stats, setStats] = useState(initialStats)
   const [calls, setCalls] = useState<IncomingCallEvent[]>([])
@@ -196,6 +224,13 @@ export function DashboardRealtime({ initialStats }: { initialStats: DashboardSta
       </Flex>
 
       <IncomingCallAlert calls={calls} connected={connected} />
+
+      <Flex className="dashboard-metrics-grid" gap="3" wrap="wrap" mb="5">
+        <DashboardMetric label="Annonces collectées" value={stats?.listings_total ?? 0} detail={`${stats?.listings_today ?? 0} aujourd'hui`} icon={FileText} tone="blue" />
+        <DashboardMetric label="Messages LBC" value={stats?.lbc_messages_sent_total ?? 0} detail={`${stats?.lbc_messages_sent_today ?? 0} envoyés aujourd'hui`} icon={MessageCircle} tone="green" />
+        <DashboardMetric label="SMS envoyés" value={stats?.sms_sent_total ?? 0} detail={`${stats?.sms_sent_today ?? 0} aujourd'hui`} icon={Send} tone="amber" />
+        <DashboardMetric label="Appels reçus" value={stats?.calls_total ?? 0} detail={`${stats?.calls_today ?? 0} aujourd'hui`} icon={Phone} tone="violet" />
+      </Flex>
 
       <CampaignCreateControl />
 

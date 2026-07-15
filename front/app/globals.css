@@ -136,6 +136,18 @@ body {
 .app-main .rt-CalloutRoot { border-radius: 10px; }
 .dashboard-page-header { padding-bottom: 8px; border-bottom: 1px solid var(--dashboard-border); }
 .dashboard-page-header .rt-Heading { margin-bottom: 5px; }
+.dashboard-metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dashboard-metric-card { min-height: 126px; padding: 18px; }
+.dashboard-metric-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 50%; }
+.dashboard-metric-blue { border-top: 2px solid #60a5fa !important; }
+.dashboard-metric-blue .dashboard-metric-icon { background: #eff6ff; color: #2563eb; }
+.dashboard-metric-green { border-top: 2px solid #4ade80 !important; }
+.dashboard-metric-green .dashboard-metric-icon { background: #ecfdf5; color: #059669; }
+.dashboard-metric-amber { border-top: 2px solid #fbbf24 !important; }
+.dashboard-metric-amber .dashboard-metric-icon { background: #fffbeb; color: #b45309; }
+.dashboard-metric-violet { border-top: 2px solid #c084fc !important; }
+.dashboard-metric-violet .dashboard-metric-icon { background: #faf5ff; color: #9333ea; }
+.dashboard-metric-card .rt-Text.rt-r-size-7 { display: block; margin: 3px 0 0; font-size: 25px; line-height: 1.05; letter-spacing: -.045em; }
 .dashboard-section-title { margin-top: 28px; color: #1e293b; font-size: 14px; letter-spacing: -.01em; }
 .dashboard-credit-grid, .dashboard-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; }
 .dashboard-credit-grid > *, .dashboard-summary-grid > * { min-width: 0 !important; }
@@ -157,13 +169,14 @@ body {
 .app-main label, .app-main .rt-Text.rt-r-weight-bold { font-size: 12px; font-weight: 650; color: #475569; }
 
 @media (max-width: 900px) {
+  .dashboard-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-credit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-main .rt-TableRoot { overflow-x: auto; }
   .app-main .rt-TableRoot table { min-width: 720px; }
 }
 
 @media (max-width: 560px) {
-  .dashboard-credit-grid, .dashboard-summary-grid { grid-template-columns: 1fr; }
+  .dashboard-metrics-grid, .dashboard-credit-grid, .dashboard-summary-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 800px) {
