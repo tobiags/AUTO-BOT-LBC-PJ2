@@ -8,6 +8,7 @@ import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
@@ -15,6 +16,7 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://autotransfert:password@localhost:5433/autotransfert_p2_test",
 )
+os.environ.setdefault("APIFY_TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
 from app.config import get_settings
 from app.main import app
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus

@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
+    # Apify multi-account integration
+    apify_token_encryption_key: str = ""
+    apify_reconcile_minutes: int = 5
+    apify_import_page_size: int = 250
+    apify_ai_fallback_enabled: bool = False
+
     # SMSTools
     smstools_api_key: str = ""
     smstools_webhook_secret: str = ""
@@ -80,6 +86,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_startup_settings(self):
+        if self.apify_reconcile_minutes < 1:
+            raise ValueError("apify_reconcile_minutes must be positive")
+        if not 1 <= self.apify_import_page_size <= 1000:
+            raise ValueError("apify_import_page_size must be between 1 and 1000")
+
         unsafe_secret = self.secret_key in {"change-me", "change-me-in-production"}
         if self.is_production_like() and unsafe_secret:
             raise ValueError("secret_key must be changed in production-like environments")
