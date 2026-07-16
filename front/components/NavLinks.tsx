@@ -53,6 +53,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Système',
     items: [
       { href: '/connectors', label: 'Connecteurs', compact: 'Connecteurs', icon: Activity },
+      { href: '/apify', label: 'Apify', compact: 'Apify', icon: Bot },
       { href: '/settings', label: 'Administration', compact: 'Admin', icon: Settings2 },
       { href: '/audit', label: 'Audit', compact: 'Audit', icon: ShieldCheck },
       { href: '/browser-use', label: 'Browser Use', compact: 'Browser Use', icon: Bot },

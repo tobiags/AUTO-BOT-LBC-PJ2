@@ -8,6 +8,7 @@ import type {
   Listing,
   PlatformAccount,
 } from '@/lib/api'
+import type { ApifyDashboard } from '@/lib/apify-api'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
@@ -64,6 +65,59 @@ export const mockCampaign: Campaign = {
   created_at: '2026-06-15T00:00:00Z',
 }
 
+export const mockApifyDashboard = {
+  summary: {
+    accounts_total: 1,
+    accounts_active: 1,
+    bindings_total: 1,
+    bindings_enabled: 0,
+    runs_running: 0,
+    runs_failed: 0,
+    items_imported: 0,
+    exceptions_open: 0,
+  },
+  accounts: [
+    {
+      id: '10000000-0000-0000-0000-000000000001',
+      workspace_id: '20000000-0000-0000-0000-000000000001',
+      label: 'Principal',
+      apify_user_id: 'user-1',
+      username: 'owner',
+      token_masked: 'apif...cret',
+      status: 'active',
+      last_checked_at: '2026-07-16T10:00:00Z',
+      last_error: null,
+      created_at: '2026-07-16T09:00:00Z',
+      updated_at: '2026-07-16T10:00:00Z',
+    },
+  ],
+  bindings: [
+    {
+      id: '30000000-0000-0000-0000-000000000001',
+      workspace_id: '20000000-0000-0000-0000-000000000001',
+      account_id: '10000000-0000-0000-0000-000000000001',
+      sector_id: null,
+      campaign_id: null,
+      resource_type: 'actor',
+      resource_id: 'owner/example',
+      name: 'Example Actor',
+      enabled: false,
+      schedule_authority: 'internal',
+      schedule_minutes: 60,
+      next_run_at: null,
+      webhook_id: null,
+      schema_fingerprint: null,
+      active_profile_id: null,
+      suspended_reason: null,
+      created_at: '2026-07-16T09:00:00Z',
+      updated_at: '2026-07-16T10:00:00Z',
+    },
+  ],
+  runs: { items: [], total: 0, limit: 50, offset: 0 },
+  items: { items: [], total: 0, limit: 50, offset: 0 },
+  learning: { profiles: [], experiments: [], exceptions: [] },
+} satisfies ApifyDashboard
+
 export const mockAnalyzerStats: AnalyzerStats = {
   total_listings: 150,
   analyzed: 42,
@@ -106,6 +160,19 @@ export const handlers = [
   http.post(`${BASE}/analyzer/run/:id`, () => HttpResponse.json({ ok: true })),
   http.post('/api/operations/analyzer/listings/:id', () => HttpResponse.json({ status: 'PENDING' })),
   http.post(`${BASE}/analyzer/run/batch`, () => HttpResponse.json({ ok: true })),
+  http.get(`${BASE}/api/v1/apify/summary`, () => HttpResponse.json(mockApifyDashboard.summary)),
+  http.get(`${BASE}/api/v1/apify/accounts`, () => HttpResponse.json(mockApifyDashboard.accounts)),
+  http.get(`${BASE}/api/v1/apify/bindings`, () => HttpResponse.json(mockApifyDashboard.bindings)),
+  http.get(`${BASE}/api/v1/apify/runs`, () => HttpResponse.json(mockApifyDashboard.runs)),
+  http.get(`${BASE}/api/v1/apify/items`, () => HttpResponse.json(mockApifyDashboard.items)),
+  http.get(`${BASE}/api/v1/apify/learning`, () => HttpResponse.json(mockApifyDashboard.learning)),
+  http.post('/api/apify/accounts', () => HttpResponse.json({
+    ...mockApifyDashboard.accounts[0],
+    id: '10000000-0000-0000-0000-000000000002',
+    label: 'Secondaire',
+    token_masked: 'apif..._new',
+  }, { status: 201 })),
+  http.patch('/api/apify/bindings/:id', () => HttpResponse.json(mockApifyDashboard.bindings[0])),
 ]
 
 export const server = setupServer(...handlers)
