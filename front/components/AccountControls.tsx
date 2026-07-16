@@ -87,7 +87,7 @@ export function AccountCreateControl() {
             })
             const payload = await response.json().catch(() => null)
             if (!response.ok) {
-              const detail = payload?.detail?.message ?? payload?.error ?? 'Commande impossible'
+              const detail = operationError(payload)
               throw new Error(detail)
             }
             setWorkflowId(payload?.workflow_id ?? null)

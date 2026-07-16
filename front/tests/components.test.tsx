@@ -6,7 +6,7 @@ import { AnalyzeListingButton } from '@/components/AnalyzeListingButton'
 import { CampaignStartButton } from '@/components/CampaignStartButton'
 import { CampaignCreateControl } from '@/components/CampaignCreateControl'
 import { AccountIdentifier } from '@/components/AccountIdentifier'
-import { AccountControls } from '@/components/AccountControls'
+import { AccountControls, AccountCreateControl } from '@/components/AccountControls'
 import { PriceScoreBadge } from '@/components/PriceScoreBadge'
 
 vi.mock('next/navigation', () => ({
@@ -170,5 +170,25 @@ describe('AccountControls', () => {
     await user.click(screen.getByRole('button', { name: /quarantaine/i }))
 
     expect(await screen.findByText(/quarantaine terminee/i)).toBeTruthy()
+  })
+})
+
+describe('AccountCreateControl', () => {
+  it('explique quand la creation est reservee a l administrateur', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: { code: 'ADMIN_REQUIRED' } }),
+    }))
+
+    render(
+      <Wrap>
+        <AccountCreateControl />
+      </Wrap>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /creer un compte/i }))
+
+    expect(await screen.findByText(/reservee a l administrateur/i)).toBeTruthy()
   })
 })
