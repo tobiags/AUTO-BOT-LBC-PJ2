@@ -270,6 +270,8 @@ class CampaignOut(BaseModel):
 
 class AccountOut(BaseModel):
     id: UUID
+    email: str
+    phone_otp: str | None = None
     status: AccountStatus
     datadome_trust_level: DatadomeTrustLevel
     score_sante: int

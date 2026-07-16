@@ -53,6 +53,8 @@ export type Listing = {
 
 export type PlatformAccount = {
   id: string
+  email: string
+  phone_otp: string | null
   status: AccountStatus
   score_sante: number
   quota_actuel: number

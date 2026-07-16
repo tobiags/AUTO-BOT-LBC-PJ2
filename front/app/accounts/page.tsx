@@ -1,6 +1,7 @@
 import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
 import { api, type PlatformAccount } from '@/lib/api'
 import { AccountControls, AccountCreateControl } from '@/components/AccountControls'
+import { AccountIdentifier } from '@/components/AccountIdentifier'
 
 export const revalidate = 30
 
@@ -37,7 +38,7 @@ export default async function AccountsPage() {
   return (
     <Box>
       <Flex justify="between" align="center" mb="4">
-        <Heading size="6">Pool de comptes LBC</Heading>
+        <Heading size="6">Comptes LBC et identifiants crees</Heading>
         <Flex gap="3" align="center">
           <Badge color={actifCount >= 3 ? 'green' : 'red'}>
             {actifCount} / 3 min. actifs
@@ -53,6 +54,8 @@ export default async function AccountsPage() {
         <Table.Header>
           <Table.Row>
             <Table.ColumnHeaderCell>ID</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>E-mail cree</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Numero OTP</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Statut</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Santé</Table.ColumnHeaderCell>
             <Table.ColumnHeaderCell>Quota</Table.ColumnHeaderCell>
@@ -65,7 +68,7 @@ export default async function AccountsPage() {
         <Table.Body>
           {accounts.length === 0 ? (
             <Table.Row>
-              <Table.Cell colSpan={8}>
+              <Table.Cell colSpan={10}>
                 <Text color="gray">Aucun compte dans le pool</Text>
               </Table.Cell>
             </Table.Row>
@@ -76,6 +79,12 @@ export default async function AccountsPage() {
                   <Text size="1" style={{ fontFamily: 'monospace' }} color="gray">
                     …{a.id.slice(-8)}
                   </Text>
+                </Table.Cell>
+                <Table.Cell>
+                  <AccountIdentifier label="E-mail" value={a.email} />
+                </Table.Cell>
+                <Table.Cell>
+                  <AccountIdentifier label="Numero OTP" value={a.phone_otp} />
                 </Table.Cell>
                 <Table.Cell>
                   <Badge color={STATUS_COLOR[a.status] ?? 'gray'}>{a.status}</Badge>

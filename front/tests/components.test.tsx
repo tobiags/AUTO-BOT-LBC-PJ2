@@ -5,6 +5,8 @@ import { Theme } from '@radix-ui/themes'
 import { AnalyzeListingButton } from '@/components/AnalyzeListingButton'
 import { CampaignStartButton } from '@/components/CampaignStartButton'
 import { CampaignCreateControl } from '@/components/CampaignCreateControl'
+import { AccountIdentifier } from '@/components/AccountIdentifier'
+import { AccountControls } from '@/components/AccountControls'
 import { PriceScoreBadge } from '@/components/PriceScoreBadge'
 
 vi.mock('next/navigation', () => ({
@@ -97,5 +99,76 @@ describe('AnalyzeListingButton', () => {
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('AccountIdentifier', () => {
+  it('affiche et copie un identifiant cree', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    render(
+      <Wrap>
+        <AccountIdentifier label="E-mail" value="contact.test@mail.ecovente.com" />
+      </Wrap>,
+    )
+
+    expect(screen.getByText('contact.test@mail.ecovente.com')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /copier e-mail/i }))
+    expect(writeText).toHaveBeenCalledWith('contact.test@mail.ecovente.com')
+  })
+
+  it('indique lorsqu aucun numero OTP n est encore attribue', () => {
+    render(
+      <Wrap>
+        <AccountIdentifier label="Numero OTP" value={null} />
+      </Wrap>,
+    )
+
+    expect(screen.getByText(/non attribue/i)).toBeTruthy()
+  })
+})
+
+describe('AccountControls', () => {
+  it('explique quand une action est refusee car elle requiert un administrateur', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ detail: { code: 'ADMIN_REQUIRED' } }),
+    }))
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+
+    render(
+      <Wrap>
+        <AccountControls accountId="acc-001" status="ACTIF" hasProfile={false} />
+      </Wrap>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /quarantaine/i }))
+
+    expect(await screen.findByText(/reservee a l administrateur/i)).toBeTruthy()
+  })
+
+  it('confirme visiblement une commande terminee', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'completed' }),
+    }))
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+
+    render(
+      <Wrap>
+        <AccountControls accountId="acc-001" status="ACTIF" hasProfile={false} />
+      </Wrap>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /quarantaine/i }))
+
+    expect(await screen.findByText(/quarantaine terminee/i)).toBeTruthy()
   })
 })

@@ -7,6 +7,24 @@ import { useRouter } from 'next/navigation'
 
 import type { AccountStatus } from '@/lib/api'
 
+type OperationFeedback = { kind: 'success' | 'error'; text: string }
+
+function operationError(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return 'Commande impossible'
+  const body = payload as { error?: string; detail?: { code?: string; message?: string } }
+  if (body.detail?.code === 'ADMIN_REQUIRED') return 'Action reservee a l administrateur.'
+  if (body.detail?.code === 'INSUFFICIENT_ROLE') return 'Droits insuffisants pour cette action.'
+  return body.detail?.message ?? body.error ?? 'Commande impossible'
+}
+
+const ACTION_SUCCESS: Record<string, string> = {
+  inspect: 'Inspection lancee.',
+  warm: 'Chauffe lancee.',
+  quarantine: 'Quarantaine terminee.',
+  restore: 'Restauration terminee.',
+  delete: 'Suppression terminee.',
+}
+
 export function AccountCreateControl() {
   const [mode, setMode] = useState('B')
   const [pending, setPending] = useState(false)
@@ -108,39 +126,52 @@ export function AccountControls({ accountId, status, hasProfile }: {
   hasProfile: boolean
 }) {
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<OperationFeedback | null>(null)
   const router = useRouter()
 
   async function command(action: string) {
     if (action === 'quarantine' && !window.confirm('Mettre ce compte en quarantaine ?')) return
     setPending(true)
-    setError(null)
-    const response = await fetch(`/api/operations/accounts/${accountId}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    })
-    setPending(false)
-    if (!response.ok) {
-      setError('Commande impossible')
-      return
+    setFeedback(null)
+    try {
+      const response = await fetch(`/api/operations/accounts/${accountId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        setFeedback({ kind: 'error', text: operationError(payload) })
+        return
+      }
+      setFeedback({ kind: 'success', text: ACTION_SUCCESS[action] ?? 'Commande terminee.' })
+      router.refresh()
+    } catch {
+      setFeedback({ kind: 'error', text: 'Erreur reseau : la commande n a pas ete envoyee.' })
+    } finally {
+      setPending(false)
     }
-    router.refresh()
   }
 
   async function removeAccount() {
     if (!window.confirm('Retirer définitivement ce compte du pool opérationnel ?')) return
     setPending(true)
-    setError(null)
-    const response = await fetch(`/api/operations/accounts/${accountId}`, {
-      method: 'DELETE',
-    })
-    setPending(false)
-    if (!response.ok) {
+    setFeedback(null)
+    try {
+      const response = await fetch(`/api/operations/accounts/${accountId}`, {
+        method: 'DELETE',
+      })
       const payload = await response.json().catch(() => null)
-      setError(payload?.detail?.message ?? 'Suppression impossible')
-      return
+      if (!response.ok) {
+        setFeedback({ kind: 'error', text: operationError(payload) })
+        return
+      }
+      setFeedback({ kind: 'success', text: ACTION_SUCCESS.delete })
+      router.refresh()
+    } catch {
+      setFeedback({ kind: 'error', text: 'Erreur reseau : la commande n a pas ete envoyee.' })
+    } finally {
+      setPending(false)
     }
-    router.refresh()
   }
 
   return (
@@ -174,7 +205,11 @@ export function AccountControls({ accountId, status, hasProfile }: {
           <ShieldAlert size={13} /> Quarantaine
         </Button>
       )}
-      {error && <Text size="1" color="red">{error}</Text>}
+      {feedback && (
+        <Text size="1" color={feedback.kind === 'error' ? 'red' : 'green'} role="status">
+          {feedback.text}
+        </Text>
+      )}
     </Flex>
   )
 }

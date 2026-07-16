@@ -33,6 +33,8 @@ export const mockListing: Listing = {
 
 export const mockAccount: PlatformAccount = {
   id: 'acc-00000001',
+  email: 'contact.test@mail.ecovente.com',
+  phone_otp: '+33612345678',
   status: 'ACTIF',
   score_sante: 95,
   quota_actuel: 10,
