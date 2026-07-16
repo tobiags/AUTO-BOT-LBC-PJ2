@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     apify_reconcile_minutes: int = 5
     apify_import_page_size: int = 250
     apify_ai_fallback_enabled: bool = False
+    apify_webhook_base_url: str = ""
 
     # SMSTools
     smstools_api_key: str = ""
