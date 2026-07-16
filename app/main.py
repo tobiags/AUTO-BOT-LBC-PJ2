@@ -24,6 +24,9 @@ from app.api import (
     operations,
     workspace,
 )
+from app.api import (
+    apify as apify_api,
+)
 from app.config import get_settings
 from app.db import engine
 from app.security import require_control_token, require_webhook_secret, websocket_token_is_valid
@@ -85,6 +88,7 @@ app.include_router(email_identities.router, dependencies=protected)
 app.include_router(email_inbox.router, dependencies=protected)
 app.include_router(workspace.router, dependencies=protected)
 app.include_router(contacts.router, dependencies=protected)
+app.include_router(apify_api.router, dependencies=protected)
 app.include_router(apify_webhook.router)
 
 
