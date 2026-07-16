@@ -25,4 +25,33 @@ describe('ApifyControlCenter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Activer Example Actor' }))
     expect(screen.getByText('Selectionnez une campagne active')).toBeInTheDocument()
   })
+
+  it('masks phones for viewers and exposes run replay status', async () => {
+    render(<ApifyControlCenter initialData={mockApifyDashboard} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Resultats' }))
+    expect(screen.getByText('+33 ** ** ** 67 8')).toBeInTheDocument()
+    expect(document.querySelector('img')).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Runs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rejouer import run-1' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('Import relance'),
+    )
+  })
+
+  it('shows keep and discard experiments without enabling SMS actions', () => {
+    render(<ApifyControlCenter initialData={mockApifyDashboard} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Apprentissage' }))
+    expect(screen.getByText('discard')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /envoyer sms/i })).not.toBeInTheDocument()
+  })
+
+  it('allows an admin to rollback a retired profile', async () => {
+    render(<ApifyControlCenter initialData={mockApifyDashboard} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Apprentissage' }))
+    const rollback = await screen.findByRole('button', { name: 'Restaurer profil 0' })
+    fireEvent.click(rollback)
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('Profil restaure'),
+    )
+  })
 })
