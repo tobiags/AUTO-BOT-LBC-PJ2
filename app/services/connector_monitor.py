@@ -5,14 +5,15 @@ from datetime import UTC, datetime
 import httpx
 import redis.asyncio as aioredis
 import sentry_sdk
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app import boundaries
 from app.config import get_settings
 from app.db import get_db
 from app.models import ConnectorProbeResult, ConnectorState
-from app.tables import ConnectorStatus
+from app.services.apify_secrets import ApifySecretCodec
+from app.tables import ApifyAccount, ConnectorStatus
 
 
 def _elapsed_ms(started: float) -> int:
@@ -44,12 +45,71 @@ def _failure(
     )
 
 
+def summarize_apify_accounts(
+    states: list[str],
+    *,
+    latency_ms: int | None = None,
+) -> ConnectorProbeResult:
+    total = len(states)
+    healthy = sum(str(state) == "active" for state in states)
+    failed = total - healthy
+    if total == 0:
+        status = ConnectorState.DISABLED
+    elif failed:
+        status = ConnectorState.DEGRADED
+    else:
+        status = ConnectorState.OK
+    return ConnectorProbeResult(
+        name="apify",
+        status=status,
+        configured=total > 0,
+        latency_ms=latency_ms,
+        error_code="ACCOUNT_PROBE_FAILURE" if failed else None,
+        error_summary=(f"{failed} compte(s) Apify en echec" if failed else None),
+        details={"accounts": total, "healthy": healthy, "failed": failed},
+    )
+
+
+async def read_apify_connector_status() -> ConnectorProbeResult:
+    """Aggregate stored account states without decrypting any token."""
+    async with get_db() as db:
+        states = list((await db.scalars(select(ApifyAccount.status))).all())
+    return summarize_apify_accounts(states)
+
+
+async def probe_apify_accounts() -> ConnectorProbeResult:
+    """Manually validate active accounts and persist only state/error metadata."""
+    settings = get_settings()
+    codec = ApifySecretCodec(
+        settings.apify_token_encryption_key,
+        settings.secret_key,
+    )
+    started = time.perf_counter()
+    async with get_db() as db:
+        accounts = list(
+            (await db.scalars(select(ApifyAccount).where(ApifyAccount.status == "active"))).all()
+        )
+        if not accounts:
+            states = list((await db.scalars(select(ApifyAccount.status))).all())
+            return summarize_apify_accounts(states)
+        for account in accounts:
+            try:
+                await boundaries.apify_validate_token(codec.decrypt(account.token_ciphertext))
+            except Exception as exc:
+                account.status = "invalid"
+                account.last_error = type(exc).__name__
+            else:
+                account.status = "active"
+                account.last_error = None
+            account.last_checked_at = datetime.now(UTC)
+        states = list((await db.scalars(select(ApifyAccount.status))).all())
+    return summarize_apify_accounts(states, latency_ms=_elapsed_ms(started))
+
+
 async def probe_iproxy() -> ConnectorProbeResult:
     settings = get_settings()
     configured = bool(
-        settings.iproxy_api_key
-        and settings.iproxy_connection_id
-        and settings.iproxy_proxy_id
+        settings.iproxy_api_key and settings.iproxy_connection_id and settings.iproxy_proxy_id
     )
     if not configured:
         return ConnectorProbeResult(
@@ -107,7 +167,9 @@ async def probe_database() -> ConnectorProbeResult:
     except Exception as exc:
         return _failure("database", True, started, exc)
     return ConnectorProbeResult(
-        name="database", status=ConnectorState.OK, configured=True,
+        name="database",
+        status=ConnectorState.OK,
+        configured=True,
         latency_ms=_elapsed_ms(started),
     )
 
@@ -123,7 +185,9 @@ async def probe_redis() -> ConnectorProbeResult:
     finally:
         await client.aclose()
     return ConnectorProbeResult(
-        name="redis", status=ConnectorState.OK, configured=True,
+        name="redis",
+        status=ConnectorState.OK,
+        configured=True,
         latency_ms=_elapsed_ms(started),
     )
 
@@ -133,6 +197,7 @@ async def probe_celery() -> ConnectorProbeResult:
 
     started = time.perf_counter()
     try:
+
         def _connect() -> None:
             with celery_app.connection_for_read() as connection:
                 connection.ensure_connection(max_retries=0, timeout=2)
@@ -141,7 +206,9 @@ async def probe_celery() -> ConnectorProbeResult:
     except Exception as exc:
         return _failure("celery", True, started, exc)
     return ConnectorProbeResult(
-        name="celery", status=ConnectorState.OK, configured=True,
+        name="celery",
+        status=ConnectorState.OK,
+        configured=True,
         latency_ms=_elapsed_ms(started),
     )
 
@@ -164,7 +231,9 @@ async def probe_browser_use() -> ConnectorProbeResult:
     except httpx.HTTPError as exc:
         return _failure("browser_use", True, started, exc)
     return ConnectorProbeResult(
-        name="browser_use", status=ConnectorState.OK, configured=True,
+        name="browser_use",
+        status=ConnectorState.OK,
+        configured=True,
         latency_ms=_elapsed_ms(started),
     )
 
@@ -188,17 +257,18 @@ async def probe_mailgun() -> ConnectorProbeResult:
     except (httpx.HTTPError, ValueError) as exc:
         return _failure("mailgun", True, started, exc)
     return ConnectorProbeResult(
-        name="mailgun", status=ConnectorState.OK, configured=True,
-        latency_ms=_elapsed_ms(started), details={"domain_state": state},
+        name="mailgun",
+        status=ConnectorState.OK,
+        configured=True,
+        latency_ms=_elapsed_ms(started),
+        details={"domain_state": state},
     )
 
 
 async def probe_smsapp() -> ConnectorProbeResult:
     settings = get_settings()
     if not settings.smsapp_api_token:
-        return ConnectorProbeResult(
-            name="smsapp", status=ConnectorState.DISABLED, configured=False
-        )
+        return ConnectorProbeResult(name="smsapp", status=ConnectorState.DISABLED, configured=False)
     started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=5) as client:
@@ -211,7 +281,9 @@ async def probe_smsapp() -> ConnectorProbeResult:
     except (httpx.HTTPError, ValueError) as exc:
         return _failure("smsapp", True, started, exc)
     return ConnectorProbeResult(
-        name="smsapp", status=ConnectorState.OK, configured=True,
+        name="smsapp",
+        status=ConnectorState.OK,
+        configured=True,
         latency_ms=_elapsed_ms(started),
         details={"balance": balance} if balance is not None else {},
     )
@@ -230,18 +302,14 @@ async def probe_configuration_states() -> list[ConnectorProbeResult]:
         ConnectorProbeResult(
             name="camoufox",
             status=(
-                ConnectorState.UNVERIFIED
-                if settings.camoufox_enabled
-                else ConnectorState.DISABLED
+                ConnectorState.UNVERIFIED if settings.camoufox_enabled else ConnectorState.DISABLED
             ),
             configured=settings.camoufox_enabled,
         ),
         ConnectorProbeResult(
             name="obscura",
             status=(
-                ConnectorState.UNVERIFIED
-                if settings.obscura_enabled
-                else ConnectorState.DISABLED
+                ConnectorState.UNVERIFIED if settings.obscura_enabled else ConnectorState.DISABLED
             ),
             configured=settings.obscura_enabled,
         ),
@@ -250,8 +318,14 @@ async def probe_configuration_states() -> list[ConnectorProbeResult]:
 
 async def collect_connector_probes() -> list[ConnectorProbeResult]:
     live = await asyncio.gather(
-        probe_database(), probe_redis(), probe_celery(), probe_smstools(),
-        probe_iproxy(), probe_mailgun(), probe_browser_use(),
+        probe_database(),
+        probe_redis(),
+        probe_celery(),
+        probe_smstools(),
+        probe_iproxy(),
+        probe_mailgun(),
+        probe_browser_use(),
+        read_apify_connector_status(),
     )
     return [*live, *(await probe_configuration_states())]
 
@@ -265,6 +339,7 @@ async def probe_connector(name: str) -> ConnectorProbeResult:
         "iproxy": probe_iproxy,
         "mailgun": probe_mailgun,
         "browser_use": probe_browser_use,
+        "apify": probe_apify_accounts,
     }
     if name in live_probes:
         return await live_probes[name]()
@@ -281,9 +356,7 @@ async def refresh_connector_statuses() -> list[ConnectorProbeResult]:
     async with get_db() as db:
         for result in results:
             last_success = (
-                now
-                if result.status == ConnectorState.OK
-                else ConnectorStatus.last_success_at
+                now if result.status == ConnectorState.OK else ConnectorStatus.last_success_at
             )
             await db.execute(
                 pg_insert(ConnectorStatus)
@@ -292,9 +365,7 @@ async def refresh_connector_statuses() -> list[ConnectorProbeResult]:
                     status=result.status,
                     configured=result.configured,
                     latency_ms=result.latency_ms,
-                    last_success_at=(
-                        now if result.status == ConnectorState.OK else None
-                    ),
+                    last_success_at=(now if result.status == ConnectorState.OK else None),
                     last_checked_at=now,
                     error_code=result.error_code,
                     error_summary=result.error_summary,
