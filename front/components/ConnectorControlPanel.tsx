@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Badge, Box, Button, Flex, Grid, Text } from '@radix-ui/themes'
 import { RefreshCw, RotateCw } from 'lucide-react'
 
@@ -10,6 +11,7 @@ const CONNECTORS = [
   ['database', 'PostgreSQL'],
   ['redis', 'Redis'],
   ['celery', 'Celery'],
+  ['apify', 'Apify'],
   ['iproxy', 'iProxy 4G'],
   ['smstools', 'SMSTools'],
   ['smsapp', 'SmsApp'],
@@ -52,7 +54,9 @@ export function ConnectorControlPanel({ connectors }: { connectors: DashboardCon
           return (
             <Box key={name} p="3" style={{ border: '1px solid var(--gray-5)' }}>
               <Flex justify="between" align="center" gap="3" mb="2">
-                <Text weight="bold">{label}</Text>
+                <Text weight="bold">
+                  {name === 'apify' ? <Link href="/apify">{label}</Link> : label}
+                </Text>
                 <Badge color={status === 'ok' ? 'green' : status === 'down' ? 'red' : 'gray'}>
                   {status}
                 </Badge>

@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, Field, HttpUrl, SecretStr, model_validator
 
 # ── ENUMS ─────────────────────────────────────────────────────────────────────
 
@@ -139,6 +139,52 @@ class SequenceStatus(StrEnum):
     PAUSED = "paused"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+
+
+class ApifyAccountStatus(StrEnum):
+    ACTIVE = "active"
+    INVALID = "invalid"
+    SUSPENDED = "suspended"
+
+
+class ApifyResourceType(StrEnum):
+    ACTOR = "actor"
+    TASK = "task"
+
+
+class ApifyRunStatus(StrEnum):
+    READY = "READY"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    ABORTED = "ABORTED"
+    TIMED_OUT = "TIMED-OUT"
+
+
+class ApifyItemStatus(StrEnum):
+    PENDING = "pending"
+    IMPORTED = "imported"
+    IGNORED = "ignored"
+    DUPLICATE = "duplicate"
+    EXCEPTION = "exception"
+
+
+class ApifyProfileStatus(StrEnum):
+    CANDIDATE = "candidate"
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+class ApifyExperimentDecision(StrEnum):
+    KEEP = "keep"
+    DISCARD = "discard"
+    CRASH = "crash"
+
+
+class ApifyExceptionStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
 
 
 # ── BOUNDARIES RETURN TYPES ────────────────────────────────────────────────────
@@ -443,14 +489,219 @@ class AuditEventOut(BaseModel):
 class SmsSequenceOut(BaseModel):
     id: UUID
     contact_id: UUID
-    listing_id: UUID
+    listing_id: UUID | None
     campaign_id: UUID | None
     current_step: int
     next_due_at: datetime | None
     status: SequenceStatus
+    context_json: dict[str, Any]
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ApifyAccountCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=120)
+    token: SecretStr
+
+
+class ApifyAccountOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    label: str
+    apify_user_id: str
+    username: str
+    token_masked: str
+    status: ApifyAccountStatus
+    last_checked_at: datetime | None = None
+    last_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyCatalogResource(BaseModel):
+    resource_type: ApifyResourceType
+    resource_id: str
+    name: str
+    description: str | None = None
+    modified_at: datetime | None = None
+
+
+class ApifyBindingCreate(BaseModel):
+    account_id: UUID
+    resource_type: Literal["actor", "task"]
+    resource_id: str = Field(min_length=1, max_length=255)
+    name: str | None = Field(default=None, max_length=255)
+    sector_id: UUID | None = None
+    campaign_id: UUID
+    input: dict[str, Any] = Field(default_factory=dict)
+    schedule_authority: Literal["internal", "apify"] = "internal"
+    schedule_minutes: int | None = Field(default=60, ge=5, le=10080)
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        if self.schedule_authority == "internal" and self.schedule_minutes is None:
+            raise ValueError(
+                "internal scheduling authority requires schedule_minutes"
+            )
+        if self.schedule_authority == "apify" and self.schedule_minutes is not None:
+            raise ValueError("Apify scheduling authority forbids schedule_minutes")
+        return self
+
+
+class ApifyBindingOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    account_id: UUID
+    sector_id: UUID | None = None
+    campaign_id: UUID | None = None
+    resource_type: ApifyResourceType
+    resource_id: str
+    name: str
+    enabled: bool
+    schedule_authority: Literal["internal", "apify"]
+    schedule_minutes: int | None = None
+    next_run_at: datetime | None = None
+    webhook_id: str | None = None
+    schema_fingerprint: str | None = None
+    active_profile_id: UUID | None = None
+    suspended_reason: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyRunOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    account_id: UUID
+    binding_id: UUID
+    apify_run_id: str
+    status: ApifyRunStatus
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    default_dataset_id: str | None = None
+    cost_usd: float | None = None
+    items_read: int = 0
+    items_imported: int = 0
+    items_ignored: int = 0
+    items_exception: int = 0
+    last_error: str | None = None
+    imported_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyRunPage(BaseModel):
+    items: list[ApifyRunOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class ApifyItemOut(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    account_id: UUID
+    run_id: UUID
+    dataset_index: int
+    content_hash: str
+    raw_payload: dict[str, Any]
+    normalized_payload: dict[str, Any] | None = None
+    confidence: float | None = None
+    status: ApifyItemStatus
+    contact_id: UUID | None = None
+    listing_id: UUID | None = None
+    sms_sequence_id: UUID | None = None
+    error: str | None = None
+    processed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyItemPage(BaseModel):
+    items: list[ApifyItemOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class ApifyProfileView(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    binding_id: UUID
+    version: int
+    schema_fingerprint: str
+    mappings: dict[str, Any]
+    aliases: dict[str, Any]
+    priorities: dict[str, Any]
+    thresholds: dict[str, Any]
+    metrics: dict[str, Any]
+    status: ApifyProfileStatus
+    created_at: datetime
+    promoted_at: datetime | None = None
+    retired_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyExperimentView(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    binding_id: UUID
+    baseline_profile_id: UUID | None = None
+    candidate_profile_id: UUID
+    corpus_size: int
+    baseline_metrics: dict[str, Any]
+    candidate_metrics: dict[str, Any]
+    decision: ApifyExperimentDecision | None = None
+    reason: str | None = None
+    created_at: datetime
+    evaluated_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyExceptionView(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    binding_id: UUID
+    run_id: UUID | None = None
+    item_id: UUID | None = None
+    category: str
+    evidence: dict[str, Any]
+    status: ApifyExceptionStatus
+    resolution: str | None = None
+    resolved_by: str | None = None
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ApifyWebhookPayload(BaseModel):
+    event_type: str = Field(alias="eventType")
+    resource: dict[str, Any]
+    event_data: dict[str, Any] = Field(default_factory=dict, alias="eventData")
+
+    model_config = {"populate_by_name": True}
+
+
+class ApifyDashboardSummary(BaseModel):
+    accounts_total: int = 0
+    accounts_active: int = 0
+    bindings_total: int = 0
+    bindings_enabled: int = 0
+    runs_running: int = 0
+    runs_failed: int = 0
+    items_imported: int = 0
+    exceptions_open: int = 0
 
 
 class CampaignMessageTemplateUpsert(BaseModel):

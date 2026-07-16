@@ -9,6 +9,18 @@ from fastapi import Header, HTTPException, Query
 from app.config import get_settings
 
 
+def require_control_role(role: str, minimum: str) -> None:
+    aliases = {
+        "operateur": "operator",
+        "manager": "operator",
+        "administrateur": "admin",
+    }
+    normalized = aliases.get(role.lower(), role.lower())
+    rank = {"viewer": 0, "operator": 1, "admin": 2}
+    if minimum not in rank or rank.get(normalized, -1) < rank[minimum]:
+        raise HTTPException(403, detail={"code": "INSUFFICIENT_ROLE"})
+
+
 def require_control_token(x_control_tower_token: Annotated[str | None, Header()] = None) -> None:
     expected = get_settings().control_tower_token
     if not expected:

@@ -13,6 +13,8 @@ dependencies = [
     "httpx>=0.27.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
+    "apify-client>=3.0.6,<4.0.0",
+    "cryptography>=49.0.0,<50.0.0",
     # Database
     "asyncpg>=0.29.0",
     "alembic>=1.13.0",

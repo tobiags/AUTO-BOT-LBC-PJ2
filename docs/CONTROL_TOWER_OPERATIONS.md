@@ -59,3 +59,54 @@ Ne pas redeployer PostgreSQL ou Redis. Une migration de schema n'est pas un rede
 - Tester les contrats fournisseurs avec des reponses simulees avant toute mise a jour de client.
 - Purger les rapports du lab selon la politique de retention; ne jamais y stocker cookies, OTP ou corps complets de conversation.
 - Revoquer les tokens temporaires de deploiement apres acceptation de la production.
+
+## Apify : configuration et commandes
+
+Generer une cle Fernet distincte par environnement, la placer dans
+`APIFY_TOKEN_ENCRYPTION_KEY`, puis redemarrer uniquement l'API et les workers :
+
+```powershell
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Le token Apify et l'input des Actors sont write-only et chiffres. Ne jamais les
+placer dans un log, un ticket ou une capture du dashboard. Exemples de commandes
+avec le token interne Control Tower :
+
+```bash
+# Tester un compte et resynchroniser son catalogue.
+curl -X POST "$API/api/v1/apify/accounts/$ACCOUNT_ID/probe" -H "X-Control-Tower-Token: $CONTROL_TOWER_TOKEN" -H "X-Operator-Role: admin"
+curl -X POST "$API/api/v1/apify/accounts/$ACCOUNT_ID/catalog/sync" -H "X-Control-Tower-Token: $CONTROL_TOWER_TOKEN" -H "X-Operator-Role: admin"
+
+# Rotation du token fournisseur.
+curl -X PATCH "$API/api/v1/apify/accounts/$ACCOUNT_ID" -H "Content-Type: application/json" -H "X-Control-Tower-Token: $CONTROL_TOWER_TOKEN" -H "X-Operator-Role: admin" -d '{"token":"apify_api_nouveau"}'
+
+# Suspendre manuellement un binding sans toucher aux autres Actors.
+curl -X PATCH "$API/api/v1/apify/bindings/$BINDING_ID" -H "Content-Type: application/json" -H "X-Control-Tower-Token: $CONTROL_TOWER_TOKEN" -H "X-Operator-Role: admin" -d '{"enabled":false}'
+
+# Rejouer un import idempotent et restaurer un profil retire.
+curl -X POST "$API/api/v1/apify/runs/$RUN_ID/replay" -H "X-Control-Tower-Token: $CONTROL_TOWER_TOKEN" -H "X-Operator-Role: operator"
+curl -X POST "$API/api/v1/apify/profiles/$PROFILE_ID/rollback" -H "X-Control-Tower-Token: $CONTROL_TOWER_TOKEN" -H "X-Operator-Role: admin"
+```
+
+Pour le webhook, lancer un Actor de test depuis Apify puis verifier un `202` sur
+`/webhooks/apify/{account_id}` et un seul import dans les logs. Un appel forge ou
+le secret d'un autre compte doit retourner `401`. Le secret genere par le backend
+reste chiffre et n'est jamais recopie dans le dashboard.
+
+## Gates de rollout Apify
+
+Les gates sont sequentiels. La premiere livraison garde tous les bindings
+desactives et ne passe au gate suivant qu'apres validation des compteurs et des
+exceptions du gate courant.
+
+1. **Gate 1 :** compte connecte, catalogue synchronise, aucun run automatique.
+2. **Gate 2 :** import historique, sequences desactivees.
+3. **Gate 3 :** profil fantome, zero changement de telephone stable.
+4. **Gate 4 :** un Actor, campagne de test, quota par SIM reduit.
+5. **Gate 5 :** verification des doublons, STOP et fenetre 08:00-20:00 Europe/Paris.
+6. **Gate 6 :** extension progressive, puis apprentissage automatique controle.
+
+Le dispatcher de collecte historique s'execute toutes les cinq minutes. Il ne
+lance pas tous les secteurs : `get_due_sector_ids()` ne retourne que ceux dont
+l'echeance est atteinte. Il n'existe plus de lancement global quotidien a 06:00.

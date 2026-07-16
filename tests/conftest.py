@@ -5,9 +5,11 @@ Les tests d'integration tournent sur une vraie DB de test (port 5433).
 """
 import asyncio
 import os
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
@@ -15,6 +17,7 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://autotransfert:password@localhost:5433/autotransfert_p2_test",
 )
+os.environ.setdefault("APIFY_TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
 from app.config import get_settings
 from app.main import app
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus
@@ -59,6 +62,137 @@ def require_integration_db(request):
 
 
 @pytest.fixture
+async def workspace_record():
+    from app.db import get_db
+    from app.tables import Workspace
+
+    async with get_db() as db:
+        row = Workspace(name=f"Apify test {uuid.uuid4()}")
+        db.add(row)
+        await db.flush()
+        row_id = row.id
+    async with get_db() as db:
+        yield await db.get(Workspace, row_id)
+
+
+@pytest.fixture
+async def running_campaign():
+    from app.db import get_db
+    from app.models import CampaignStatus
+    from app.tables import Campaign
+
+    async with get_db() as db:
+        row = Campaign(
+            type="sms_direct",
+            message_template="Bonjour {title} {url}",
+            status=CampaignStatus.RUNNING,
+        )
+        db.add(row)
+        await db.flush()
+        row_id = row.id
+    async with get_db() as db:
+        yield await db.get(Campaign, row_id)
+
+
+@pytest.fixture
+async def pending_campaign():
+    from app.db import get_db
+    from app.models import CampaignStatus
+    from app.tables import Campaign
+
+    async with get_db() as db:
+        row = Campaign(
+            type="sms_direct",
+            message_template="Bonjour {title} {url}",
+            status=CampaignStatus.PENDING,
+        )
+        db.add(row)
+        await db.flush()
+        row_id = row.id
+    async with get_db() as db:
+        yield await db.get(Campaign, row_id)
+
+
+@pytest.fixture
+async def existing_apify_account(workspace_record):
+    from app.db import get_db
+    from app.services.apify_secrets import ApifySecretCodec
+    from app.tables import ApifyAccount
+
+    settings = get_settings()
+    codec = ApifySecretCodec(settings.apify_token_encryption_key, settings.secret_key)
+    token = f"apify_api_{uuid.uuid4()}"
+    webhook_secret = "test-apify-webhook-secret"
+    async with get_db() as db:
+        row = ApifyAccount(
+            workspace_id=workspace_record.id,
+            label=f"Compte {uuid.uuid4()}",
+            apify_user_id=f"user-{uuid.uuid4()}",
+            username="apify-test",
+            token_ciphertext=codec.encrypt(token),
+            token_fingerprint=codec.fingerprint(token),
+            webhook_secret_ciphertext=codec.encrypt(webhook_secret),
+            webhook_secret_hash=codec.fingerprint(webhook_secret),
+        )
+        db.add(row)
+        await db.flush()
+        row_id = row.id
+    async with get_db() as db:
+        yield await db.get(ApifyAccount, row_id)
+
+
+@pytest.fixture
+async def configured_apify_binding(
+    workspace_record, existing_apify_account, running_campaign
+):
+    from app.db import get_db
+    from app.services.apify_secrets import ApifySecretCodec
+    from app.tables import ApifyActorBinding
+
+    settings = get_settings()
+    codec = ApifySecretCodec(settings.apify_token_encryption_key, settings.secret_key)
+    async with get_db() as db:
+        row = ApifyActorBinding(
+            workspace_id=workspace_record.id,
+            account_id=existing_apify_account.id,
+            campaign_id=running_campaign.id,
+            resource_type="actor",
+            resource_id=f"owner/example-{uuid.uuid4()}",
+            name="Example Actor",
+            input_ciphertext=codec.encrypt("{}"),
+            enabled=True,
+        )
+        db.add(row)
+        await db.flush()
+        row_id = row.id
+    async with get_db() as db:
+        yield await db.get(ApifyActorBinding, row_id)
+
+
+@pytest.fixture
+async def succeeded_apify_run(
+    workspace_record, existing_apify_account, configured_apify_binding
+):
+    from app.db import get_db
+    from app.tables import ApifyRun
+
+    async with get_db() as db:
+        row = ApifyRun(
+            workspace_id=workspace_record.id,
+            account_id=existing_apify_account.id,
+            binding_id=configured_apify_binding.id,
+            apify_run_id=f"run-{uuid.uuid4()}",
+            status="SUCCEEDED",
+            default_dataset_id="dataset-test-fixed",
+        )
+        db.add(row)
+        await db.flush()
+        row_id = row.id
+    async with get_db() as db:
+        yield await db.get(ApifyRun, row_id)
+
+
+@pytest.fixture
 async def client():
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -86,7 +220,7 @@ def mock_send_sms():
 
 @pytest.fixture
 def mock_buy_number():
-    with patch("app.boundaries.buy_number", new_callable=AsyncMock) as m:
+    with patch("app.boundaries.buy_number_with_fallback", new_callable=AsyncMock) as m:
         m.return_value = ActivationOrder(
             id="order_test_001",
             phone="+33712345678",

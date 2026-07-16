@@ -425,9 +425,9 @@ nav a:hover { color: #f1f5f9; border-bottom-color: #60a5fa; }
   </div>
 
   <!-- WF4 -->
-  <div class="sub-title">WF-04 — Scraping annonces LBC (tâche quotidienne)</div>
+  <div class="sub-title">WF-04 — Scraping annonces LBC (dispatcher des secteurs dus)</div>
   <div class="workflow">
-    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">SCH</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Celery beat — déclenchement 06h00</div><div class="wf-desc">Tâche <code>scrape_lbc_listings</code> et <code>scrape_lacentrale_listings</code> lancées en parallèle.</div></div></div>
+    <div class="wf-step"><div class="wf-left"><div class="wf-dot api">SCH</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Celery beat — dispatcher toutes les 5 minutes</div><div class="wf-desc"><code>get_due_sector_ids()</code> sélectionne uniquement les secteurs dont l'échéance est atteinte; il n'existe pas de lancement global quotidien.</div></div></div>
     <div class="wf-step"><div class="wf-left"><div class="wf-dot ext">EXT</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Navigation LBC — Patchright (session compte ACTIF) ; La Centrale — crawl4ai direct</div><div class="wf-desc"><b>LBC</b> : session Patchright avec cookies DataDome rechargés depuis DB (compte ACTIF du pool). <b>La Centrale</b> : crawl4ai direct (pas de DataDome). crawl4ai/Scrapling extraient titre, prix, km, téléphone, url en format unifié.</div></div></div>
     <div class="wf-step"><div class="wf-left"><div class="wf-dot api">AI</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Extraction numéro — regex puis Claude Haiku</div><div class="wf-desc"><code>extract_phone(text)</code> : regex d'abord. Si ambiguïté (ex: "appel le 06 XX XX XX XX") → <code>extract_phone_llm(text)</code> via Claude Haiku. <span class="badge badge-orange">~0.001€/appel</span></div></div></div>
     <div class="wf-step"><div class="wf-left"><div class="wf-dot db">DB</div><div class="wf-line"></div></div><div class="wf-body"><div class="wf-title">Déduplication + sauvegarde</div><div class="wf-desc">Upsert sur <code>listing_url</code>. Marquage NOUVELLE pour les annonces jamais vues. Filtre blacklist immédiat.</div></div></div>
@@ -933,7 +933,7 @@ nav a:hover { color: #f1f5f9; border-bottom-color: #60a5fa; }
   <div class="milestones">
     <div class="milestone"><div class="milestone-week">Sprint 1 · J1–3</div><div class="milestone-title">Fondations</div><ul class="milestone-items"><li>VPS + Docker + DB + Redis</li><li>GitHub Actions + Husky hooks</li><li>Health check vert</li><li>Structure fichiers en place</li></ul></div>
     <div class="milestone"><div class="milestone-week">Sprint 2 · J4–6</div><div class="milestone-title">Création comptes</div><ul class="milestone-items"><li>iproxy.online intégré</li><li>SmsApp.io buy/poll/cancel</li><li>Mailgun catch-all actif</li><li>3 premiers comptes EN_CHAUFFE</li></ul></div>
-    <div class="milestone"><div class="milestone-week">Sprint 3 · J7–10</div><div class="milestone-title">Scraping</div><ul class="milestone-items"><li>crawl4ai LBC + La Centrale</li><li>phone_extractor + Haiku fallback</li><li>Déduplication annonces</li><li>WF-04 automatisé 06h00</li></ul></div>
+    <div class="milestone"><div class="milestone-week">Sprint 3 · J7–10</div><div class="milestone-title">Scraping</div><ul class="milestone-items"><li>crawl4ai LBC + La Centrale</li><li>phone_extractor + Haiku fallback</li><li>Déduplication annonces</li><li>WF-04 dispatcher 5 min / secteurs dus</li></ul></div>
     <div class="milestone"><div class="milestone-week">Sprint 4 · J11–14</div><div class="milestone-title">Messagerie SMS</div><ul class="milestone-items"><li>SMSTools 8 SIMs actives</li><li>WF-02 campagne complet</li><li>WF-05 STOP opérationnel</li><li>Forwarding appels configuré</li></ul></div>
     <div class="milestone"><div class="milestone-week">Sprint 5 · J15–18</div><div class="milestone-title">Back-office</div><ul class="milestone-items"><li>Next.js dashboard</li><li>WebSocket appels entrants</li><li>Sentry monitoring actif</li><li>Warm-up 48h terminé</li></ul></div>
     <div class="milestone"><div class="milestone-week">Sprint 6 · J19–21</div><div class="milestone-title">Go Live</div><ul class="milestone-items"><li>Quota 10 msg/SIM/jour</li><li>72h monitoring sans incident</li><li>Formation back-office client</li><li>Documentation livrée</li></ul></div>
@@ -959,6 +959,20 @@ nav a:hover { color: #f1f5f9; border-bottom-color: #60a5fa; }
       <tr><td><b>VPS RAM saturée</b></td><td><span class="sev sev-low">LOW</span></td><td>—</td><td>CPX41 = 16 GB, largement dimensionné. Upgrade CX52 (32 GB) en 5 min si nécessaire.</td></tr>
     </tbody>
   </table>
+</section>
+
+<section class="section" id="apify-rollout">
+  <div class="section-header"><span class="section-num">10</span><h2>Apify — rollout sécurisé</h2></div>
+  <p class="lead">Les bindings sont désactivés au premier déploiement. Chaque gate doit être validé avant le suivant.</p>
+  <ol>
+    <li><b>Gate 1 :</b> compte connecté, catalogue synchronisé, aucun run automatique.</li>
+    <li><b>Gate 2 :</b> import historique, séquences désactivées.</li>
+    <li><b>Gate 3 :</b> profil fantôme, zéro changement de téléphone stable.</li>
+    <li><b>Gate 4 :</b> un Actor, campagne de test, quota par SIM réduit.</li>
+    <li><b>Gate 5 :</b> doublons, STOP et fenêtre 08h00–20h00 vérifiés.</li>
+    <li><b>Gate 6 :</b> extension progressive puis apprentissage automatique contrôlé.</li>
+  </ol>
+  <div class="notice">Un numéro valide démarre automatiquement la séquence de sa campagne. Une ambiguïté ouvre une exception; elle ne déclenche jamais de SMS.</div>
 </section>
 
 <!-- FOOTER -->

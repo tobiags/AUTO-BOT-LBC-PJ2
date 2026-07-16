@@ -12,7 +12,9 @@ async def store_inbound_message(
 ) -> bool:
     normalized_recipient = recipient.strip().lower()
     async with get_db() as db:
-        identity = await db.scalar(select(EmailIdentity).where(EmailIdentity.email == normalized_recipient))
+        identity = await db.scalar(
+            select(EmailIdentity).where(EmailIdentity.email == normalized_recipient)
+        )
         if identity is None:
             return False
         db.add(
@@ -40,7 +42,9 @@ async def list_email_messages(
         conditions.append(EmailMessage.read_at.is_(None))
     if query:
         pattern = f"%{query.strip()}%"
-        conditions.append(or_(EmailMessage.sender.ilike(pattern), EmailMessage.subject.ilike(pattern)))
+        conditions.append(
+            or_(EmailMessage.sender.ilike(pattern), EmailMessage.subject.ilike(pattern))
+        )
     async with get_db() as db:
         statement = select(EmailMessage).order_by(EmailMessage.received_at.desc())
         count_statement = select(func.count()).select_from(EmailMessage)
@@ -76,5 +80,7 @@ async def delete_email_message(message_id: UUID) -> bool:
 
 async def purge_expired_email_messages(now: datetime | None = None) -> int:
     async with get_db() as db:
-        result = await db.execute(delete(EmailMessage).where(EmailMessage.expires_at <= (now or datetime.now(UTC))))
+        result = await db.execute(
+            delete(EmailMessage).where(EmailMessage.expires_at <= (now or datetime.now(UTC)))
+        )
         return result.rowcount or 0

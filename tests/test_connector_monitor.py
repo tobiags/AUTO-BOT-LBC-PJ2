@@ -7,6 +7,33 @@ import pytest
 from app.models import ConnectorState
 
 
+def test_apify_connector_is_disabled_without_accounts():
+    from app.services.connector_monitor import summarize_apify_accounts
+
+    result = summarize_apify_accounts([])
+
+    assert result.status == ConnectorState.DISABLED
+    assert result.configured is False
+
+
+def test_apify_connector_is_ok_when_all_accounts_are_healthy():
+    from app.services.connector_monitor import summarize_apify_accounts
+
+    result = summarize_apify_accounts(["active", "active"])
+
+    assert result.status == ConnectorState.OK
+    assert result.details == {"accounts": 2, "healthy": 2, "failed": 0}
+
+
+def test_apify_connector_is_degraded_when_some_accounts_fail():
+    from app.services.connector_monitor import summarize_apify_accounts
+
+    result = summarize_apify_accounts(["active", "invalid"])
+
+    assert result.status == ConnectorState.DEGRADED
+    assert result.details == {"accounts": 2, "healthy": 1, "failed": 1}
+
+
 @pytest.mark.asyncio
 async def test_probe_iproxy_does_not_retry_authentication_failure():
     from app.services.connector_monitor import probe_iproxy

@@ -402,3 +402,28 @@ pnpm -F @html-anything/next dev
 ```
 
 Ouvrir `http://localhost:3000`, choisir `docs-page`, coller ce fichier Markdown et exporter le HTML. La version versionnee est `docs/GUIDE_COMPLET_UTILISATION.html`.
+
+## 13. Apify : comptes, Actors et automatisation SMS
+
+La page `/apify` centralise les comptes Apify, les Actors/Tasks, les runs, les
+resultats normalises, les profils d'apprentissage et les exceptions. Un numero
+valide entre automatiquement dans la sequence SMS de la campagne liee. Il n'y a
+pas de bouton manuel par lead. La deduplication contact/campagne, la blacklist
+STOP, les quotas SIM et la fenetre 08:00-20:00 Europe/Paris restent obligatoires.
+
+Ordre de mise en service :
+
+1. connecter le compte et synchroniser le catalogue sans activer de binding ;
+2. importer un historique avec les sequences desactivees ;
+3. evaluer le profil candidat en mode fantome ;
+4. activer un seul Actor sur une campagne de test et un quota SIM reduit ;
+5. verifier doublons, STOP, horaires, exceptions et destinataires ;
+6. etendre progressivement, puis autoriser les evaluations automatiques.
+
+Une ambiguite de telephone cree une exception et ne demarre aucune sequence. Une
+derive superieure aux seuils suspend uniquement le binding concerne. Les profils
+peuvent etre restaures par un administrateur depuis l'onglet Apprentissage.
+
+Le dispatcher de secteurs tourne toutes les cinq minutes et selectionne seulement
+les secteurs dus. La mention historique d'un scraping global quotidien a 06:00
+est obsolete.

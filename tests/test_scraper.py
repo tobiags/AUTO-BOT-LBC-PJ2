@@ -1,18 +1,19 @@
 """
 Tests unitaires scraper - fonctions pures (pas de I/O reelle).
 """
+
 import pytest
 
 from app.models import ListingSource
 from app.services.scraper import (
     DataDomeBlockedError,
     RawListing,
-    classify_lbc_error,
     _page_url,
     _parse_km,
     _parse_lbc_search_items,
     _parse_price,
     _pick_lbc_title,
+    classify_lbc_error,
     enrich_with_phone,
 )
 
@@ -71,20 +72,26 @@ def test_parse_km_none():
 
 @pytest.mark.unit
 def test_pick_lbc_title_prefers_semantic_title():
-    assert _pick_lbc_title(
-        "Peugeot 308 HDi",
-        "Peugeot 308 HDi\n9 500 EUR\nBordeaux 33000",
-        "Bordeaux 33000",
-    ) == "Peugeot 308 HDi"
+    assert (
+        _pick_lbc_title(
+            "Peugeot 308 HDi",
+            "Peugeot 308 HDi\n9 500 EUR\nBordeaux 33000",
+            "Bordeaux 33000",
+        )
+        == "Peugeot 308 HDi"
+    )
 
 
 @pytest.mark.unit
 def test_pick_lbc_title_falls_back_to_text_lines():
-    assert _pick_lbc_title(
-        "9 500 EUR",
-        "Renault Clio 4\n9 500 EUR\nParis 75001",
-        "Paris 75001",
-    ) == "Renault Clio 4"
+    assert (
+        _pick_lbc_title(
+            "9 500 EUR",
+            "Renault Clio 4\n9 500 EUR\nParis 75001",
+            "Paris 75001",
+        )
+        == "Renault Clio 4"
+    )
 
 
 @pytest.mark.unit
@@ -172,13 +179,17 @@ def test_enrich_no_title_returns_unchanged():
 
 @pytest.mark.unit
 def test_parse_lbc_search_items_basic():
-    items = _parse_lbc_search_items([{
-        "url": "https://www.leboncoin.fr/voitures/123456789.htm",
-        "title": "Peugeot 308 HDi 90",
-        "price": "9 500 EUR",
-        "location": "Bordeaux 33000",
-        "text": "Peugeot 308 HDi 90\n9 500 EUR\nBordeaux 33000",
-    }])
+    items = _parse_lbc_search_items(
+        [
+            {
+                "url": "https://www.leboncoin.fr/voitures/123456789.htm",
+                "title": "Peugeot 308 HDi 90",
+                "price": "9 500 EUR",
+                "location": "Bordeaux 33000",
+                "text": "Peugeot 308 HDi 90\n9 500 EUR\nBordeaux 33000",
+            }
+        ]
+    )
     assert len(items) == 1
     item = items[0]
     assert item.source == ListingSource.LBC
@@ -195,13 +206,17 @@ def test_parse_lbc_search_items_ignores_empty_urls():
 
 @pytest.mark.unit
 def test_parse_lbc_search_items_can_extract_phone_from_text_fallback():
-    items = _parse_lbc_search_items([{
-        "url": "https://www.leboncoin.fr/voitures/987654321.htm",
-        "title": "12 000 EUR",
-        "price": "12 000 EUR",
-        "location": "Lille 59000",
-        "text": "Citroen C3 appelez le 06 12 34 56 78\n12 000 EUR\nLille 59000",
-    }])
+    items = _parse_lbc_search_items(
+        [
+            {
+                "url": "https://www.leboncoin.fr/voitures/987654321.htm",
+                "title": "12 000 EUR",
+                "price": "12 000 EUR",
+                "location": "Lille 59000",
+                "text": "Citroen C3 appelez le 06 12 34 56 78\n12 000 EUR\nLille 59000",
+            }
+        ]
+    )
     assert items[0].title == "Citroen C3 appelez le 06 12 34 56 78"
     assert items[0].phone == "+33612345678"
 

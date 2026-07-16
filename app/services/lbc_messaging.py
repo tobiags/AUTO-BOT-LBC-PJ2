@@ -256,7 +256,13 @@ def _apply_vehicle_criteria(query, raw_criteria: dict):
     if criteria.brand_model:
         for term in criteria.brand_model.split():
             pattern = f"%{term}%"
-            query = query.where(or_(Listing.title.ilike(pattern), Listing.make.ilike(pattern), Listing.model.ilike(pattern)))
+            query = query.where(
+                or_(
+                    Listing.title.ilike(pattern),
+                    Listing.make.ilike(pattern),
+                    Listing.model.ilike(pattern),
+                )
+            )
     if criteria.vehicle_type:
         query = query.where(Listing.title.ilike(f"%{criteria.vehicle_type}%"))
     if criteria.region:

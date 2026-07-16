@@ -3,12 +3,21 @@
 import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import boundaries
+from app.config import get_settings
 from app.db import get_db
-from app.models import ContactStatus, SequenceStatus, SmsDirection, SmsStatus
+from app.models import (
+    CampaignStatus,
+    ContactStatus,
+    SequenceStatus,
+    SmsDirection,
+    SmsStatus,
+)
 from app.services.blacklist import is_blacklisted
 from app.services.campaign_runner import render_sms_body
 from app.services.phone_extractor import extract_phone
@@ -95,6 +104,7 @@ SMS_VARIANTS = {
         ),
     ),
 }
+settings = get_settings()
 
 
 def choose_sms_variant(step: int, sequence_id: uuid.UUID | str) -> tuple[str, str]:
@@ -115,57 +125,98 @@ def _template_due(template: CampaignMessageTemplate, created_at: datetime) -> da
     )
 
 
-async def ensure_contact_and_sequence(listing_id: uuid.UUID, phone: str) -> dict:
-    normalized = extract_phone(phone) or phone if phone.startswith("+") else extract_phone(phone)
+async def ensure_contact_sequence_in_session(
+    db: AsyncSession,
+    *,
+    phone: str,
+    campaign_id: uuid.UUID,
+    listing_id: uuid.UUID | None = None,
+    context: dict | None = None,
+) -> dict:
+    """Create or reuse one contact/campaign sequence inside caller transaction."""
+    normalized = extract_phone(phone)
     if not normalized:
         raise ValueError("invalid_phone")
     if await is_blacklisted(normalized):
-        return {"status": "blacklisted", "phone": normalized}
+        return {"created": False, "status": "blacklisted", "phone": normalized}
+    campaign = await db.get(Campaign, campaign_id)
+    if campaign is None or campaign.status not in {
+        CampaignStatus.RUNNING,
+        CampaignStatus.RUNNING.value,
+    }:
+        raise ValueError("campaign_not_running")
+    contact = await db.scalar(select(Contact).where(Contact.phone_e164 == normalized))
+    if contact is None:
+        contact = Contact(phone_e164=normalized)
+        db.add(contact)
+        await db.flush()
+    elif contact.status != ContactStatus.ACTIVE.value:
+        return {
+            "created": False,
+            "status": contact.status,
+            "phone": normalized,
+            "contact_id": str(contact.id),
+        }
+    sequence = await db.scalar(
+        select(SmsSequence).where(
+            SmsSequence.contact_id == contact.id,
+            SmsSequence.campaign_id == campaign_id,
+        )
+    )
+    if sequence is None:
+        sequence = SmsSequence(
+            contact_id=contact.id,
+            listing_id=listing_id,
+            campaign_id=campaign_id,
+            context_json=context or {},
+            current_step=-1,
+            next_due_at=datetime.now(UTC),
+        )
+        db.add(sequence)
+        await db.flush()
+        created = True
+    else:
+        sequence.context_json = {**(sequence.context_json or {}), **(context or {})}
+        if sequence.listing_id is None and listing_id is not None:
+            sequence.listing_id = listing_id
+        created = False
+    return {
+        "created": created,
+        "status": "scheduled",
+        "phone": normalized,
+        "contact_id": str(contact.id),
+        "sequence_id": str(sequence.id),
+    }
 
-    sequence_created = False
+
+async def ensure_contact_sequence(**kwargs) -> dict:
+    async with get_db() as db:
+        result = await ensure_contact_sequence_in_session(db, **kwargs)
+    if result["created"]:
+        from app.tasks import run_sms_sequences_task
+
+        run_sms_sequences_task.delay()
+    return result
+
+
+async def ensure_contact_and_sequence(listing_id: uuid.UUID, phone: str) -> dict:
     async with get_db() as db:
         listing = await db.get(Listing, listing_id)
         if listing is None:
             raise ValueError("listing_not_found")
-        contact = (
-            await db.execute(select(Contact).where(Contact.phone_e164 == normalized))
-        ).scalar_one_or_none()
-        if contact is None:
-            contact = Contact(phone_e164=normalized)
-            db.add(contact)
-            await db.flush()
-        elif contact.status != ContactStatus.ACTIVE.value:
-            return {"status": contact.status, "phone": normalized, "contact_id": str(contact.id)}
-        listing.phone = normalized
-        listing.contact_id = contact.id
-        sequence = None
-        if listing.campaign_id:
-            sequence = (
-                await db.execute(
-                    select(SmsSequence).where(
-                        SmsSequence.listing_id == listing.id,
-                        SmsSequence.campaign_id == listing.campaign_id,
-                    )
-                )
-            ).scalar_one_or_none()
-            if sequence is None:
-                created = datetime.now(UTC)
-                sequence = SmsSequence(
-                    contact_id=contact.id,
-                    listing_id=listing.id,
-                    campaign_id=listing.campaign_id,
-                    current_step=-1,
-                    next_due_at=created,
-                )
-                db.add(sequence)
-                sequence_created = True
-        result = {
-            "status": "scheduled" if sequence else "contacted",
-            "phone": normalized,
-            "contact_id": str(contact.id),
-            "sequence_id": str(sequence.id) if sequence else None,
-        }
-    if sequence_created:
+        if listing.campaign_id is None:
+            raise ValueError("campaign_required")
+        result = await ensure_contact_sequence_in_session(
+            db,
+            phone=phone,
+            campaign_id=listing.campaign_id,
+            listing_id=listing.id,
+            context={"title": listing.title or "votre vehicule", "url": listing.url},
+        )
+        if result.get("contact_id"):
+            listing.phone = result["phone"]
+            listing.contact_id = uuid.UUID(result["contact_id"])
+    if result["created"]:
         from app.tasks import run_sms_sequences_task
 
         run_sms_sequences_task.delay()
@@ -174,6 +225,16 @@ async def ensure_contact_and_sequence(listing_id: uuid.UUID, phone: str) -> dict
 
 async def run_due_sms_sequences(now: datetime | None = None, limit: int = 100) -> dict:
     current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    paris_now = current.astimezone(ZoneInfo("Europe/Paris"))
+    if not settings.sms_hour_start <= paris_now.hour < settings.sms_hour_end:
+        return {
+            "status": "outside_window",
+            "processed": 0,
+            "sent": 0,
+            "stopped": 0,
+        }
     processed = sent = stopped = 0
     async with get_db() as db:
         sequences = (
@@ -190,11 +251,15 @@ async def run_due_sms_sequences(now: datetime | None = None, limit: int = 100) -
         for sequence in sequences:
             processed += 1
             contact = await db.get(Contact, sequence.contact_id)
-            listing = await db.get(Listing, sequence.listing_id)
+            listing = (
+                await db.get(Listing, sequence.listing_id)
+                if sequence.listing_id is not None
+                else None
+            )
             campaign = (
                 await db.get(Campaign, sequence.campaign_id) if sequence.campaign_id else None
             )
-            if not contact or not listing or not campaign:
+            if not contact or not campaign:
                 sequence.status = SequenceStatus.CANCELLED.value
                 stopped += 1
                 continue
@@ -231,12 +296,17 @@ async def run_due_sms_sequences(now: datetime | None = None, limit: int = 100) -
                 variant_key, template = selected.variant_key, selected.body
             else:
                 variant_key, template = choose_sms_variant(step, sequence.id)
-            body = render_sms_body(
-                template, url=listing.url, title=listing.title or "votre véhicule"
-            )
+            render_context = dict(sequence.context_json or {})
+            if listing is not None:
+                render_context.update(
+                    {"title": listing.title or "votre vehicule", "url": listing.url}
+                )
+            title = render_context.get("title") or "votre demande"
+            url = render_context.get("url") or ""
+            body = render_sms_body(template, title=title, url=url).replace("  ", " ").strip()
             sims = await boundaries.get_sim_list()
             allowed = {}
-            if listing.sector_id:
+            if listing is not None and listing.sector_id:
                 allowed = {
                     row.sim_id: row.daily_limit
                     for row in (
@@ -300,7 +370,7 @@ async def run_due_sms_sequences(now: datetime | None = None, limit: int = 100) -
                     SmsLog(
                         sim_id=sim["id"],
                         to_phone=contact.phone_e164,
-                        listing_id=listing.id,
+                        listing_id=listing.id if listing is not None else None,
                         contact_id=contact.id,
                         campaign_id=campaign.id,
                         body=body,

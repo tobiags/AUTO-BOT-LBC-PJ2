@@ -8,11 +8,15 @@ Règle R07 : ne jamais passer l'IP du VPS à get_4g_proxy().
 Règle R03 : les clés API viennent de Settings, jamais hardcodées.
 """
 import asyncio
+import json
 import logging
 import secrets
-from datetime import UTC, datetime
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
 import httpx
+from anthropic import AsyncAnthropic
+from apify_client import ApifyClientAsync
 
 from app.config import get_settings
 from app.models import ActivationOrder, ProxyInfo, SmsResult, SmsStatus
@@ -273,3 +277,179 @@ def generate_email(domain: str | None = None) -> str:
     """
     domain = domain or settings.operational_domain
     return f"contact.{secrets.token_hex(4)}@{domain}"
+
+
+# ── APIFY ──
+
+
+def _apify_client(token: str) -> ApifyClientAsync:
+    return ApifyClientAsync(
+        token=token,
+        max_retries=5,
+        timeout_short=timedelta(seconds=10),
+        timeout_medium=timedelta(seconds=60),
+        timeout_long=timedelta(seconds=60),
+    )
+
+
+def _apify_plain_dict(value) -> dict:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "model_dump"):
+        return value.model_dump(by_alias=True)
+    return dict(value)
+
+
+async def apify_validate_token(token: str) -> dict:
+    client = _apify_client(token)
+    try:
+        user = await client.user().get()
+        if user is None:
+            raise ValueError("invalid_apify_token")
+        return _apify_plain_dict(user)
+    finally:
+        await client.close()
+
+
+async def apify_list_actors(token: str) -> list[dict]:
+    client = _apify_client(token)
+    try:
+        page = await client.actors().list(my=True)
+        return [_apify_plain_dict(item) for item in page.items]
+    finally:
+        await client.close()
+
+
+async def apify_list_tasks(token: str) -> list[dict]:
+    client = _apify_client(token)
+    try:
+        page = await client.tasks().list()
+        return [_apify_plain_dict(item) for item in page.items]
+    finally:
+        await client.close()
+
+
+async def apify_start_resource(
+    token: str,
+    resource_type: str,
+    resource_id: str,
+    run_input: dict,
+) -> dict:
+    if resource_type not in {"actor", "task"}:
+        raise ValueError("resource_type must be actor or task")
+
+    client = _apify_client(token)
+    try:
+        if resource_type == "actor":
+            run = await client.actor(resource_id).start(run_input=run_input)
+        else:
+            run = await client.task(resource_id).start(task_input=run_input)
+        return _apify_plain_dict(run)
+    finally:
+        await client.close()
+
+
+async def apify_get_run(token: str, run_id: str) -> dict | None:
+    client = _apify_client(token)
+    try:
+        run = await client.run(run_id).get()
+        return None if run is None else _apify_plain_dict(run)
+    finally:
+        await client.close()
+
+
+async def apify_list_recent_runs(token: str, *, limit: int = 100) -> list[dict]:
+    client = _apify_client(token)
+    try:
+        page = await client.runs().list(limit=limit, desc=True)
+        return [_apify_plain_dict(item) for item in page.items]
+    finally:
+        await client.close()
+
+
+async def apify_iter_dataset(
+    token: str, dataset_id: str
+) -> AsyncIterator[tuple[int, dict]]:
+    client = _apify_client(token)
+    try:
+        index = 0
+        async for item in client.dataset(dataset_id).iterate_items():
+            yield index, _apify_plain_dict(item)
+            index += 1
+    finally:
+        await client.close()
+
+
+async def apify_create_webhook(
+    token: str,
+    resource_type: str,
+    resource_id: str,
+    request_url: str,
+    secret: str,
+) -> dict:
+    if resource_type not in {"actor", "task"}:
+        raise ValueError("resource_type must be actor or task")
+
+    client = _apify_client(token)
+    try:
+        webhook = await client.webhooks().create(
+            event_types=[
+                "ACTOR.RUN.SUCCEEDED",
+                "ACTOR.RUN.FAILED",
+                "ACTOR.RUN.ABORTED",
+                "ACTOR.RUN.TIMED_OUT",
+            ],
+            request_url=request_url,
+            payload_template=(
+                '{"eventType":"{{eventType}}","resource":{{resource}}}'
+            ),
+            headers_template=json.dumps(
+                {"Authorization": f"Bearer {secret}"}, separators=(",", ":")
+            ),
+            actor_id=resource_id if resource_type == "actor" else None,
+            actor_task_id=resource_id if resource_type == "task" else None,
+        )
+        return _apify_plain_dict(webhook)
+    finally:
+        await client.close()
+
+
+async def apify_delete_webhook(token: str, webhook_id: str) -> None:
+    client = _apify_client(token)
+    try:
+        await client.webhook(webhook_id).delete()
+    finally:
+        await client.close()
+
+
+async def infer_apify_lead_fields(
+    payload: dict, candidate_paths: list[str]
+) -> dict:
+    """Return JSON-only field paths; never initiate an external action."""
+    client = AsyncAnthropic()
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=400,
+        temperature=0,
+        system=(
+            "Return one JSON object whose values are paths from candidate_paths. "
+            "Allowed keys: phone,title,url,description,price,mileage,location."
+        ),
+        messages=[
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"candidate_paths": candidate_paths, "payload": payload},
+                    ensure_ascii=False,
+                )[:12000],
+            }
+        ],
+    )
+    result = json.loads(response.content[0].text)
+    if not isinstance(result, dict):
+        return {}
+    return {
+        key: path
+        for key, path in result.items()
+        if isinstance(path, str) and path in candidate_paths
+    }

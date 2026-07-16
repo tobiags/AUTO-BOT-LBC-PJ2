@@ -8,7 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from app.api.apify import _redact_phones
 from app.main import app
+from app.models import ApifyAccountOut, ApifyBindingOut, ApifyItemOut, ApifyRunOut
 
 
 @pytest.mark.asyncio
@@ -63,6 +65,10 @@ async def test_mailgun_response_never_exposes_otp(client):
     with (
         patch("app.security.get_settings", return_value=settings),
         patch("app.webhooks.email.get_db") as get_db,
+        patch(
+            "app.webhooks.email.store_inbound_message",
+            new_callable=AsyncMock,
+        ),
     ):
         db = AsyncMock()
         db.execute.side_effect = [
@@ -92,3 +98,47 @@ def test_websocket_rejects_missing_token():
         with TestClient(app).websocket_connect("/ws"):
             pass
     assert exc.value.code == 4401
+
+
+def test_apify_public_contracts_never_expose_secret_storage_fields():
+    public_fields = set().union(
+        ApifyAccountOut.model_fields,
+        ApifyBindingOut.model_fields,
+        ApifyRunOut.model_fields,
+        ApifyItemOut.model_fields,
+    )
+
+    assert "token" not in public_fields
+    assert "token_ciphertext" not in public_fields
+    assert "input_ciphertext" not in public_fields
+    assert "webhook_secret_ciphertext" not in public_fields
+
+
+def test_apify_raw_html_remains_text_and_phone_is_masked():
+    payload = {
+        "title": '<img src=x onerror="alert(1)">',
+        "seller": {"phone": "06 12 34 56 78"},
+    }
+
+    redacted = _redact_phones(payload)
+
+    assert redacted["title"] == payload["title"]
+    assert redacted["seller"]["phone"] == "+33 ** ** ** 67 8"
+
+
+@pytest.mark.integration
+async def test_forged_apify_webhook_is_rejected_without_secret_echo(
+    client,
+    existing_apify_account,
+):
+    response = await client.post(
+        f"/webhooks/apify/{existing_apify_account.id}",
+        json={
+            "eventType": "ACTOR.RUN.SUCCEEDED",
+            "resource": {"id": "forged-run", "status": "SUCCEEDED"},
+        },
+        headers={"Authorization": "Bearer forged-apify-secret"},
+    )
+
+    assert response.status_code == 401
+    assert "forged-apify-secret" not in response.text
