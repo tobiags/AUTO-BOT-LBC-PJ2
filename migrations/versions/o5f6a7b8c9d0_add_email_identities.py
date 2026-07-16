@@ -2,6 +2,7 @@
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = "o5f6a7b8c9d0"
@@ -11,8 +12,17 @@ depends_on = None
 
 
 def upgrade() -> None:
-    status = sa.Enum("available", "reserved", "used", "disabled", name="email_identity_status")
-    status.create(op.get_bind(), checkfirst=True)
+    op.execute(
+        """
+        DO $$ BEGIN
+          CREATE TYPE email_identity_status AS ENUM ('available', 'reserved', 'used', 'disabled');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        """
+    )
+    status = postgresql.ENUM(
+        "available", "reserved", "used", "disabled", name="email_identity_status", create_type=False
+    )
     op.create_table(
         "email_identities",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -34,4 +44,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_email_identities_status", table_name="email_identities")
     op.drop_table("email_identities")
-    sa.Enum(name="email_identity_status").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS email_identity_status")
