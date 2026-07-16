@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.models import AccountOut, AccountStatus, DatadomeTrustLevel
@@ -15,7 +15,7 @@ def test_account_out_exposes_created_email_and_otp_phone() -> None:
             "score_sante": 0,
             "quota_actuel": 0,
             "erreurs_24h": 0,
-            "date_creation": datetime.now(timezone.utc),
+            "date_creation": datetime.now(UTC),
         }
     )
 

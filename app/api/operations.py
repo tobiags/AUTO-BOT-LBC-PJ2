@@ -14,10 +14,9 @@ from app.models import (
     BrowserUseTaskRequest,
     BrowserUseTaskView,
     CampaignCommandRequest,
+    CampaignCommandResponse,
     CampaignCreateCommand,
     CampaignOut,
-    CampaignCommandResponse,
-    VehicleSearchCriteria,
     ConnectorCommandRequest,
     ConnectorCommandResponse,
     InboxSyncRequest,
@@ -74,9 +73,7 @@ def _authorize(
 ) -> Literal["viewer", "operator", "admin"]:
     expected = get_settings().control_tower_token
     if not expected:
-        raise HTTPException(
-            status_code=503, detail={"code": "CONTROL_TOWER_NOT_CONFIGURED"}
-        )
+        raise HTTPException(status_code=503, detail={"code": "CONTROL_TOWER_NOT_CONFIGURED"})
     if token is None or not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED"})
     if role not in {"viewer", "operator", "admin"}:
@@ -87,9 +84,7 @@ def _authorize(
     return role
 
 
-@router.post(
-    "/connectors/{connector}/commands", response_model=ConnectorCommandResponse
-)
+@router.post("/connectors/{connector}/commands", response_model=ConnectorCommandResponse)
 async def connector_command(
     connector: str,
     command: ConnectorCommandRequest,
@@ -104,8 +99,17 @@ async def connector_command(
             detail={"code": "ADMIN_CONFIRMATION_REQUIRED"},
         )
     if connector not in {
-        "database", "redis", "celery", "iproxy", "smstools", "smsapp",
-        "mailgun", "browser_use", "sentry", "camoufox", "obscura",
+        "database",
+        "redis",
+        "celery",
+        "iproxy",
+        "smstools",
+        "smsapp",
+        "mailgun",
+        "browser_use",
+        "sentry",
+        "camoufox",
+        "obscura",
     }:
         raise HTTPException(status_code=404, detail={"code": "CONNECTOR_NOT_FOUND"})
     try:
@@ -165,9 +169,7 @@ async def create_browser_use_task(
         ) from exc
 
 
-@router.post(
-    "/browser-use/tasks/{workflow_id}/stop", response_model=BrowserUseTaskView
-)
+@router.post("/browser-use/tasks/{workflow_id}/stop", response_model=BrowserUseTaskView)
 async def stop_browser_use_task(
     workflow_id: UUID,
     x_control_tower_token: Annotated[str | None, Header()] = None,
@@ -185,9 +187,7 @@ async def stop_browser_use_task(
         ) from exc
 
 
-@router.post(
-    "/campaigns/{campaign_id}/commands", response_model=CampaignCommandResponse
-)
+@router.post("/campaigns/{campaign_id}/commands", response_model=CampaignCommandResponse)
 async def campaign_command(
     campaign_id: UUID,
     command: CampaignCommandRequest,
@@ -321,9 +321,7 @@ async def create_account_operation(
     )
 
 
-@router.post(
-    "/accounts/{account_id}/commands", response_model=AccountCommandResponse
-)
+@router.post("/accounts/{account_id}/commands", response_model=AccountCommandResponse)
 async def account_operation(
     account_id: UUID,
     command: AccountCommandRequest,

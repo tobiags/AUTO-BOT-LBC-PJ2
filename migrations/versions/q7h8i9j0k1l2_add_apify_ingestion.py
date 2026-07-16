@@ -311,7 +311,13 @@ def upgrade() -> None:
         USING sms_sequences keeper
         WHERE duplicate.contact_id = keeper.contact_id
           AND duplicate.campaign_id = keeper.campaign_id
-          AND duplicate.created_at > keeper.created_at
+          AND (
+            duplicate.created_at > keeper.created_at
+            OR (
+              duplicate.created_at = keeper.created_at
+              AND duplicate.id > keeper.id
+            )
+          )
         """
     )
     op.drop_constraint(

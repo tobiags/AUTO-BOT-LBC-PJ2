@@ -19,4 +19,9 @@ def test_identity_batch_only_allows_dashboard_sizes():
 
 
 def test_email_identity_status_persists_enum_values():
-    assert EmailIdentity.__table__.c.status.type.enums == ["available", "reserved", "used", "disabled"]
+    assert EmailIdentity.__table__.c.status.type.enums == [
+        "available",
+        "reserved",
+        "used",
+        "disabled",
+    ]

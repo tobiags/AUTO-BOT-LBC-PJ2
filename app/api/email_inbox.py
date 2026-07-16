@@ -4,7 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query
 
 from app.models import EmailMessageListItemOut, EmailMessageOut, EmailMessagePageOut
-from app.services.email_inbox import delete_email_message, get_email_message, list_email_messages, mark_email_message_read
+from app.services.email_inbox import (
+    delete_email_message,
+    get_email_message,
+    list_email_messages,
+    mark_email_message_read,
+)
 
 router = APIRouter(prefix="/api/v1/email-messages", tags=["email-inbox"])
 
@@ -20,7 +25,9 @@ async def list_messages(
     rows, total = await list_email_messages(
         identity_id=identity_id, query=query, unread_only=unread_only, limit=limit, offset=offset
     )
-    return EmailMessagePageOut(items=[EmailMessageListItemOut.model_validate(row) for row in rows], total=total)
+    return EmailMessagePageOut(
+        items=[EmailMessageListItemOut.model_validate(row) for row in rows], total=total
+    )
 
 
 @router.get("/{message_id}", response_model=EmailMessageOut)

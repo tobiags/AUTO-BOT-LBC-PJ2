@@ -40,7 +40,7 @@ celery_app.conf.update(
         "app.tasks.evaluate_apify_profiles_task": {"queue": "apify"},
     },
     beat_schedule={
-        # WF-04 — scraping quotidien à 06h00
+        # WF-04 — dispatcher toutes les 5 minutes; seuls les secteurs dus partent.
         "scrape-lbc-daily": {
             "task": "app.tasks.dispatch_sector_collections_task",
             "schedule": 300.0,
@@ -499,7 +499,7 @@ def run_campaign_task(self, campaign_id: str, workflow_id: str | None = None):
 
 @celery_app.task(name="app.tasks.scrape_listings_task")
 def scrape_listings_task(search_params: dict | None = None):
-    """WF-04 — scraping quotidien LBC + La Centrale + persistance."""
+    """WF-04 — collecte LBC + La Centrale à la demande et persistance."""
     from app.services.listing_persistence import persist_listings
     from app.services.scraper import scrape_la_centrale, scrape_lbc
 

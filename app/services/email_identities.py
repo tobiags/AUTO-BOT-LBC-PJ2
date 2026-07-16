@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 import re
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -11,9 +11,30 @@ from app.db import get_db
 from app.models import EmailIdentityStatus
 from app.tables import EmailIdentity
 
-
-_FIRST_NAMES = ("Alice", "Camille", "Chloe", "Emma", "Julien", "Lucas", "Manon", "Marie", "Nicolas", "Thomas")
-_LAST_NAMES = ("Bernard", "Dubois", "Durand", "Garcia", "Lefevre", "Martin", "Moreau", "Petit", "Robert", "Roux")
+_FIRST_NAMES = (
+    "Alice",
+    "Camille",
+    "Chloe",
+    "Emma",
+    "Julien",
+    "Lucas",
+    "Manon",
+    "Marie",
+    "Nicolas",
+    "Thomas",
+)
+_LAST_NAMES = (
+    "Bernard",
+    "Dubois",
+    "Durand",
+    "Garcia",
+    "Lefevre",
+    "Martin",
+    "Moreau",
+    "Petit",
+    "Robert",
+    "Roux",
+)
 
 
 @dataclass(frozen=True)
@@ -73,11 +94,19 @@ async def command_identity(identity_id: UUID, action: str, actor: str) -> EmailI
         if action == "reserve":
             if identity.status != EmailIdentityStatus.AVAILABLE:
                 raise ValueError("IDENTITY_NOT_AVAILABLE")
-            identity.status, identity.reserved_by, identity.reserved_at = EmailIdentityStatus.RESERVED, actor, now
+            identity.status, identity.reserved_by, identity.reserved_at = (
+                EmailIdentityStatus.RESERVED,
+                actor,
+                now,
+            )
         elif action == "release":
             if identity.status != EmailIdentityStatus.RESERVED:
                 raise ValueError("IDENTITY_NOT_RESERVED")
-            identity.status, identity.reserved_by, identity.reserved_at = EmailIdentityStatus.AVAILABLE, None, None
+            identity.status, identity.reserved_by, identity.reserved_at = (
+                EmailIdentityStatus.AVAILABLE,
+                None,
+                None,
+            )
         elif action == "use":
             if identity.status != EmailIdentityStatus.RESERVED:
                 raise ValueError("IDENTITY_NOT_RESERVED")

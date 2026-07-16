@@ -5,6 +5,7 @@ Workflow WF-01 du plan d'implémentation.
 Mode A (principal) : Patchright + proxy 4G iproxy.online
 Mode B (fallback)  : browser-use Cloud + IP résidentielle FR
 """
+
 import asyncio
 import logging
 import re
@@ -25,7 +26,7 @@ log = logging.getLogger(__name__)
 settings = get_settings()
 
 _LBC_SIGNUP_URL = "https://www.leboncoin.fr/create_user/account"
-_EMAIL_CODE_TIMEOUT = 300   # secondes max pour validation email
+_EMAIL_CODE_TIMEOUT = 300  # secondes max pour validation email
 _BTN_RE = re.compile(r"(continuer|suivant|créer|s['']inscrire|valider|confirmer)", re.I)
 
 
@@ -57,11 +58,14 @@ async def _verify_proxy_is_fr_carrier(proxy: boundaries.ProxyInfo) -> None:
 
 async def _check_active_pool_needs_account() -> bool:
     from sqlalchemy import func, select
+
     async with get_db() as db:
         result = await db.execute(
-            select(func.count()).select_from(PlatformAccount).where(
+            select(func.count())
+            .select_from(PlatformAccount)
+            .where(
                 PlatformAccount.deleted_at.is_(None),
-                PlatformAccount.status.in_([AccountStatus.ACTIF, AccountStatus.EN_CHAUFFE])
+                PlatformAccount.status.in_([AccountStatus.ACTIF, AccountStatus.EN_CHAUFFE]),
             )
         )
         count = result.scalar() or 0
@@ -190,6 +194,7 @@ async def _create_with_patchright(
 
             # Mot de passe (requis sur certaines versions du formulaire LBC)
             import secrets as _s
+
             tmp_pwd = _s.token_urlsafe(12) + "!1A"  # satisfait les règles de complexité
             pwd_field = page.get_by_label(re.compile(r"mot de passe", re.I))
             if await pwd_field.count() > 0:
@@ -309,9 +314,7 @@ async def _create_with_browser_use(
             workflow_id, "profile_created", account_id=account_id, profile_id=profile_id
         )
         # Créer la session browser-use (proxy FR résidentiel inclus côté cloud)
-        r = await client.post(
-            f"{_base}/sessions", headers=_headers, json={"profileId": profile_id}
-        )
+        r = await client.post(f"{_base}/sessions", headers=_headers, json={"profileId": profile_id})
         r.raise_for_status()
         session_id = r.json()["id"]
         log.info("browser-use Cloud : session créée=%s", session_id)
@@ -327,14 +330,18 @@ async def _create_with_browser_use(
         task_id: str | None = None
         try:
             # Tâche 1 — formulaire email
-            r = await client.post(f"{_base}/tasks", headers=_headers, json={
-                "sessionId": session_id,
-                "task": (
-                    f"Ouvre {_LBC_SIGNUP_URL}. "
-                    f"Remplis le champ email avec '{email}' et clique Continuer. "
-                    "Arrête-toi dès que la page de vérification téléphone s'affiche."
-                ),
-            })
+            r = await client.post(
+                f"{_base}/tasks",
+                headers=_headers,
+                json={
+                    "sessionId": session_id,
+                    "task": (
+                        f"Ouvre {_LBC_SIGNUP_URL}. "
+                        f"Remplis le champ email avec '{email}' et clique Continuer. "
+                        "Arrête-toi dès que la page de vérification téléphone s'affiche."
+                    ),
+                },
+            )
             r.raise_for_status()
             task_id = r.json()["id"]
             await _creation_checkpoint(
@@ -343,9 +350,7 @@ async def _create_with_browser_use(
                 provider_task_id=task_id,
                 session_id=session_id,
             )
-            await _wait_for_task(
-                client, task_id, stage="email_task_running", session_id=session_id
-            )
+            await _wait_for_task(client, task_id, stage="email_task_running", session_id=session_id)
             await _creation_checkpoint(
                 workflow_id, "email_task_verified", provider_task_id=task_id, session_id=session_id
             )
@@ -357,13 +362,17 @@ async def _create_with_browser_use(
                 await boundaries.cancel_number(otp_order_id)
                 raise AccountCreationError(f"Timeout OTP SMS order_id={otp_order_id}")
 
-            r = await client.post(f"{_base}/tasks", headers=_headers, json={
-                "sessionId": session_id,
-                "task": (
-                    f"Saisis le code SMS '{sms_code}' dans le champ de vérification "
-                    "et clique Valider. Arrête-toi à la page suivante."
-                ),
-            })
+            r = await client.post(
+                f"{_base}/tasks",
+                headers=_headers,
+                json={
+                    "sessionId": session_id,
+                    "task": (
+                        f"Saisis le code SMS '{sms_code}' dans le champ de vérification "
+                        "et clique Valider. Arrête-toi à la page suivante."
+                    ),
+                },
+            )
             r.raise_for_status()
             task_id = r.json()["id"]
             await _creation_checkpoint(
@@ -372,9 +381,7 @@ async def _create_with_browser_use(
                 provider_task_id=task_id,
                 session_id=session_id,
             )
-            await _wait_for_task(
-                client, task_id, stage="otp_task_running", session_id=session_id
-            )
+            await _wait_for_task(client, task_id, stage="otp_task_running", session_id=session_id)
             await _creation_checkpoint(
                 workflow_id, "otp_verified", provider_task_id=task_id, session_id=session_id
             )
@@ -383,13 +390,17 @@ async def _create_with_browser_use(
             # Tâche 3 — code email (si présent dans le flux)
             email_code = await _poll_email_code_redis(email, timeout=_EMAIL_CODE_TIMEOUT)
             if email_code:
-                r = await client.post(f"{_base}/tasks", headers=_headers, json={
-                    "sessionId": session_id,
-                    "task": (
-                        f"Saisis le code de vérification email '{email_code}' "
-                        "et clique Valider pour finaliser la création du compte."
-                    ),
-                })
+                r = await client.post(
+                    f"{_base}/tasks",
+                    headers=_headers,
+                    json={
+                        "sessionId": session_id,
+                        "task": (
+                            f"Saisis le code de vérification email '{email_code}' "
+                            "et clique Valider pour finaliser la création du compte."
+                        ),
+                    },
+                )
                 r.raise_for_status()
                 task_id = r.json()["id"]
                 await _creation_checkpoint(
@@ -406,9 +417,7 @@ async def _create_with_browser_use(
                 )
                 log.info("browser-use Cloud : tâche 3 (code email) terminée")
 
-            await _creation_checkpoint(
-                workflow_id, "account_verified", session_id=session_id
-            )
+            await _creation_checkpoint(workflow_id, "account_verified", session_id=session_id)
 
         finally:
             await _stop_task(client, task_id)
@@ -420,7 +429,9 @@ async def _create_with_browser_use(
                 )
                 response.raise_for_status()
             except Exception as exc:  # cleanup must not hide the original failure
-                log.warning("browser-use session cleanup impossible session_id=%s: %s", session_id, exc)
+                log.warning(
+                    "browser-use session cleanup impossible session_id=%s: %s", session_id, exc
+                )
         return profile_id, session_id
 
 
@@ -435,9 +446,7 @@ async def _creation_checkpoint(workflow_id: str | None, stage: str, **details) -
     )
 
 
-async def _persist_browser_use_binding(
-    account_id: str, profile_id: str, session_id: str
-) -> None:
+async def _persist_browser_use_binding(account_id: str, profile_id: str, session_id: str) -> None:
     """Make provider resources visible even if a later signup step fails."""
     async with get_db() as db:
         account = await db.get(PlatformAccount, uuid.UUID(account_id))
@@ -448,9 +457,7 @@ async def _persist_browser_use_binding(
         await db.flush()
 
 
-async def create_lbc_account(
-    mode: str = "A", workflow_id: str | None = None
-) -> CreationResult:
+async def create_lbc_account(mode: str = "A", workflow_id: str | None = None) -> CreationResult:
     """
     Crée un nouveau compte LBC.
 
@@ -470,7 +477,7 @@ async def create_lbc_account(
         rotated = await boundaries.rotate_4g_ip()
         if not rotated:
             raise ProxyUnavailableError("rotate_4g_ip() a échoué — iproxy.online indisponible.")
-        await asyncio.sleep(35)   # délai post-rotation (règle : 30–60s)
+        await asyncio.sleep(35)  # délai post-rotation (règle : 30–60s)
         proxy = await boundaries.get_4g_proxy()
         await _verify_proxy_is_fr_carrier(proxy)
         log.info("Proxy 4G : %s | ASN: %s", proxy.url.split("@")[-1], proxy.asn_org)

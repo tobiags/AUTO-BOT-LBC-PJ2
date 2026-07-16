@@ -53,12 +53,17 @@ class WorkspaceSetting(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True, nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
     )
     key: Mapped[str] = mapped_column(String(80), nullable=False)
     value: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     updated_by: Mapped[str | None] = mapped_column(String(100))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class User(Base):
@@ -217,7 +222,10 @@ class EmailMessage(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     identity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("email_identities.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("email_identities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     event_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     sender: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -225,9 +233,13 @@ class EmailMessage(Base):
     subject: Mapped[str] = mapped_column(String(998), default="", nullable=False)
     body_plain: Mapped[str] = mapped_column(Text, default="", nullable=False)
     body_html: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
 
 
 class Listing(Base):
@@ -515,14 +527,10 @@ class ApifyAccount(Base):
     __tablename__ = "apify_accounts"
     __table_args__ = (
         UniqueConstraint("workspace_id", "label", name="uq_apify_account_label"),
-        UniqueConstraint(
-            "workspace_id", "token_fingerprint", name="uq_apify_account_token"
-        ),
+        UniqueConstraint("workspace_id", "token_fingerprint", name="uq_apify_account_token"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -536,14 +544,10 @@ class ApifyAccount(Base):
     token_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     webhook_secret_ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     webhook_secret_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), default="active", nullable=False, index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False, index=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(500))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -560,9 +564,7 @@ class ApifyActorBinding(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -584,26 +586,16 @@ class ApifyActorBinding(Base):
     resource_type: Mapped[str] = mapped_column(String(10), nullable=False)
     resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    input_ciphertext: Mapped[bytes] = mapped_column(
-        LargeBinary, default=b"", nullable=False
-    )
+    input_ciphertext: Mapped[bytes] = mapped_column(LargeBinary, default=b"", nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    schedule_authority: Mapped[str] = mapped_column(
-        String(10), default="internal", nullable=False
-    )
+    schedule_authority: Mapped[str] = mapped_column(String(10), default="internal", nullable=False)
     schedule_minutes: Mapped[int | None] = mapped_column(Integer)
-    next_run_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), index=True
-    )
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     webhook_id: Mapped[str | None] = mapped_column(String(120))
     schema_fingerprint: Mapped[str | None] = mapped_column(String(64))
-    active_profile_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), index=True
-    )
+    active_profile_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     suspended_reason: Mapped[str | None] = mapped_column(String(120))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -611,13 +603,9 @@ class ApifyActorBinding(Base):
 
 class ApifyRun(Base):
     __tablename__ = "apify_runs"
-    __table_args__ = (
-        UniqueConstraint("account_id", "apify_run_id", name="uq_apify_remote_run"),
-    )
+    __table_args__ = (UniqueConstraint("account_id", "apify_run_id", name="uq_apify_remote_run"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -637,9 +625,7 @@ class ApifyRun(Base):
         nullable=False,
     )
     apify_run_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(
-        String(30), default="READY", nullable=False, index=True
-    )
+    status: Mapped[str] = mapped_column(String(30), default="READY", nullable=False, index=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     default_dataset_id: Mapped[str | None] = mapped_column(String(120), index=True)
@@ -650,9 +636,7 @@ class ApifyRun(Base):
     items_exception: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_error: Mapped[str | None] = mapped_column(Text)
     imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -670,9 +654,7 @@ class ApifyItem(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -696,9 +678,7 @@ class ApifyItem(Base):
     raw_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     normalized_payload: Mapped[dict | None] = mapped_column(JSON)
     confidence: Mapped[float | None] = mapped_column(Float)
-    status: Mapped[str] = mapped_column(
-        String(30), default="pending", nullable=False, index=True
-    )
+    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False, index=True)
     contact_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), index=True
     )
@@ -712,20 +692,14 @@ class ApifyItem(Base):
     )
     error: Mapped[str | None] = mapped_column(Text)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ApifyNormalizationProfile(Base):
     __tablename__ = "apify_normalization_profiles"
-    __table_args__ = (
-        UniqueConstraint("binding_id", "version", name="uq_apify_profile_version"),
-    )
+    __table_args__ = (UniqueConstraint("binding_id", "version", name="uq_apify_profile_version"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -745,12 +719,8 @@ class ApifyNormalizationProfile(Base):
     priorities: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     thresholds: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     metrics: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), default="candidate", nullable=False, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    status: Mapped[str] = mapped_column(String(20), default="candidate", nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -758,9 +728,7 @@ class ApifyNormalizationProfile(Base):
 class ApifyNormalizationExperiment(Base):
     __tablename__ = "apify_normalization_experiments"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -787,18 +755,14 @@ class ApifyNormalizationExperiment(Base):
     candidate_metrics: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     decision: Mapped[str | None] = mapped_column(String(20), index=True)
     reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ApifyException(Base):
     __tablename__ = "apify_exceptions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -819,14 +783,10 @@ class ApifyException(Base):
     )
     category: Mapped[str] = mapped_column(String(80), nullable=False)
     evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), default="open", nullable=False, index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False, index=True)
     resolution: Mapped[str | None] = mapped_column(Text)
     resolved_by: Mapped[str | None] = mapped_column(String(120))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
