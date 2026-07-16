@@ -63,6 +63,10 @@ async def test_mailgun_response_never_exposes_otp(client):
     with (
         patch("app.security.get_settings", return_value=settings),
         patch("app.webhooks.email.get_db") as get_db,
+        patch(
+            "app.webhooks.email.store_inbound_message",
+            new_callable=AsyncMock,
+        ),
     ):
         db = AsyncMock()
         db.execute.side_effect = [

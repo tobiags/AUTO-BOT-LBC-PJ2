@@ -86,7 +86,7 @@ def mock_send_sms():
 
 @pytest.fixture
 def mock_buy_number():
-    with patch("app.boundaries.buy_number", new_callable=AsyncMock) as m:
+    with patch("app.boundaries.buy_number_with_fallback", new_callable=AsyncMock) as m:
         m.return_value = ActivationOrder(
             id="order_test_001",
             phone="+33712345678",
