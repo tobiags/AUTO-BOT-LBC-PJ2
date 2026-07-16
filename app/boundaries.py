@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from anthropic import AsyncAnthropic
 from apify_client import ApifyClientAsync
 
 from app.config import get_settings
@@ -419,3 +420,36 @@ async def apify_delete_webhook(token: str, webhook_id: str) -> None:
         await client.webhook(webhook_id).delete()
     finally:
         await client.close()
+
+
+async def infer_apify_lead_fields(
+    payload: dict, candidate_paths: list[str]
+) -> dict:
+    """Return JSON-only field paths; never initiate an external action."""
+    client = AsyncAnthropic()
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=400,
+        temperature=0,
+        system=(
+            "Return one JSON object whose values are paths from candidate_paths. "
+            "Allowed keys: phone,title,url,description,price,mileage,location."
+        ),
+        messages=[
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {"candidate_paths": candidate_paths, "payload": payload},
+                    ensure_ascii=False,
+                )[:12000],
+            }
+        ],
+    )
+    result = json.loads(response.content[0].text)
+    if not isinstance(result, dict):
+        return {}
+    return {
+        key: path
+        for key, path in result.items()
+        if isinstance(path, str) and path in candidate_paths
+    }
