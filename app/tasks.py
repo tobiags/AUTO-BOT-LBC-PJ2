@@ -86,6 +86,23 @@ def _run(coro):
     return asyncio.run(run_and_dispose())
 
 
+@celery_app.task(name="app.tasks.import_apify_run_task", bind=True, max_retries=3)
+def import_apify_run_task(self, account_id: str, remote_run_id: str):
+    from uuid import UUID
+
+    import httpx
+
+    from app.services.apify_ingestion import import_remote_run
+
+    try:
+        return _run(import_remote_run(UUID(account_id), remote_run_id))
+    except (httpx.TimeoutException, httpx.NetworkError) as exc:
+        raise self.retry(
+            exc=exc,
+            countdown=60 * (2**self.request.retries),
+        ) from exc
+
+
 @celery_app.task(name="app.tasks.create_account_task", bind=True, max_retries=2)
 def create_account_task(self, mode: str = "B", workflow_id: str | None = None):
     """WF-01 — création d'un nouveau compte LBC."""

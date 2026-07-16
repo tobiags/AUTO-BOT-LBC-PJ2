@@ -122,7 +122,7 @@ async def existing_apify_account(workspace_record):
     settings = get_settings()
     codec = ApifySecretCodec(settings.apify_token_encryption_key, settings.secret_key)
     token = f"apify_api_{uuid.uuid4()}"
-    webhook_secret = f"webhook_{uuid.uuid4()}"
+    webhook_secret = "test-apify-webhook-secret"
     async with get_db() as db:
         row = ApifyAccount(
             workspace_id=workspace_record.id,
