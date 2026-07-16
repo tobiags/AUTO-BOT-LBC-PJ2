@@ -22,6 +22,13 @@ class AccountStatus(StrEnum):
     QUARANTAINE = "QUARANTAINE"
 
 
+class EmailIdentityStatus(StrEnum):
+    AVAILABLE = "available"
+    RESERVED = "reserved"
+    USED = "used"
+    DISABLED = "disabled"
+
+
 class DatadomeTrustLevel(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
@@ -373,6 +380,28 @@ class WorkspaceSettingOut(WorkspaceSettingUpsert):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EmailIdentityOut(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    email: str
+    status: EmailIdentityStatus
+    reserved_by: str | None = None
+    reserved_at: datetime | None = None
+    used_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EmailIdentityBatchRequest(BaseModel):
+    count: Literal[10, 15, 20]
+
+
+class EmailIdentityCommandRequest(BaseModel):
+    action: Literal["reserve", "release", "use", "disable"]
 
 
 class AuditEventOut(BaseModel):

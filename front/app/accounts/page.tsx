@@ -1,7 +1,8 @@
 import { Badge, Box, Flex, Heading, Table, Text } from '@radix-ui/themes'
-import { api, type PlatformAccount } from '@/lib/api'
+import { api, type EmailIdentity, type PlatformAccount } from '@/lib/api'
 import { AccountControls, AccountCreateControl } from '@/components/AccountControls'
 import { AccountIdentifier } from '@/components/AccountIdentifier'
+import { EmailIdentityBatchControl, EmailIdentityControl } from '@/components/EmailIdentityControls'
 
 export const revalidate = 30
 
@@ -25,11 +26,13 @@ const TRUST_COLOR: Record<string, 'red' | 'orange' | 'green'> = {
 
 export default async function AccountsPage() {
   let accounts: PlatformAccount[] = []
+  let identities: EmailIdentity[] = []
   try {
     accounts = await api.accounts.list()
   } catch {
     // API indisponible
   }
+  try { identities = await api.emailIdentities.list() } catch { /* API indisponible */ }
 
   const actifCount = accounts.filter(
     (a) => a.status === 'ACTIF' || a.status === 'EN_CHAUFFE',
@@ -49,6 +52,20 @@ export default async function AccountsPage() {
           <AccountCreateControl />
         </Flex>
       </Flex>
+
+      <Flex justify="between" align="center" mb="3" mt="6">
+        <Box>
+          <Heading size="5">Identites e-mail</Heading>
+          <Text size="2" color="gray">{identities.filter((identity) => identity.status === 'available').length} disponibles sur {identities.length}</Text>
+        </Box>
+        <EmailIdentityBatchControl />
+      </Flex>
+      <Table.Root variant="surface" mb="6">
+        <Table.Header><Table.Row><Table.ColumnHeaderCell>Nom</Table.ColumnHeaderCell><Table.ColumnHeaderCell>E-mail</Table.ColumnHeaderCell><Table.ColumnHeaderCell>Etat</Table.ColumnHeaderCell><Table.ColumnHeaderCell>Cree le</Table.ColumnHeaderCell><Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell></Table.Row></Table.Header>
+        <Table.Body>
+          {identities.length === 0 ? <Table.Row><Table.Cell colSpan={5}><Text color="gray">Aucune identite e-mail generee</Text></Table.Cell></Table.Row> : identities.map((identity) => <Table.Row key={identity.id}><Table.Cell>{identity.first_name} {identity.last_name}</Table.Cell><Table.Cell><AccountIdentifier label="E-mail" value={identity.email} /></Table.Cell><Table.Cell><Badge color={identity.status === 'available' ? 'green' : identity.status === 'reserved' ? 'orange' : 'gray'}>{identity.status}</Badge></Table.Cell><Table.Cell><Text size="1">{new Date(identity.created_at).toLocaleDateString('fr-FR')}</Text></Table.Cell><Table.Cell><EmailIdentityControl id={identity.id} status={identity.status} /></Table.Cell></Table.Row>)}
+        </Table.Body>
+      </Table.Root>
 
       <Table.Root variant="surface">
         <Table.Header>

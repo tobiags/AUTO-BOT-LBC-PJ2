@@ -66,6 +66,18 @@ export type PlatformAccount = {
   browser_use_session_id: string | null
 }
 
+export type EmailIdentity = {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  status: 'available' | 'reserved' | 'used' | 'disabled'
+  reserved_by: string | null
+  reserved_at: string | null
+  used_at: string | null
+  created_at: string
+}
+
 export type Campaign = {
   id: string
   type: string
@@ -215,6 +227,9 @@ export const api = {
   },
   accounts: {
     list: () => apiFetch<PlatformAccount[]>('/accounts'),
+  },
+  emailIdentities: {
+    list: () => apiFetch<EmailIdentity[]>('/api/v1/email-identities'),
   },
   dashboard: {
     stats: () => apiFetch<DashboardStats>('/api/v1/dashboard'),

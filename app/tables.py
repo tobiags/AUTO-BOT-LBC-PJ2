@@ -29,6 +29,7 @@ from app.models import (
     CampaignStatus,
     ConnectorState,
     DatadomeTrustLevel,
+    EmailIdentityStatus,
     LbcMessageDirection,
     LbcMessageStatus,
     ListingSource,
@@ -183,6 +184,28 @@ class PlatformAccount(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     derniere_action: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EmailIdentity(Base):
+    __tablename__ = "email_identities"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    first_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(
+        Enum(EmailIdentityStatus, name="email_identity_status"),
+        default=EmailIdentityStatus.AVAILABLE,
+        nullable=False,
+        index=True,
+    )
+    reserved_by: Mapped[str | None] = mapped_column(String(120))
+    reserved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Listing(Base):
