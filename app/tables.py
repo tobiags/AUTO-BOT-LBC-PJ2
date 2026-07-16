@@ -194,7 +194,11 @@ class EmailIdentity(Base):
     last_name: Mapped[str] = mapped_column(String(80), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(
-        Enum(EmailIdentityStatus, name="email_identity_status"),
+        Enum(
+            EmailIdentityStatus,
+            name="email_identity_status",
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
         default=EmailIdentityStatus.AVAILABLE,
         nullable=False,
         index=True,
