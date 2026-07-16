@@ -78,6 +78,26 @@ export type EmailIdentity = {
   created_at: string
 }
 
+export type EmailMessageListItem = {
+  id: string
+  identity_id: string
+  sender: string
+  recipient: string
+  subject: string
+  received_at: string
+  read_at: string | null
+}
+
+export type EmailMessage = EmailMessageListItem & {
+  body_plain: string
+  body_html: string
+}
+
+export type EmailMessagePage = {
+  items: EmailMessageListItem[]
+  total: number
+}
+
 export type Campaign = {
   id: string
   type: string
@@ -230,6 +250,16 @@ export const api = {
   },
   emailIdentities: {
     list: () => apiFetch<EmailIdentity[]>('/api/v1/email-identities'),
+  },
+  emailMessages: {
+    list: (params?: { identity_id?: string; query?: string; unread_only?: boolean }) => {
+      const qs = new URLSearchParams()
+      if (params?.identity_id) qs.set('identity_id', params.identity_id)
+      if (params?.query) qs.set('query', params.query)
+      if (params?.unread_only) qs.set('unread_only', 'true')
+      return apiFetch<EmailMessagePage>(`/api/v1/email-messages?${qs}`)
+    },
+    get: (id: string) => apiFetch<EmailMessage>(`/api/v1/email-messages/${id}`),
   },
   dashboard: {
     stats: () => apiFetch<DashboardStats>('/api/v1/dashboard'),

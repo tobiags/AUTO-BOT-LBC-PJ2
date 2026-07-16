@@ -44,6 +44,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: '/sectors', label: 'Secteurs', compact: 'Secteurs', icon: Gauge },
       { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes', icon: Boxes },
+      { href: '/inbox', label: 'Boite de reception', compact: 'Inbox', icon: MessageSquare },
       { href: '/users', label: 'Utilisateurs', compact: 'Utilisateurs', icon: Users },
       { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse', icon: BarChart3 },
     ],

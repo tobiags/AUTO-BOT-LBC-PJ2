@@ -404,6 +404,28 @@ class EmailIdentityCommandRequest(BaseModel):
     action: Literal["reserve", "release", "use", "disable"]
 
 
+class EmailMessageListItemOut(BaseModel):
+    id: UUID
+    identity_id: UUID
+    sender: str
+    recipient: str
+    subject: str
+    received_at: datetime
+    read_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class EmailMessageOut(EmailMessageListItemOut):
+    body_plain: str
+    body_html: str
+
+
+class EmailMessagePageOut(BaseModel):
+    items: list[EmailMessageListItemOut]
+    total: int
+
+
 class AuditEventOut(BaseModel):
     id: UUID
     actor: str

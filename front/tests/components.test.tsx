@@ -8,6 +8,7 @@ import { CampaignCreateControl } from '@/components/CampaignCreateControl'
 import { AccountIdentifier } from '@/components/AccountIdentifier'
 import { AccountControls, AccountCreateControl } from '@/components/AccountControls'
 import { PriceScoreBadge } from '@/components/PriceScoreBadge'
+import { EmailMessageControls } from '@/components/EmailMessageControls'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -190,5 +191,17 @@ describe('AccountCreateControl', () => {
     await user.click(screen.getByRole('button', { name: /creer un compte/i }))
 
     expect(await screen.findByText(/reservee a l administrateur/i)).toBeTruthy()
+  })
+})
+
+describe('EmailMessageControls', () => {
+  it('marque un message comme lu', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
+    render(<Wrap><EmailMessageControls messageId="msg-001" unread /></Wrap>)
+
+    await user.click(screen.getByRole('button', { name: /marquer comme lu/i }))
+
+    expect(await screen.findByText(/message marque comme lu/i)).toBeTruthy()
   })
 })

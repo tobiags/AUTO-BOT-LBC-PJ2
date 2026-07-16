@@ -17,6 +17,7 @@ from app.api import (
     campaigns,
     contacts,
     dashboard,
+    email_inbox,
     email_identities,
     health,
     listings,
@@ -80,6 +81,7 @@ app.include_router(funds.router, dependencies=[Depends(require_webhook_secret)])
 app.include_router(dashboard.router, dependencies=protected)
 app.include_router(operations.router)
 app.include_router(email_identities.router, dependencies=protected)
+app.include_router(email_inbox.router, dependencies=protected)
 app.include_router(workspace.router, dependencies=protected)
 app.include_router(contacts.router, dependencies=protected)
 

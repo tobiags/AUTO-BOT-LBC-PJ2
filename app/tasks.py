@@ -61,6 +61,10 @@ celery_app.conf.update(
             "task": "app.tasks.replay_sms_events_task",
             "schedule": 60.0,
         },
+        "purge-expired-email-messages": {
+            "task": "app.tasks.purge_expired_email_messages_task",
+            "schedule": 86400.0,
+        },
     },
 )
 
@@ -350,6 +354,13 @@ def replay_sms_events_task():
     from app.services.sms_inbox import replay_pending_sms_events
 
     return _run(replay_pending_sms_events())
+
+
+@celery_app.task(name="app.tasks.purge_expired_email_messages_task")
+def purge_expired_email_messages_task():
+    from app.services.email_inbox import purge_expired_email_messages
+
+    return _run(purge_expired_email_messages())
 
 
 @celery_app.task(name="app.tasks.inspect_account_task")

@@ -212,6 +212,24 @@ class EmailIdentity(Base):
     )
 
 
+class EmailMessage(Base):
+    __tablename__ = "email_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    identity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_identities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    sender: Mapped[str] = mapped_column(String(255), nullable=False)
+    recipient: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(998), default="", nullable=False)
+    body_plain: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    body_html: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+
 class Listing(Base):
     """Annonces collectees sur LBC et La Centrale."""
 

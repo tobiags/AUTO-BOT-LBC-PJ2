@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import get_db
 from app.security import verify_mailgun_signature
+from app.services.email_inbox import store_inbound_message
 from app.tables import PlatformAccount, WebhookEvent
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -27,6 +28,7 @@ async def receive_email(
     sender: str = Form(...),
     subject: str = Form(""),
     body_plain: str = Form("", alias="body-plain"),
+    body_html: str = Form("", alias="body-html"),
     timestamp: str = Form(...),
     token: str = Form(...),
     signature: str = Form(...),
@@ -45,6 +47,15 @@ async def receive_email(
         )
         if result.scalar() is None:
             return {"ok": True, "duplicate": True}
+
+    await store_inbound_message(
+        event_key=event_key,
+        recipient=recipient,
+        sender=sender,
+        subject=subject,
+        body_plain=body_plain,
+        body_html=body_html,
+    )
 
     code = extract_verification_code(body_plain)
     if not code:
