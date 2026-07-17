@@ -16,6 +16,7 @@ import {
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Phone,
   Search,
   Settings2,
   ShieldCheck,
@@ -44,6 +45,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: '/sectors', label: 'Secteurs', compact: 'Secteurs', icon: Gauge },
       { href: '/accounts', label: 'Comptes LBC', compact: 'Comptes', icon: Boxes },
+      { href: '/phones', label: 'Téléphonie & SMS', compact: 'Téléphonie', icon: Phone },
       { href: '/inbox', label: 'Boite de reception', compact: 'Inbox', icon: MessageSquare },
       { href: '/users', label: 'Utilisateurs', compact: 'Utilisateurs', icon: Users },
       { href: '/analyzer', label: 'Analyste prix', compact: 'Analyse', icon: BarChart3 },

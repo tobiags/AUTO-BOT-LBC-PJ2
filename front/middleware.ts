@@ -41,8 +41,10 @@ export const config = {
     '/browser-use/:path*',
     '/lab/:path*',
     '/apify/:path*',
+    '/phones/:path*',
     '/settings/:path*',
     '/api/operations/:path*',
     '/api/apify/:path*',
+    '/api/phone-operations/:path*',
   ],
 }
