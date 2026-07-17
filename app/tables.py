@@ -217,7 +217,9 @@ class PhoneActivation(Base):
         index=True,
     )
     workflow_id: Mapped[str | None] = mapped_column(String(160), index=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     received_sms: Mapped[str | None] = mapped_column(Text)
