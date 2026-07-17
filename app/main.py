@@ -22,6 +22,7 @@ from app.api import (
     health,
     listings,
     operations,
+    phone_operations,
     workspace,
 )
 from app.api import (
@@ -89,6 +90,7 @@ app.include_router(email_inbox.router, dependencies=protected)
 app.include_router(workspace.router, dependencies=protected)
 app.include_router(contacts.router, dependencies=protected)
 app.include_router(apify_api.router, dependencies=protected)
+app.include_router(phone_operations.router, dependencies=protected)
 app.include_router(apify_webhook.router)
 
 

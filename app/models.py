@@ -378,6 +378,48 @@ class PhoneActivationOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PhoneActivationCreate(BaseModel):
+    country: str | None = Field(default=None, min_length=2, max_length=80)
+    service: str = Field(default="leboncoin", min_length=2, max_length=80)
+
+
+class PhoneActivationPageOut(BaseModel):
+    items: list[PhoneActivationOut]
+    total: int
+
+
+class PhoneOperationsSummaryOut(BaseModel):
+    active_numbers: int
+    received_numbers: int
+    expiring_soon: int
+    sms_sent: int
+    sms_received: int
+    sms_failed: int
+
+
+class SmsMessageOut(BaseModel):
+    id: UUID
+    direction: str
+    phone_e164: str
+    sim_id: str
+    body: str
+    status: str
+    project: str
+    cost_eur: float | None = None
+    campaign_id: UUID | None = None
+    contact_id: UUID | None = None
+    listing_id: UUID | None = None
+    sequence_step: int | None = None
+    variant_key: str | None = None
+    classification: str | None = None
+    occurred_at: datetime
+
+
+class SmsMessagePageOut(BaseModel):
+    items: list[SmsMessageOut]
+    total: int
+
+
 class UserCreate(BaseModel):
     email: str = Field(min_length=3, max_length=255)
     display_name: str = Field(min_length=1, max_length=120)

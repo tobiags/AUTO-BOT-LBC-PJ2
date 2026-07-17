@@ -4,7 +4,7 @@ import re
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from app import boundaries
 from app.db import get_db
@@ -13,7 +13,7 @@ from app.models import (
     PhoneActivationOrigin,
     PhoneActivationStatus,
 )
-from app.tables import PhoneActivation
+from app.tables import PhoneActivation, SmsLog
 
 ACTIVE_STATUSES = {
     PhoneActivationStatus.RESERVED.value,
@@ -124,7 +124,10 @@ async def refresh_phone_activation(activation_id: uuid.UUID) -> PhoneActivation:
         activation = await db.get(PhoneActivation, activation_id)
         if activation is None:
             raise LookupError("phone_activation_not_found")
-        if activation.status in TERMINAL_STATUSES or activation.status == PhoneActivationStatus.RECEIVED:
+        if (
+            activation.status in TERMINAL_STATUSES
+            or activation.status == PhoneActivationStatus.RECEIVED
+        ):
             return activation
         if activation.expires_at <= _utcnow():
             activation.status = PhoneActivationStatus.EXPIRED.value
@@ -245,3 +248,98 @@ async def reconcile_phone_activations(limit: int = 100) -> dict[str, int]:
         if activation.status == PhoneActivationStatus.RECEIVED:
             received += 1
     return {"checked": len(activations), "expired": expired, "received": received}
+
+
+async def list_phone_activations(
+    *, status: str | None = None, query: str | None = None, limit: int = 50, offset: int = 0
+) -> tuple[list[PhoneActivation], int]:
+    filters = []
+    if status:
+        filters.append(PhoneActivation.status == status)
+    if query:
+        pattern = f"%{query.strip()}%"
+        filters.append(
+            or_(
+                PhoneActivation.phone_e164.ilike(pattern),
+                PhoneActivation.provider_order_id.ilike(pattern),
+                PhoneActivation.country.ilike(pattern),
+            )
+        )
+    async with get_db() as db:
+        total = (
+            await db.execute(select(func.count()).select_from(PhoneActivation).where(*filters))
+        ).scalar_one()
+        rows = (
+            await db.scalars(
+                select(PhoneActivation)
+                .where(*filters)
+                .order_by(PhoneActivation.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+        return list(rows), total
+
+
+async def list_sms_messages(
+    *,
+    direction: str | None = None,
+    status: str | None = None,
+    query: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[SmsLog], int]:
+    filters = []
+    if direction:
+        filters.append(SmsLog.direction == direction)
+    if status:
+        filters.append(SmsLog.status == status)
+    if query:
+        pattern = f"%{query.strip()}%"
+        filters.append(or_(SmsLog.to_phone.ilike(pattern), SmsLog.body.ilike(pattern)))
+    async with get_db() as db:
+        total = (
+            await db.execute(select(func.count()).select_from(SmsLog).where(*filters))
+        ).scalar_one()
+        rows = (
+            await db.scalars(
+                select(SmsLog)
+                .where(*filters)
+                .order_by(SmsLog.sent_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+        return list(rows), total
+
+
+async def phone_operations_summary() -> dict[str, int]:
+    now = _utcnow()
+    soon = now + timedelta(minutes=5)
+    async with get_db() as db:
+        async def count_phone(*filters) -> int:
+            return (
+                await db.execute(
+                    select(func.count()).select_from(PhoneActivation).where(*filters)
+                )
+            ).scalar_one()
+
+        async def count_sms(*filters) -> int:
+            return (
+                await db.execute(select(func.count()).select_from(SmsLog).where(*filters))
+            ).scalar_one()
+
+        return {
+            "active_numbers": await count_phone(PhoneActivation.status.in_(ACTIVE_STATUSES)),
+            "received_numbers": await count_phone(
+                PhoneActivation.status == PhoneActivationStatus.RECEIVED.value
+            ),
+            "expiring_soon": await count_phone(
+                PhoneActivation.status.in_(ACTIVE_STATUSES),
+                PhoneActivation.expires_at > now,
+                PhoneActivation.expires_at <= soon,
+            ),
+            "sms_sent": await count_sms(SmsLog.direction == "outbound"),
+            "sms_received": await count_sms(SmsLog.direction == "inbound"),
+            "sms_failed": await count_sms(SmsLog.status == "failed"),
+        }
