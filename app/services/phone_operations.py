@@ -131,11 +131,13 @@ async def refresh_phone_activation(activation_id: uuid.UUID) -> PhoneActivation:
             return activation
         if activation.expires_at <= _utcnow():
             activation.status = PhoneActivationStatus.EXPIRED.value
+            activation.updated_at = _utcnow()
             return activation
         try:
             payload = await boundaries.get_sms_activation(activation.provider_order_id)
         except Exception as exc:
             activation.last_error = _sanitize_error(exc)
+            activation.updated_at = _utcnow()
             return activation
         provider_status = str(payload.get("status") or "").upper()
         text = _sms_text(payload)
@@ -151,6 +153,7 @@ async def refresh_phone_activation(activation_id: uuid.UUID) -> PhoneActivation:
             activation.status = PhoneActivationStatus.EXPIRED.value
         elif provider_status in {"REFUNDED"}:
             activation.status = PhoneActivationStatus.REFUNDED.value
+        activation.updated_at = _utcnow()
         return activation
 
 
@@ -165,12 +168,14 @@ async def cancel_phone_activation(activation_id: uuid.UUID) -> PhoneActivation:
             cancelled = await boundaries.cancel_number(activation.provider_order_id)
         except Exception as exc:
             activation.last_error = _sanitize_error(exc)
+            activation.updated_at = _utcnow()
             return activation
         if cancelled:
             activation.status = PhoneActivationStatus.CANCELLED.value
             activation.last_error = None
         else:
             activation.last_error = "provider_cancellation_rejected"
+        activation.updated_at = _utcnow()
         return activation
 
 

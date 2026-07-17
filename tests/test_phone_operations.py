@@ -54,6 +54,47 @@ def test_phone_activation_out_exposes_provider_lifecycle() -> None:
     assert output.expires_at == expires_at
 
 
+async def test_cancel_response_keeps_updated_at_loaded_after_session_closes() -> None:
+    from app.models import PhoneActivationOut
+    from app.services import phone_operations
+    from app.tables import PhoneActivation
+
+    activation = PhoneActivation(
+        id=uuid4(),
+        provider="smsapp",
+        provider_order_id="order-detached-regression",
+        phone_e164="+33612345678",
+        country="france",
+        service="leboncoin",
+        cost=0.28,
+        status=PhoneActivationStatus.WAITING.value,
+        origin="manual",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+        created_at=datetime.now(UTC),
+        updated_at=None,
+    )
+
+    class FakeDatabase:
+        async def get(self, _model, _activation_id):
+            return activation
+
+    class FakeDatabaseContext:
+        async def __aenter__(self):
+            return FakeDatabase()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    with (
+        patch.object(phone_operations, "get_db", return_value=FakeDatabaseContext()),
+        patch("app.boundaries.cancel_number", new_callable=AsyncMock, return_value=True),
+    ):
+        result = await phone_operations.cancel_phone_activation(activation.id)
+
+    output = PhoneActivationOut.model_validate(result)
+    assert output.updated_at is not None
+
+
 @pytest.mark.integration
 @patch("app.boundaries.buy_number_with_fallback", new_callable=AsyncMock)
 async def test_manual_reservation_is_persisted_immediately(buy_number) -> None:
@@ -118,6 +159,7 @@ async def test_cancel_updates_local_lifecycle(buy_number, cancel_number) -> None
     cancelled = await cancel_phone_activation(activation.id)
 
     assert cancelled.status == PhoneActivationStatus.CANCELLED
+    assert cancelled.updated_at is not None
     cancel_number.assert_awaited_once_with(provider_order_id)
 
 
