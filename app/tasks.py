@@ -70,6 +70,10 @@ celery_app.conf.update(
             "task": "app.tasks.replay_sms_events_task",
             "schedule": 60.0,
         },
+        "reconcile-phone-activations": {
+            "task": "app.tasks.reconcile_phone_activations_task",
+            "schedule": 15.0,
+        },
         "purge-expired-email-messages": {
             "task": "app.tasks.purge_expired_email_messages_task",
             "schedule": 86400.0,
@@ -665,6 +669,13 @@ def replay_sms_events_task():
     from app.services.sms_inbox import replay_pending_sms_events
 
     return _run(replay_pending_sms_events())
+
+
+@celery_app.task(name="app.tasks.reconcile_phone_activations_task")
+def reconcile_phone_activations_task():
+    from app.services.phone_operations import reconcile_phone_activations
+
+    return _run(reconcile_phone_activations())
 
 
 @celery_app.task(name="app.tasks.purge_expired_email_messages_task")

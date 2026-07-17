@@ -11,6 +11,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -19,8 +20,14 @@ import sentry_sdk
 from app import boundaries
 from app.config import get_settings
 from app.db import get_db
-from app.models import AccountStatus, DatadomeTrustLevel
-from app.tables import PlatformAccount
+from app.models import (
+    AccountStatus,
+    ActivationOrder,
+    DatadomeTrustLevel,
+    PhoneActivationOrigin,
+    PhoneActivationStatus,
+)
+from app.tables import PhoneActivation, PlatformAccount
 
 log = logging.getLogger(__name__)
 settings = get_settings()
@@ -44,6 +51,31 @@ class CreationResult:
     email: str
     phone: str
     mode: str  # "A" ou "B"
+
+
+def _phone_activation_for_order(
+    order: ActivationOrder,
+    platform_account_id: uuid.UUID,
+    workflow_id: str | None,
+) -> PhoneActivation:
+    expires_at = (
+        datetime.fromtimestamp(order.expires, UTC)
+        if order.expires > 0
+        else datetime.now(UTC) + timedelta(minutes=2)
+    )
+    return PhoneActivation(
+        provider="smsapp",
+        provider_order_id=order.id,
+        phone_e164=order.phone,
+        country=order.country,
+        service=order.service,
+        cost=order.cost,
+        status=PhoneActivationStatus.WAITING.value,
+        origin=PhoneActivationOrigin.AUTOMATIC.value,
+        platform_account_id=platform_account_id,
+        workflow_id=workflow_id,
+        expires_at=expires_at,
+    )
 
 
 async def _verify_proxy_is_fr_carrier(proxy: boundaries.ProxyInfo) -> None:
@@ -209,6 +241,9 @@ async def _create_with_patchright(
             if sms_code is None:
                 await boundaries.cancel_number(otp_order_id)
                 raise AccountCreationError(f"Timeout OTP SMS order_id={otp_order_id}")
+            from app.services.phone_operations import mark_phone_activation_received
+
+            await mark_phone_activation_received(otp_order_id, sms_code)
             log.info("Patchright : code OTP SMS recu")
 
             # Saisir dans le premier champ texte visible (page OTP)
@@ -361,6 +396,9 @@ async def _create_with_browser_use(
             if sms_code is None:
                 await boundaries.cancel_number(otp_order_id)
                 raise AccountCreationError(f"Timeout OTP SMS order_id={otp_order_id}")
+            from app.services.phone_operations import mark_phone_activation_received
+
+            await mark_phone_activation_received(otp_order_id, sms_code)
 
             r = await client.post(
                 f"{_base}/tasks",
@@ -493,8 +531,9 @@ async def create_lbc_account(mode: str = "A", workflow_id: str | None = None) ->
 
     # ── Persistance DB — statut EN_CHAUFFE ───────────────────────────────────────
     async with get_db() as db:
+        account_id = uuid.UUID(account_uuid)
         account = PlatformAccount(
-            id=uuid.UUID(account_uuid),
+            id=account_id,
             email=email,
             phone_otp=order.phone,
             status=AccountStatus.EN_CREATION,
@@ -502,6 +541,8 @@ async def create_lbc_account(mode: str = "A", workflow_id: str | None = None) ->
             quota_actuel=10,
             session_path=session_path,
         )
+        activation = _phone_activation_for_order(order, account_id, workflow_id)
+        db.add(activation)
         db.add(account)
         await db.flush()
     await _creation_checkpoint(
@@ -524,11 +565,30 @@ async def create_lbc_account(mode: str = "A", workflow_id: str | None = None) ->
             if isinstance(browser_state, tuple) and len(browser_state) == 2:
                 profile_id, session_id = browser_state
         await _creation_checkpoint(workflow_id, "registration_completed")
-    except Exception:
+    except Exception as exc:
+        cancelled = False
+        try:
+            cancelled = await boundaries.cancel_number(order.id)
+        except Exception:
+            log.warning("Annulation OTP impossible pour %s", order.id, exc_info=True)
         async with get_db() as db:
             failed_account = await db.get(PlatformAccount, uuid.UUID(account_uuid))
             if failed_account is not None:
                 failed_account.status = AccountStatus.QUARANTAINE
+            from sqlalchemy import update
+
+            await db.execute(
+                update(PhoneActivation)
+                .where(PhoneActivation.provider_order_id == order.id)
+                .values(
+                    status=(
+                        PhoneActivationStatus.CANCELLED.value
+                        if cancelled
+                        else PhoneActivationStatus.FAILED.value
+                    ),
+                    last_error=str(exc)[:500],
+                )
+            )
         raise
 
     account.status = AccountStatus.EN_CHAUFFE
@@ -539,6 +599,13 @@ async def create_lbc_account(mode: str = "A", workflow_id: str | None = None) ->
         account.status = AccountStatus.EN_CHAUFFE
         account.browser_use_profile_id = profile_id
         account.browser_use_session_id = session_id
+        from sqlalchemy import update
+
+        await db.execute(
+            update(PhoneActivation)
+            .where(PhoneActivation.provider_order_id == order.id)
+            .values(status=PhoneActivationStatus.USED.value, used_at=datetime.now(UTC))
+        )
         await db.flush()
 
     log.info("Compte créé : id=%s statut=EN_CHAUFFE warm-up 48–72h", account_uuid)

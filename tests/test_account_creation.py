@@ -4,6 +4,7 @@ Règle TDD : on mocke UNIQUEMENT boundaries.py — jamais PostgreSQL/Redis.
 Tests d'intégration tournent sur vraie DB de test (port 5433).
 """
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -15,6 +16,7 @@ from app.services.account_creation import (
     _build_patchright_launch_options,
     _build_proxy_config,
     _check_active_pool_needs_account,
+    _phone_activation_for_order,
     _verify_proxy_is_fr_carrier,
     create_lbc_account,
 )
@@ -24,6 +26,19 @@ from app.tables import PlatformAccount
 
 def _proxy(country: str = "FR", asn: str = "Orange S.A.") -> ProxyInfo:
     return ProxyInfo(url="http://user:pass@185.10.20.30:8080", asn_org=asn, country=country)
+
+
+def test_phone_activation_for_order_links_automatic_workflow(mock_buy_number) -> None:
+    order = mock_buy_number.return_value
+    account_id = uuid4()
+
+    activation = _phone_activation_for_order(order, account_id, "workflow-id")
+
+    assert activation.provider_order_id == order.id
+    assert activation.platform_account_id == account_id
+    assert activation.workflow_id == "workflow-id"
+    assert activation.origin == "automatic"
+    assert activation.status == "waiting"
 
 
 # ── Unit : _verify_proxy_is_fr_carrier ───────────────────────────────────────

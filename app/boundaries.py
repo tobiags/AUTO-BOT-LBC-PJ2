@@ -257,6 +257,18 @@ async def poll_sms(order_id: str, max_wait: int = 120) -> str | None:
     return None
 
 
+async def get_sms_activation(order_id: str) -> dict:
+    """Return the current provider state for a temporary SMS activation."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{_SMSAPP_BASE}/sms/{order_id}",
+            headers={"Authorization": f"Bearer {settings.smsapp_api_token}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, dict) else {"status": "UNKNOWN", "sms": data}
+
+
 async def cancel_number(order_id: str) -> bool:
     """Annule et rembourse un numéro OTP non utilisé."""
     async with httpx.AsyncClient(timeout=10) as client:
