@@ -42,6 +42,22 @@ class SmsStatus(StrEnum):
     RECEIVED = "received"
 
 
+class PhoneActivationStatus(StrEnum):
+    RESERVED = "reserved"
+    WAITING = "waiting"
+    RECEIVED = "received"
+    USED = "used"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    REFUNDED = "refunded"
+    FAILED = "failed"
+
+
+class PhoneActivationOrigin(StrEnum):
+    AUTOMATIC = "automatic"
+    MANUAL = "manual"
+
+
 class ListingSource(StrEnum):
     LBC = "leboncoin"
     LA_CENTRALE = "la_centrale"
@@ -334,6 +350,30 @@ class AccountOut(BaseModel):
     derniere_action: datetime | None = None
     browser_use_profile_id: str | None = None
     browser_use_session_id: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PhoneActivationOut(BaseModel):
+    id: UUID
+    provider: str
+    provider_order_id: str
+    phone_e164: str
+    country: str
+    service: str
+    cost: float
+    status: PhoneActivationStatus
+    origin: PhoneActivationOrigin
+    platform_account_id: UUID | None = None
+    workflow_id: str | None = None
+    expires_at: datetime
+    received_at: datetime | None = None
+    used_at: datetime | None = None
+    received_sms: str | None = None
+    received_code: str | None = None
+    last_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
 

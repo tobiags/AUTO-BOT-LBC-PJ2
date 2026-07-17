@@ -34,6 +34,8 @@ from app.models import (
     LbcMessageStatus,
     ListingSource,
     ListingStatus,
+    PhoneActivationOrigin,
+    PhoneActivationStatus,
     SmsStatus,
     WorkflowStatus,
 )
@@ -189,6 +191,42 @@ class PlatformAccount(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     derniere_action: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PhoneActivation(Base):
+    """Temporary provider number reserved for a short-lived OTP workflow."""
+
+    __tablename__ = "phone_activations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="smsapp")
+    provider_order_id: Mapped[str] = mapped_column(String(160), unique=True, nullable=False)
+    phone_e164: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    country: Mapped[str] = mapped_column(String(80), nullable=False)
+    service: Mapped[str] = mapped_column(String(80), nullable=False)
+    cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=PhoneActivationStatus.RESERVED, index=True
+    )
+    origin: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=PhoneActivationOrigin.AUTOMATIC
+    )
+    platform_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("platform_accounts.id", ondelete="SET NULL"),
+        index=True,
+    )
+    workflow_id: Mapped[str | None] = mapped_column(String(160), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    received_sms: Mapped[str | None] = mapped_column(Text)
+    received_code: Mapped[str | None] = mapped_column(String(20))
+    last_error: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class EmailIdentity(Base):
