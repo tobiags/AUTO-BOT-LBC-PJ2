@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -12,6 +13,16 @@ from app.services.phone_operations import (
     refresh_phone_activation,
     reserve_phone_activation,
 )
+
+
+def test_sms_status_migration_normalizes_legacy_uppercase_labels() -> None:
+    migration = Path(
+        "migrations/versions/s9j0k1l2m3n4_normalize_sms_status_labels.py"
+    ).read_text(encoding="utf-8")
+
+    assert '_rename_if_needed("SENT", "sent")' in migration
+    assert '_rename_if_needed("FAILED", "failed")' in migration
+    assert '_rename_if_needed("QUEUED", "queued")' in migration
 
 
 def test_phone_activation_out_exposes_provider_lifecycle() -> None:
